@@ -3,269 +3,83 @@ package router
 import (
 	"done-hub/controller"
 	"done-hub/middleware"
-	"done-hub/relay"
-
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func SetApiRouter(router *gin.Engine) {
-	apiRouter := router.Group("/api")
-	// 先设置通用中间件
-	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
-	apiRouter.Use(middleware.SecurityHeaders()) // 添加安全头部
-	apiRouter.Use(middleware.NoCache())         // 确保所有API接口都不缓存
+func SetApiRouter(engine *gin.Engine) {
+	api := engine.Group("/api")
+	api.Use(gzip.Gzip(gzip.DefaultCompression))
+	api.Use(middleware.CORS())
+	api.Use(middleware.SecurityHeaders())
+	api.Use(middleware.NoCache())
 
-	// metrics接口单独处理，不需要NoCache
-	apiRouter.GET("/metrics", middleware.MetricsWithBasicAuth(), gin.WrapH(promhttp.Handler()))
+	// metrics
+	api.GET("/metrics", middleware.MetricsWithBasicAuth(), gin.WrapH(promhttp.Handler()))
 
-	systemInfo := apiRouter.Group("/system_info")
-	systemInfo.Use(middleware.RootAuth())
+	// 全局限流
+	api.Use(middleware.GlobalAPIRateLimit())
+
+	// 健康检查/基础信息
+	api.GET("/status", controller.GetStatus)
+
+	// 邮件相关
+	api.GET("/verification", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
+	api.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
+	api.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
+
+	// OIDC 登录
+	api.GET("/oauth/endpoint", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.OIDCEndpoint)
+	api.GET("/oauth/oidc", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.OIDCAuth)
+	api.GET("/oauth/email/bind", middleware.CriticalRateLimit(), middleware.SessionSecurity(), middleware.UserAuth(), controller.EmailBind)
+
+	// 用户体系
+	user := api.Group("/user")
 	{
-		systemInfo.POST("/log", controller.SystemLog)
-		systemInfo.POST("/log/query", controller.SystemLogQuery)
+		user.POST("/register", controller.Register)
+		user.POST("/login", controller.Login)
+		user.GET("/logout", controller.Logout)
+
+		self := user.Group("/")
+		self.Use(middleware.UserAuth())
+		self.GET("/self", controller.GetSelf)
+		self.PUT("/self", controller.UpdateSelf)
+		self.GET("/token", controller.GenerateAccessToken)
+
+		admin := user.Group("/")
+		admin.Use(middleware.AdminAuth())
+		admin.GET("/", controller.GetUsersList)
+		admin.GET("/:id", controller.GetUser)
+		admin.POST("/", controller.CreateUser)
+		admin.PUT("/", controller.UpdateUser)
+		admin.DELETE("/:id", controller.DeleteUser)
 	}
 
-	apiRouter.POST("/telegram/:token", middleware.Telegram(), controller.TelegramBotWebHook)
-	apiRouter.Use(middleware.GlobalAPIRateLimit())
-	{
-		apiRouter.GET("/image/:id", controller.CheckImg)
-		apiRouter.GET("/status", controller.GetStatus)
-		apiRouter.GET("/notice", controller.GetNotice)
-		apiRouter.GET("/about", controller.GetAbout)
-		apiRouter.GET("/prices", middleware.PricesAuth(), middleware.CORS(), controller.GetPricesList)
-		apiRouter.GET("/ownedby", relay.GetModelOwnedBy)
-		apiRouter.GET("/available_model", middleware.CORS(), middleware.TrySetUserBySession(), relay.AvailableModel)
-		apiRouter.GET("/user_group_map", middleware.TrySetUserBySession(), controller.GetUserGroupRatio)
-		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
-		apiRouter.GET("/verification", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
-		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
-		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
-		apiRouter.GET("/oauth/github", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.GitHubOAuth)
-		apiRouter.GET("/oauth/lark", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.LarkOAuth)
-		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.GenerateOAuthCode)
-		apiRouter.POST("/oauth/invite_code", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.SetOAuthInviteCode)
-		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.WeChatAuth)
-		apiRouter.GET("/oauth/wechat/bind", middleware.CriticalRateLimit(), middleware.SessionSecurity(), middleware.UserAuth(), controller.WeChatBind)
-		apiRouter.GET("/oauth/email/bind", middleware.CriticalRateLimit(), middleware.SessionSecurity(), middleware.UserAuth(), controller.EmailBind)
+	// 选项配置（精简版配置中心）
+	option := api.Group("/option")
+	option.Use(middleware.RootAuth())
+	option.GET("/", controller.GetOptions)
+	option.PUT("/", controller.UpdateOption)
 
-		apiRouter.GET("/oauth/endpoint", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.OIDCEndpoint)
-		apiRouter.GET("/oauth/oidc", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.OIDCAuth)
+	// 支付回调
+	api.Any("/payment/notify/:uuid", controller.PaymentCallback)
 
-		apiRouter.GET("/oauth/linuxdo", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.LinuxDoOAuth)
-		apiRouter.GET("/oauth/linuxdo/bind", middleware.CriticalRateLimit(), middleware.SessionSecurity(), middleware.UserAuth(), controller.LinuxDoBind)
+	// 支付网关（管理员）
+	payment := api.Group("/payment")
+	payment.Use(middleware.AdminAuth())
+	payment.GET("/", controller.GetPaymentList)
+	payment.GET("/:id", controller.GetPayment)
+	payment.POST("/", controller.AddPayment)
+	payment.PUT("/", controller.UpdatePayment)
+	payment.DELETE("/:id", controller.DeletePayment)
 
-		apiRouter.Any("/payment/notify/:uuid", controller.PaymentCallback)
-
-		userRoute := apiRouter.Group("/user")
-		{
-			userRoute.POST("/register", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.Register)
-			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.SessionSecurity(), controller.Login)
-			userRoute.GET("/logout", middleware.SessionSecurity(), controller.Logout)
-
-			selfRoute := userRoute.Group("/")
-			selfRoute.Use(middleware.UserAuth())
-			selfRoute.Use(middleware.SessionSecurity()) // 为所有用户相关接口添加会话安全
-			{
-				selfRoute.GET("/dashboard", controller.GetUserDashboard)
-				selfRoute.GET("/dashboard/rate", controller.GetRateRealtime)
-				selfRoute.GET("/dashboard/uptimekuma/status-page", controller.UptimeKumaStatusPage)
-				selfRoute.GET("/dashboard/uptimekuma/status-page/heartbeat", controller.UptimeKumaStatusPageHeartbeat)
-				selfRoute.GET("/invoice", controller.GetUserInvoice)
-				selfRoute.GET("/invoice/detail", controller.GetUserInvoiceDetail)
-				selfRoute.GET("/self", controller.GetSelf)
-				selfRoute.PUT("/self", controller.UpdateSelf)
-				// selfRoute.DELETE("/self", controller.DeleteSelf)
-				selfRoute.GET("/token", controller.GenerateAccessToken)
-				selfRoute.GET("/aff", controller.GetAffCode)
-				selfRoute.POST("/topup", controller.TopUp)
-				selfRoute.GET("/payment", controller.GetUserPaymentList)
-				selfRoute.POST("/order", controller.CreateOrder)
-				selfRoute.GET("/order/status", controller.CheckOrderStatus)
-			}
-
-			adminRoute := userRoute.Group("/")
-			adminRoute.Use(middleware.AdminAuth())
-			{
-				adminRoute.GET("/", controller.GetUsersList)
-				adminRoute.GET("/:id", controller.GetUser)
-				adminRoute.POST("/", controller.CreateUser)
-				adminRoute.POST("/manage", controller.ManageUser)
-				adminRoute.POST("/quota/:id", controller.ChangeUserQuota)
-				adminRoute.PUT("/", controller.UpdateUser)
-				adminRoute.DELETE("/:id", controller.DeleteUser)
-			}
-		}
-		optionRoute := apiRouter.Group("/option")
-		optionRoute.Use(middleware.RootAuth())
-		{
-			optionRoute.GET("/", controller.GetOptions)
-			optionRoute.PUT("/", controller.UpdateOption)
-			optionRoute.GET("/telegram", controller.GetTelegramMenuList)
-			optionRoute.POST("/telegram", controller.AddOrUpdateTelegramMenu)
-			optionRoute.GET("/telegram/status", controller.GetTelegramBotStatus)
-			optionRoute.PUT("/telegram/reload", controller.ReloadTelegramBot)
-			optionRoute.GET("/telegram/:id", controller.GetTelegramMenu)
-			optionRoute.DELETE("/telegram/:id", controller.DeleteTelegramMenu)
-			optionRoute.GET("/safe_tools", controller.GetSafeTools)
-			optionRoute.POST("/invoice/gen/:time", controller.GenInvoice)
-			optionRoute.POST("/invoice/update/:time", controller.UpdateInvoice)
-			optionRoute.POST("/system_info/log", controller.SystemLog)
-		}
-
-		inviteCodeRoute := apiRouter.Group("/invite-code")
-		inviteCodeRoute.Use(middleware.AdminAuth())
-		{
-			inviteCodeRoute.GET("/", controller.GetInviteCodesList)
-			inviteCodeRoute.GET("/generate", controller.GenerateRandomInviteCode)
-			inviteCodeRoute.GET("/:id", controller.GetInviteCode)
-			inviteCodeRoute.POST("/", controller.CreateInviteCode)
-			inviteCodeRoute.PUT("/:id", controller.UpdateInviteCode)
-			inviteCodeRoute.DELETE("/:id", controller.DeleteInviteCode)
-			inviteCodeRoute.POST("/batch-delete", controller.BatchDeleteInviteCodes)
-		}
-
-		modelOwnedByRoute := apiRouter.Group("/model_ownedby")
-		modelOwnedByRoute.GET("/", controller.GetAllModelOwnedBy)
-		modelOwnedByRoute.Use(middleware.AdminAuth())
-		{
-			modelOwnedByRoute.GET("/:id", controller.GetModelOwnedBy)
-			modelOwnedByRoute.POST("/", controller.CreateModelOwnedBy)
-			modelOwnedByRoute.PUT("/", controller.UpdateModelOwnedBy)
-			modelOwnedByRoute.DELETE("/:id", controller.DeleteModelOwnedBy)
-		}
-
-		userGroup := apiRouter.Group("/user_group")
-		userGroup.Use(middleware.AdminAuth())
-		{
-			userGroup.GET("/", controller.GetUserGroups)
-			userGroup.GET("/:id", controller.GetUserGroupById)
-			userGroup.POST("/", controller.AddUserGroup)
-			userGroup.PUT("/enable/:id", controller.ChangeUserGroupEnable)
-			userGroup.PUT("/", controller.UpdateUserGroup)
-			userGroup.DELETE("/:id", controller.DeleteUserGroup)
-
-		}
-		channelRoute := apiRouter.Group("/channel")
-		channelRoute.Use(middleware.AdminAuth())
-		{
-			channelRoute.GET("/", controller.GetChannelsList)
-			channelRoute.GET("/models", relay.ListModelsForAdmin)
-			channelRoute.POST("/provider_models_list", controller.GetModelList)
-			channelRoute.GET("/:id", controller.GetChannel)
-			channelRoute.GET("/test", controller.TestAllChannels)
-			channelRoute.GET("/test/:id", controller.TestChannel)
-			channelRoute.GET("/update_balance", controller.UpdateAllChannelsBalance)
-			channelRoute.GET("/update_balance/:id", controller.UpdateChannelBalance)
-			channelRoute.POST("/", controller.AddChannel)
-			channelRoute.PUT("/", controller.UpdateChannel)
-			channelRoute.PUT("/batch/azure_api", controller.BatchUpdateChannelsAzureApi)
-			channelRoute.PUT("/batch/del_model", controller.BatchDelModelChannels)
-			channelRoute.PUT("/batch/add_model", controller.BatchAddModelToChannels)
-			channelRoute.PUT("/batch/add_user_group", controller.BatchAddUserGroupToChannels)
-			channelRoute.DELETE("/disabled", controller.DeleteDisabledChannel)
-			channelRoute.DELETE("/:id/tag", controller.DeleteChannelTag)
-			channelRoute.DELETE("/:id", controller.DeleteChannel)
-			channelRoute.DELETE("/batch", controller.BatchDeleteChannel)
-		}
-		channelTagRoute := apiRouter.Group("/channel_tag")
-		channelTagRoute.Use(middleware.AdminAuth())
-		{
-			channelTagRoute.GET("/_all", controller.GetChannelsTagAllList)
-			channelTagRoute.GET("/:tag/list", controller.GetChannelsTagList)
-			channelTagRoute.GET("/:tag", controller.GetChannelsTag)
-			channelTagRoute.PUT("/:tag", controller.UpdateChannelsTag)
-			channelTagRoute.DELETE("/:tag", controller.DeleteChannelsTag)
-			channelTagRoute.DELETE("/:tag/disabled", controller.DeleteDisabledChannelsTag)
-			channelTagRoute.PUT("/:tag/priority", controller.UpdateChannelsTagPriority)
-			channelTagRoute.PUT("/:tag/status/:status", controller.ChangeChannelsTagStatus)
-
-		}
-
-		tokenRoute := apiRouter.Group("/token")
-		tokenRoute.Use(middleware.UserAuth())
-		{
-			tokenRoute.GET("/playground", controller.GetPlaygroundToken)
-			tokenRoute.GET("/", controller.GetUserTokensList)
-			tokenRoute.GET("/:id", controller.GetToken)
-			tokenRoute.POST("/", controller.AddToken)
-			tokenRoute.PUT("/", controller.UpdateToken)
-			tokenRoute.DELETE("/:id", controller.DeleteToken)
-		}
-		redemptionRoute := apiRouter.Group("/redemption")
-		redemptionRoute.Use(middleware.AdminAuth())
-		{
-			redemptionRoute.GET("/", controller.GetRedemptionsList)
-			redemptionRoute.GET("/:id", controller.GetRedemption)
-			redemptionRoute.POST("/", controller.AddRedemption)
-			redemptionRoute.PUT("/", controller.UpdateRedemption)
-			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
-		}
-		logRoute := apiRouter.Group("/log")
-		{
-			logRoute.GET("/", middleware.AdminAuth(), controller.GetLogsList)
-			logRoute.GET("/export", middleware.AdminAuth(), controller.ExportLogsList)
-			logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
-			logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
-			logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
-			// logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
-			logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogsList)
-			logRoute.GET("/self/export", middleware.UserAuth(), controller.ExportUserLogsList)
-			// logRoute.GET("/self/search", middleware.UserAuth(), controller.SearchUserLogs)
-		}
-		groupRoute := apiRouter.Group("/group")
-		groupRoute.Use(middleware.AdminAuth())
-		{
-			groupRoute.GET("/", controller.GetGroups)
-		}
-
-		analyticsRoute := apiRouter.Group("/analytics")
-		analyticsRoute.Use(middleware.AdminAuth())
-		{
-			analyticsRoute.GET("/statistics", controller.GetStatisticsDetail)
-			analyticsRoute.GET("/period", controller.GetStatisticsByPeriod)
-			analyticsRoute.GET("/recharge", controller.GetRechargeStatisticsByTimeRange)
-		}
-
-		pricesRoute := apiRouter.Group("/prices")
-		pricesRoute.Use(middleware.AdminAuth())
-		{
-			pricesRoute.GET("/model_list", controller.GetAllModelList)
-			pricesRoute.POST("/single", controller.AddPrice)
-			pricesRoute.PUT("/single/*model", controller.UpdatePrice)
-			pricesRoute.DELETE("/single/*model", controller.DeletePrice)
-			pricesRoute.POST("/multiple", controller.BatchSetPrices)
-			pricesRoute.PUT("/multiple/delete", controller.BatchDeletePrices)
-			pricesRoute.POST("/sync", controller.SyncPricing)
-			pricesRoute.GET("/updateService", controller.GetUpdatePriceService)
-
-		}
-
-		paymentRoute := apiRouter.Group("/payment")
-		paymentRoute.Use(middleware.AdminAuth())
-		{
-			paymentRoute.GET("/order", controller.GetOrderList)
-			paymentRoute.GET("/", controller.GetPaymentList)
-			paymentRoute.GET("/:id", controller.GetPayment)
-			paymentRoute.POST("/", controller.AddPayment)
-			paymentRoute.PUT("/", controller.UpdatePayment)
-			paymentRoute.DELETE("/:id", controller.DeletePayment)
-		}
-
-		mjRoute := apiRouter.Group("/mj")
-		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
-		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
-
-		taskRoute := apiRouter.Group("/task")
-		taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserAllTask)
-		taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
-	}
-
-	sseRouter := router.Group("/api/sse")
-	sseRouter.Use(middleware.GlobalAPIRateLimit())
-	{
-		sseRouter.POST("/channel/check", middleware.AdminAuth(), controller.CheckChannel)
-	}
-
+	// 订单（用户发起与查询；管理员查询列表）
+	order := api.Group("/order")
+	order.Use(middleware.UserAuth())
+	order.POST("/", controller.CreateOrder)
+	order.GET("/status", controller.CheckOrderStatus)
+	orderAdmin := api.Group("/order")
+	orderAdmin.Use(middleware.AdminAuth())
+	orderAdmin.GET("/", controller.GetOrderList)
 }

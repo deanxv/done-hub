@@ -7,7 +7,6 @@ import (
 	"done-hub/common/utils"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,17 +24,8 @@ func SetupDB() {
 	if err != nil {
 		logger.FatalLog("failed to initialize database: " + err.Error())
 	}
-	ChannelGroup.Load()
-	GlobalUserGroupRatio.Load()
+	// 仅保留 RootEmail 初始化
 	config.RootUserEmail = GetRootUserEmail()
-	NewModelOwnedBys()
-
-	if viper.GetBool("batch_update_enabled") {
-		config.BatchUpdateEnabled = true
-		config.BatchUpdateInterval = utils.GetOrDefault("batch_update_interval", 5)
-		logger.SysLog("batch update enabled with interval " + strconv.Itoa(config.BatchUpdateInterval) + "s")
-		InitBatchUpdater()
-	}
 }
 
 func createRootAccountIfNeed() error {
@@ -54,7 +44,6 @@ func createRootAccountIfNeed() error {
 			Status:      config.UserStatusEnabled,
 			DisplayName: "Root User",
 			AccessToken: utils.GetUUID(),
-			Quota:       100000000,
 		}
 		DB.Create(&rootUser)
 	}
@@ -118,90 +107,19 @@ func InitDB() (err error) {
 		}
 		logger.SysLog("database migration started")
 
-		migrationBefore(DB)
-
-		err = db.AutoMigrate(&Channel{})
-		if err != nil {
+		// 最小骨架仅迁移用户/选项/支付网关/订单
+		if err = db.AutoMigrate(&User{}); err != nil {
 			return err
 		}
-		err = db.AutoMigrate(&Token{})
-		if err != nil {
+		if err = db.AutoMigrate(&Option{}); err != nil {
 			return err
 		}
-		err = db.AutoMigrate(&User{})
-		if err != nil {
+		if err = db.AutoMigrate(&Payment{}); err != nil {
 			return err
 		}
-		err = db.AutoMigrate(&Option{})
-		if err != nil {
+		if err = db.AutoMigrate(&Order{}); err != nil {
 			return err
 		}
-		err = db.AutoMigrate(&Redemption{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&Log{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&TelegramMenu{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&Price{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&Midjourney{})
-		if err != nil {
-			return err
-		}
-
-		err = db.AutoMigrate(&Payment{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&Order{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&Task{})
-		if err != nil {
-			return err
-		}
-		err = db.AutoMigrate(&Statistics{})
-		if err != nil {
-			return err
-		}
-
-		err = db.AutoMigrate(&UserGroup{})
-		if err != nil {
-			return err
-		}
-
-		err = db.AutoMigrate(&ModelOwnedBy{})
-		if err != nil {
-			return err
-		}
-
-		err = db.AutoMigrate(&InviteCode{})
-		if err != nil {
-			return err
-		}
-
-		if config.UserInvoiceMonth {
-			err = db.AutoMigrate(&StatisticsMonthGeneratedHistory{})
-			if err != nil {
-				return err
-			}
-
-			err = db.AutoMigrate(&StatisticsMonth{})
-			if err != nil {
-				return err
-			}
-		}
-
-		migrationAfter(DB)
 
 		logger.SysLog("database migrated")
 		err = createRootAccountIfNeed()
@@ -239,6 +157,8 @@ func CloseDB() error {
 	return err
 }
 
+// setTableComments 为已迁移的表设置表级注释（MySQL/PostgreSQL）
+// 保留最小框架：不做额外表注释设置
 func dsnAddArg(dsn string, arg string, value string) string {
 	// 如果是MySQL 需要转义
 	if !common.UsingPostgreSQL {

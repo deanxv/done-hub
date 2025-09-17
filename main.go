@@ -1,27 +1,21 @@
 package main
 
+// @title Done Hub Minimal API
+// @version 1.0
+// @description Minimal backend framework APIs (users, auth, options, payment, order, status).
+// @BasePath /api
+
 import (
 	"done-hub/cli"
-	"done-hub/common"
-	"done-hub/common/cache"
 	"done-hub/common/config"
 	"done-hub/common/logger"
-	"done-hub/common/notify"
 	"done-hub/common/oidc"
 	"done-hub/common/redis"
-	"done-hub/common/requester"
-	"done-hub/common/search"
-	"done-hub/common/storage"
-	"done-hub/common/telegram"
-	"done-hub/controller"
 	"done-hub/cron"
+	_ "done-hub/docs" // swagger docs
 	"done-hub/middleware"
 	"done-hub/model"
-	"done-hub/relay/task"
 	"done-hub/router"
-	"done-hub/safty"
-	"embed"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -32,10 +26,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-//go:embed web/build
-var buildFS embed.FS
-
-//go:embed web/build/index.html
+// Note: indexPage left empty; router will serve a simple fallback page when empty.
 var indexPage []byte
 
 func main() {
@@ -56,74 +47,22 @@ func main() {
 	}
 
 	logger.SetupLogger()
-	logger.SysLog("Done Hub " + config.Version + " started")
-
-	// Initialize user token
-	err := common.InitUserToken()
-	if err != nil {
-		logger.FatalLog("failed to initialize user token: " + err.Error())
-	}
+	logger.SysLog("Framework started: " + config.Version)
 
 	// Initialize SQL Database
 	model.SetupDB()
 	defer model.CloseDB()
-	// Initialize Redis
+	// Initialize Redis (optional)
 	redis.InitRedisClient()
-	cache.InitCacheManager()
-	// Initialize invite code lock system
-	model.InitInviteCodeLock()
 	// Initialize options
 	model.InitOptionMap()
-	// Initialize oidc
+	// Initialize OIDC (if enabled)
 	oidc.InitOIDCConfig()
-	model.NewPricing()
-	model.HandleOldTokenMaxId()
 
-	initMemoryCache()
-	initSync()
-
-	common.InitTokenEncoders()
-	requester.InitHttpClient()
-	// Initialize Telegram bot
-	telegram.InitTelegramBot()
-
-	controller.InitMidjourneyTask()
-	task.InitTask()
-	notify.InitNotifier()
+	// Initialize Cron (mock tasks kept for extension)
 	cron.InitCron()
-	storage.InitStorage()
-	search.InitSearcher()
-	// 初始化安全检查器
-	safty.InitSaftyTools()
-	// 初始化账单数据
-	if config.UserInvoiceMonth {
-		logger.SysLog("Enable User Invoice Monthly Data")
-		go model.InsertStatisticsMonth()
-	}
+
 	initHttpServer()
-}
-
-func initMemoryCache() {
-	if viper.GetBool("memory_cache_enabled") {
-		config.MemoryCacheEnabled = true
-	}
-
-	if !config.MemoryCacheEnabled {
-		return
-	}
-
-	syncFrequency := viper.GetInt("sync_frequency")
-	model.TokenCacheSeconds = syncFrequency
-
-	logger.SysLog("memory cache enabled")
-	logger.SysLog(fmt.Sprintf("sync frequency: %d seconds", syncFrequency))
-	go model.SyncOptions(syncFrequency)
-	go SyncChannelCache(syncFrequency)
-}
-
-func initSync() {
-	// go controller.AutomaticallyUpdateChannels(viper.GetInt("channel.update_frequency"))
-	go controller.AutomaticallyTestChannels(viper.GetInt("channel.test_frequency"))
 }
 
 func initHttpServer() {
@@ -136,6 +75,7 @@ func initHttpServer() {
 	server.Use(middleware.RequestId())
 	middleware.SetUpLogger(server)
 
+	// 可选：反向代理可信IP头部
 	trustedHeader := viper.GetString("trusted_header")
 	if trustedHeader != "" {
 		server.TrustedPlatform = trustedHeader
@@ -156,26 +96,11 @@ func initHttpServer() {
 
 	server.Use(sessions.Sessions("session", store))
 
-	router.SetRouter(server, buildFS, indexPage)
+	router.SetRouter(server, indexPage)
 	port := viper.GetString("port")
 
 	err := server.Run(":" + port)
 	if err != nil {
 		logger.FatalLog("failed to start HTTP server: " + err.Error())
-	}
-}
-
-func SyncChannelCache(frequency int) {
-	// 只有 从 服务器端获取数据的时候才会用到
-	if config.IsMasterNode {
-		logger.SysLog("master node does't synchronize the channel")
-		return
-	}
-	for {
-		time.Sleep(time.Duration(frequency) * time.Second)
-		logger.SysLog("syncing channels from database")
-		model.ChannelGroup.Load()
-		model.PricingInstance.Init()
-		model.ModelOwnedBysInstance.Load()
 	}
 }

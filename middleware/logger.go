@@ -51,11 +51,6 @@ func GinzapWithConfig() gin.HandlerFunc {
 			zap.String("user-agent", c.Request.UserAgent()),
 			zap.Duration("latency", latency),
 			zap.Int("user_id", userID),
-			zap.String("original_model", c.GetString("original_model")),
-			zap.String("new_model", c.GetString("new_model")),
-			zap.Int("token_id", c.GetInt("token_id")),
-			zap.String("token_name", c.GetString("token_name")),
-			zap.Int("channel_id", c.GetInt("channel_id")),
 		}
 
 		if len(c.Errors) > 0 {

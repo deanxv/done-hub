@@ -11,6 +11,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetPaymentList godoc
+// @Summary List payments (admin)
+// @Description 获取支付网关列表（管理员）
+// @Tags Payment
+// @Produce json
+// @Param page query int false "页码"
+// @Param size query int false "每页数量"
+// @Param order query string false "排序"
+// @Success 200 {object} map[string]interface{}
+// @Router /payment/ [get]
 func GetPaymentList(c *gin.Context) {
 	var params model.SearchPaymentParams
 	if err := c.ShouldBindQuery(&params); err != nil {
@@ -30,6 +40,14 @@ func GetPaymentList(c *gin.Context) {
 	})
 }
 
+// GetPayment godoc
+// @Summary Get payment (admin)
+// @Description 获取支付网关详情（管理员）
+// @Tags Payment
+// @Produce json
+// @Param id path int true "网关ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /payment/{id} [get]
 func GetPayment(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -55,6 +73,15 @@ func GetPayment(c *gin.Context) {
 	})
 }
 
+// AddPayment godoc
+// @Summary Create payment (admin)
+// @Description 新增支付网关（管理员）
+// @Tags Payment
+// @Accept json
+// @Produce json
+// @Param body body model.Payment true "网关信息"
+// @Success 201 {object} map[string]interface{}
+// @Router /payment/ [post]
 func AddPayment(c *gin.Context) {
 	payment := model.Payment{}
 	err := c.ShouldBindJSON(&payment)
@@ -92,6 +119,15 @@ func AddPayment(c *gin.Context) {
 	})
 }
 
+// UpdatePayment godoc
+// @Summary Update payment (admin)
+// @Description 更新支付网关（管理员）
+// @Tags Payment
+// @Accept json
+// @Produce json
+// @Param body body model.Payment true "网关信息"
+// @Success 200 {object} map[string]interface{}
+// @Router /payment/ [put]
 func UpdatePayment(c *gin.Context) {
 	payment := model.Payment{}
 	err := c.ShouldBindJSON(&payment)
@@ -119,6 +155,14 @@ func UpdatePayment(c *gin.Context) {
 	})
 }
 
+// DeletePayment godoc
+// @Summary Delete payment (admin)
+// @Description 删除支付网关（管理员）
+// @Tags Payment
+// @Produce json
+// @Param id path int true "网关ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /payment/{id} [delete]
 func DeletePayment(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -144,6 +188,13 @@ func DeletePayment(c *gin.Context) {
 	})
 }
 
+// GetUserPaymentList godoc
+// @Summary List enabled payments (user)
+// @Description 获取可用支付网关（用户）
+// @Tags Payment
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /payment/user [get]
 func GetUserPaymentList(c *gin.Context) {
 	payments, err := model.GetUserPaymentList()
 	if err != nil {

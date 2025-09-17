@@ -3,20 +3,13 @@ package controller
 import (
 	"done-hub/common"
 	"done-hub/common/config"
-	"done-hub/common/limit"
 	"done-hub/common/utils"
 	"done-hub/model"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
-
 	"time"
-
-	"gorm.io/gorm"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -70,6 +63,15 @@ func getFriendlyValidationMessage(err error) string {
 	return "输入参数不符合要求"
 }
 
+// Login godoc
+// @Summary User login
+// @Description 用户名密码登录
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param body body LoginRequest true "登录请求"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/login [post]
 func Login(c *gin.Context) {
 	if !config.PasswordLoginEnabled {
 		c.JSON(http.StatusOK, gin.H{
@@ -145,6 +147,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 	})
 }
 
+// Logout godoc
+// @Summary User logout
+// @Description 注销当前会话
+// @Tags User
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /user/logout [get]
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
@@ -162,31 +171,41 @@ func Logout(c *gin.Context) {
 	})
 }
 
+// Register 保留最小化的用户名+密码注册能力；移除邀请码/返利等业务逻辑。
+// Register godoc
+// @Summary User register
+// @Description 用户注册（用户名+密码，可选邮箱验证）
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param body body model.User true "注册信息"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/register [post]
 func Register(c *gin.Context) {
 	if !config.RegisterEnabled {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员关闭了新用户注册",
 			"success": false,
+			"message": "管理员关闭了新用户注册",
 		})
 		return
 	}
 	if !config.PasswordRegisterEnabled {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员关闭了通过密码进行注册，请使用第三方账户验证的形式进行注册",
 			"success": false,
+			"message": "管理员关闭了通过密码进行注册",
 		})
 		return
 	}
+
 	var user model.User
-	err := c.ShouldBindJSON(&user)
-	if err != nil {
+	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "无效的参数",
 		})
 		return
 	}
-	// 密码注册特定验证
+
 	if strings.TrimSpace(user.Password) == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -196,7 +215,6 @@ func Register(c *gin.Context) {
 	}
 
 	if err := common.Validate.Struct(&user); err != nil {
-		// 友好的验证错误提示
 		friendlyMessage := getFriendlyValidationMessage(err)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -204,6 +222,8 @@ func Register(c *gin.Context) {
 		})
 		return
 	}
+
+	// 可选：邮箱验证（若启用）
 	if config.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			c.JSON(http.StatusOK, gin.H{
@@ -212,8 +232,6 @@ func Register(c *gin.Context) {
 			})
 			return
 		}
-
-		// 严格验证邮箱格式
 		if err := common.ValidateEmailStrict(user.Email); err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -221,7 +239,6 @@ func Register(c *gin.Context) {
 			})
 			return
 		}
-
 		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -231,104 +248,21 @@ func Register(c *gin.Context) {
 		}
 	}
 
-	// 邀请码基本验证（仅适用于密码注册，三方登录注册不需要邀请码）
-	if config.InviteCodeRegisterEnabled {
-		if user.InviteCode == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员开启了邀请码注册，请输入邀请码",
-			})
-			return
-		}
-	}
-
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
-		InviterId:   inviterId,
 	}
-
-	// 只有启用邀请码注册时才保存使用的邀请码
-	if config.InviteCodeRegisterEnabled && user.InviteCode != "" {
-		cleanUser.UsedInviteCode = user.InviteCode
-	}
-
 	if config.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
 
-	// 如果需要使用邀请码，先获取锁（按照order.go的模式）
-	if config.InviteCodeRegisterEnabled && user.InviteCode != "" {
-		// 优先使用Redis分布式锁，失败时使用内存锁
-		if config.RedisEnabled {
-			mutex, lockErr := model.AcquireInviteCodeLock(user.InviteCode)
-			if lockErr == nil && mutex != nil {
-				defer func() {
-					unlockOk, unlockErr := mutex.Unlock()
-					if unlockErr != nil || !unlockOk {
-						// 注册过程中的解锁失败不应该影响用户注册结果，只记录日志
-						// logger.SysError(fmt.Sprintf("failed to unlock invite code %s: ok=%v, err=%v", user.InviteCode, unlockOk, unlockErr))
-					}
-				}()
-			} else {
-				// Redis锁失败，降级到内存锁
-				model.LockInviteCode(user.InviteCode)
-				defer model.UnlockInviteCode(user.InviteCode)
-			}
-		} else {
-			// 无Redis时使用内存锁
-			model.LockInviteCode(user.InviteCode)
-			defer model.UnlockInviteCode(user.InviteCode)
-		}
-
-		// 在锁保护下验证邀请码（防止TOCTOU攻击）
-		err := model.CheckInviteCode(user.InviteCode)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
-	}
-
-	// 使用事务确保用户创建和邀请码使用的原子性
-	err = model.DB.Transaction(func(tx *gorm.DB) error {
-		// 在事务中创建用户
-		if err := cleanUser.InsertWithTx(tx, inviterId); err != nil {
-			return err
-		}
-
-		// 在事务中增加邀请码使用次数
-		if config.InviteCodeRegisterEnabled && user.InviteCode != "" {
-			if err := model.UseInviteCodeWithTx(tx, user.InviteCode); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	if err := cleanUser.Insert(0); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
-	}
-
-	// 事务提交成功后，刷新相关缓存
-	if config.RedisEnabled {
-		// 刷新用户配额缓存（如果有邀请奖励）
-		if inviterId != 0 && config.QuotaForInviter > 0 {
-			model.CacheUpdateUserQuota(inviterId)
-		}
-		if config.QuotaForInvitee > 0 {
-			model.CacheUpdateUserQuota(cleanUser.Id)
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -337,6 +271,17 @@ func Register(c *gin.Context) {
 	})
 }
 
+// GetUsersList godoc
+// @Summary List users (admin)
+// @Description 获取用户列表（管理员）
+// @Tags Admin
+// @Produce json
+// @Param page query int false "页码"
+// @Param size query int false "每页数量"
+// @Param order query string false "排序，如 -id,username"
+// @Param keyword query string false "搜索关键字"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/ [get]
 func GetUsersList(c *gin.Context) {
 	var params model.GenericParams
 	if err := c.ShouldBindQuery(&params); err != nil {
@@ -356,6 +301,14 @@ func GetUsersList(c *gin.Context) {
 	})
 }
 
+// GetUser godoc
+// @Summary Get user (admin)
+// @Description 获取用户详情（管理员）
+// @Tags Admin
+// @Produce json
+// @Param id path int true "用户ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/{id} [get]
 func GetUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -390,72 +343,18 @@ func GetUser(c *gin.Context) {
 
 const API_LIMIT_KEY = "api-limiter:%d"
 
-func GetRateRealtime(c *gin.Context) {
-	id := c.GetInt("id")
-	user, err := model.GetUserById(id, false)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	limiter := model.GlobalUserGroupRatio.GetAPILimiter(user.Group)
-	key := fmt.Sprintf(API_LIMIT_KEY, id)
-	// 获取当前已使用的速率
-	rpm, err := limiter.GetCurrentRate(key)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	maxRPM := limit.GetMaxRate(limiter)
-	var usageRpmRate float64 = 0
-	if maxRPM > 0 {
-		usageRpmRate = math.Floor(float64(rpm)/float64(maxRPM)*100*100) / 100
-	}
+// 已移除与速率/分组/配额相关的统计接口
 
-	data := map[string]interface{}{
-		"rpm":          rpm,
-		"maxRPM":       maxRPM,
-		"usageRpmRate": usageRpmRate,
-		"tpm":          0,
-		"maxTPM":       0,
-		"usageTpmRate": 0,
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
-}
+// 已移除与统计看板相关接口
 
-func GetUserDashboard(c *gin.Context) {
-	id := c.GetInt("id")
-
-	now := time.Now()
-	toDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endOfDay := toDay.Add(-time.Second).Add(time.Hour * 24).Format("2006-01-02")
-	startOfDay := toDay.AddDate(0, 0, -7).Format("2006-01-02")
-
-	dashboards, err := model.GetUserModelStatisticsByPeriod(id, startOfDay, endOfDay)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无法获取统计信息.",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    dashboards,
-	})
-}
-
+// 生成用户 AccessToken（用于无 Session 的 API 调用）
+// GenerateAccessToken godoc
+// @Summary Generate access token
+// @Description 生成用户 AccessToken（无 Session 的 API 鉴权使用）
+// @Tags User
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /user/token [get]
 func GenerateAccessToken(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
@@ -491,33 +390,15 @@ func GenerateAccessToken(c *gin.Context) {
 	})
 }
 
-func GetAffCode(c *gin.Context) {
-	id := c.GetInt("id")
-	user, err := model.GetUserById(id, true)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	if user.AffCode == "" {
-		user.AffCode = utils.GetRandomString(4)
-		if err := user.Update(false); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    user.AffCode,
-	})
-}
+// 已移除推广码接口
 
+// GetSelf godoc
+// @Summary Get self profile
+// @Description 获取当前用户信息
+// @Tags User
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /user/self [get]
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, false)
@@ -529,11 +410,7 @@ func GetSelf(c *gin.Context) {
 		return
 	}
 
-	// 实时计算邀请人数
-	affCount, err := model.GetUserInviteCount(id)
-	if err == nil {
-		user.AffCount = int(affCount)
-	}
+	// 邀请相关统计在最小版中移除
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -542,6 +419,15 @@ func GetSelf(c *gin.Context) {
 	})
 }
 
+// UpdateUser godoc
+// @Summary Update user (admin)
+// @Description 更新用户信息（管理员）
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Param body body model.User true "用户信息"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/ [put]
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
 	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
@@ -607,15 +493,21 @@ func UpdateUser(c *gin.Context) {
 		})
 		return
 	}
-	if originUser.Quota != updatedUser.Quota {
-		model.RecordLog(originUser.Id, model.LogTypeManage, fmt.Sprintf("管理员将用户额度从 %s修改为 %s", common.LogQuota(originUser.Quota), common.LogQuota(updatedUser.Quota)))
-	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 	})
 }
 
+// UpdateSelf godoc
+// @Summary Update self profile
+// @Description 更新当前用户信息
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param body body model.User true "用户信息"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/self [put]
 func UpdateSelf(c *gin.Context) {
 	var user model.User
 	err := json.NewDecoder(c.Request.Body).Decode(&user)
@@ -662,6 +554,14 @@ func UpdateSelf(c *gin.Context) {
 	})
 }
 
+// DeleteUser godoc
+// @Summary Delete user (admin)
+// @Description 删除用户（管理员）
+// @Tags Admin
+// @Produce json
+// @Param id path int true "用户ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/{id} [delete]
 func DeleteUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -697,6 +597,15 @@ func DeleteUser(c *gin.Context) {
 	}
 }
 
+// CreateUser godoc
+// @Summary Create user (admin)
+// @Description 创建用户（管理员）
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Param body body model.User true "用户信息"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/ [post]
 func CreateUser(c *gin.Context) {
 	var user model.User
 	err := c.ShouldBindJSON(&user)
@@ -782,6 +691,15 @@ type ManageRequest struct {
 }
 
 // ManageUser Only admin user can do this
+// ManageUser godoc
+// @Summary Manage user (admin)
+// @Description 管理用户（封禁、升级/降级等）
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Param body body ManageRequest true "管理操作"
+// @Success 200 {object} map[string]interface{}
+// @Router /user/manage [post]
 func ManageUser(c *gin.Context) {
 	var req ManageRequest
 	err := json.NewDecoder(c.Request.Body).Decode(&req)
@@ -897,6 +815,15 @@ func ManageUser(c *gin.Context) {
 	})
 }
 
+// EmailBind godoc
+// @Summary Bind email with code
+// @Description 绑定邮箱
+// @Tags User
+// @Produce json
+// @Param email query string true "邮箱"
+// @Param code query string true "验证码"
+// @Success 200 {object} map[string]interface{}
+// @Router /oauth/email/bind [get]
 func EmailBind(c *gin.Context) {
 	email := c.Query("email")
 	code := c.Query("code")
@@ -950,76 +877,6 @@ type topUpRequest struct {
 	Key string `json:"key"`
 }
 
-func TopUp(c *gin.Context) {
-	req := topUpRequest{}
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	id := c.GetInt("id")
-	quota, err := model.Redeem(req.Key, id, c.ClientIP())
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    quota,
-	})
-}
+// 已移除充值相关接口
 
-type ChangeUserQuotaRequest struct {
-	Quota  int    `json:"quota" form:"quota"`
-	Remark string `json:"remark" form:"remark"`
-}
-
-func ChangeUserQuota(c *gin.Context) {
-	userId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	var req ChangeUserQuotaRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.APIRespondWithError(c, http.StatusOK, err)
-		return
-	}
-
-	if req.Quota == 0 {
-		common.APIRespondWithError(c, http.StatusOK, errors.New("不能为0"))
-		return
-	}
-
-	err = model.ChangeUserQuota(userId, req.Quota, false)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-
-	remark := fmt.Sprintf("管理员增减用户额度 %s", common.LogQuota(req.Quota))
-
-	if req.Remark != "" {
-		remark = fmt.Sprintf("%s, 备注: %s", remark, req.Remark)
-	}
-
-	model.RecordQuotaLog(userId, model.LogTypeManage, req.Quota, c.ClientIP(), remark)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-}
+// 已移除修改配额接口

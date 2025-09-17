@@ -57,7 +57,7 @@ func InitCli() {
 }
 
 func help() {
-	fmt.Println("Done Hub " + config.Version + " - All in Done Hub service for OpenAI API.")
+	fmt.Println("Done Hub " + config.Version + " - Minimal backend service framework.")
 	fmt.Println("Copyright (C) 2025 deanxv. All rights reserved.")
 	fmt.Println("Original copyright holder: JustSong")
 	fmt.Println("GitHub: https://github.com/deanxv/done-hub")

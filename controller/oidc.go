@@ -2,263 +2,176 @@ package controller
 
 import (
 	"context"
-	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/oidc"
 	"done-hub/common/utils"
 	"done-hub/model"
-	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
-	"net/http"
 )
 
+// OIDCEndpoint 返回登录跳转地址（或直接 302 重定向也可）
+// OIDCEndpoint godoc
+// @Summary Get OIDC login URL
+// @Description 返回 OIDC 登录跳转地址
+// @Tags OIDC
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /oauth/endpoint [get]
 func OIDCEndpoint(c *gin.Context) {
 	if !config.OIDCAuthEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员未开启通过OIDC登录",
-			"success": false,
-		})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "未启用OIDC"})
 		return
 	}
-	oidcConfig, err := oidc.GetOIDCConfigInstance()
+	cfg, err := oidc.GetOIDCConfigInstance()
 	if err != nil {
-		logger.SysError("获取 OIDC 配置失败, err: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{
-			"message": "获取 OIDC 配置失败",
-			"success": false,
-		})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	// 生成并保存 state
+	state := utils.GetRandomString(16)
 	session := sessions.Default(c)
-	state := utils.GetRandomString(12)
-	session.Set("oauth_state", state)
-	loginURL := oidcConfig.LoginURL(state)
-	err = session.Save()
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    loginURL,
-	})
+	session.Set("oidc_state", state)
+	_ = session.Save()
+
+	loginURL := cfg.LoginURL(state)
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": loginURL})
 }
 
-// OIDCAuth 通过OIDC登录
-// 首先通过OIDC ID进行登录、如果登录失败尝试使用USERNAME 进行登录（遵循用户禁用条件），如果OIDC ID和USERNAME都不存在则注册新用户（遵循是否开启注册功能条件）
+// OIDCAuth 回调入口：校验 state -> 交换 code -> 校验IDToken -> 登陆/创建用户
+// OIDCAuth godoc
+// @Summary OIDC callback
+// @Description OIDC 回调，内部完成用户登录或创建
+// @Tags OIDC
+// @Produce json
+// @Param state query string true "state"
+// @Param code  query string true "授权码"
+// @Success 200 {object} map[string]interface{}
+// @Router /oauth/oidc [get]
 func OIDCAuth(c *gin.Context) {
 	if !config.OIDCAuthEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员未开启通过OIDC登录",
-			"success": false,
-		})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "未启用OIDC"})
+		return
+	}
+	cfg, err := oidc.GetOIDCConfigInstance()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
-	// 验证state参数
+	// 校验 state
 	session := sessions.Default(c)
+	stateInSession, _ := session.Get("oidc_state").(string)
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "state is empty or not same",
-		})
+	if state == "" || stateInSession == "" || state != stateInSession {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "非法的回调请求"})
 		return
 	}
 
-	// 获取OIDC配置
-	oidcConfig, err := oidc.GetOIDCConfigInstance()
-	if err != nil {
-		logger.SysError("获取 OIDC 配置失败, err: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{
-			"message": "获取 OIDC 配置失败",
-			"success": false,
-		})
-		return
-	}
-
-	// 处理授权码并获取token
 	code := c.Query("code")
-	ctx := context.Background()
-	token, err := oidcConfig.OAuth2Config.Exchange(ctx, code)
+	if code == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "缺少授权码"})
+		return
+	}
+
+	// 交换 token
+	token, err := cfg.OAuth2Config.Exchange(context.Background(), code)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Failed to exchange token: %v", err)
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权失败: " + err.Error()})
 		return
 	}
 
-	// 验证ID Token
-	idToken, err := oidcConfig.Verifier.Verify(ctx, token.Extra("id_token").(string))
+	rawIDToken, _ := token.Extra("id_token").(string)
+	if rawIDToken == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权失败：缺少ID Token"})
+		return
+	}
+
+	idToken, err := cfg.Verifier.Verify(context.Background(), rawIDToken)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Failed to verify ID token: %v", err)
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "ID Token 验证失败: " + err.Error()})
 		return
 	}
 
-	// 检测OIDC用户ID
-	if idToken.Subject == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "ID Token 中没有 Subject",
-		})
-		return
-	}
-
-	// 解析用户信息
-	claims := make(map[string]interface{})
+	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
-		c.String(http.StatusBadRequest, "Failed to parse claims: %v", err)
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析ID Token失败: " + err.Error()})
 		return
 	}
 
-	// 获取用户名
-	userName, ok := claims[config.OIDCUsernameClaims]
-	if !ok || userName == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "用户没有OIDC登录权限",
-			"success": false,
-		})
-		return
+	// 优先使用配置声明字段作为用户名
+	username := ""
+	if claimKey := strings.TrimSpace(config.OIDCUsernameClaims); claimKey != "" {
+		if v, ok := claims[claimKey]; ok {
+			username = fmt.Sprint(v)
+		}
+	}
+	if username == "" {
+		if v, ok := claims["preferred_username"]; ok {
+			username = fmt.Sprint(v)
+		} else if v, ok := claims["email"]; ok {
+			username = fmt.Sprint(v)
+		} else if v, ok := claims["sub"]; ok {
+			username = fmt.Sprint(v)
+		}
+	}
+	if username == "" {
+		username = "user_" + utils.GetRandomString(6)
 	}
 
-	// 初始化用户对象
-	user := model.User{
-		Username: userName.(string),
-		OidcId:   idToken.Subject,
+	// 尝试读取 email 与 sub 用于绑定
+	email := ""
+	if v, ok := claims["email"]; ok {
+		email = fmt.Sprint(v)
+	}
+	sub := ""
+	if v, ok := claims["sub"]; ok {
+		sub = fmt.Sprint(v)
 	}
 
-	// 尝试通过OIDCid查询用户
-	if err = user.FillUserByOidcId(); err == nil {
-		if user.Status == config.UserStatusEnabled {
-			setupLogin(&user, c)
+	// 根据 OIDC sub 或 email 查找用户
+	var user *model.User
+	if sub != "" {
+		if u, err := model.FindUserByField("oidc_id", sub); err == nil && u != nil {
+			user = u
+		}
+	}
+	if user == nil && email != "" {
+		if u, err := model.FindUserByField("email", email); err == nil && u != nil {
+			user = u
+		}
+	}
+
+	if user == nil {
+		// 创建用户（随机密码以满足校验；不强制设置邮箱）
+		newUser := model.User{
+			Username:    username,
+			Password:    utils.GetRandomString(12),
+			DisplayName: username,
+			OidcId:      sub,
+			Email:       email,
+			Status:      config.UserStatusEnabled,
+		}
+		if err := newUser.Insert(0); err != nil {
+			logger.SysError("OIDC 创建用户失败: " + err.Error())
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "创建用户失败"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"message": "用户已被封禁或不存在",
-			"success": false,
-		})
-		return
-	}
-
-	// OIDCid查询失败，则尝试通过username查询
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		logger.SysError("查询用户错误: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{
-			"message": err.Error(),
-			"success": false,
-		})
-		return
-	}
-
-	if err = user.FillUserByUsername(); err == nil {
-		if user.Status == config.UserStatusEnabled {
-			// 如果通过用户名查询用户成功、则补全用户OIDC ID并且登录
-			user.OidcId = idToken.Subject
-			ok := user.Update(false)
-			if ok != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"message": ok.Error(),
-					"success": false,
-				})
-				return
-			}
-			setupLogin(&user, c)
-			return
+		user = &newUser
+	} else {
+		// 回填 OidcId
+		if user.OidcId == "" && sub != "" {
+			user.OidcId = sub
+			_ = user.Update(false)
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"message": "用户已被封禁或不存在",
-			"success": false,
-		})
-		return
 	}
 
-	// 用户不存在，尝试注册
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		logger.SysError("查询用户错误: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{
-			"message": err.Error(),
-			"success": false,
-		})
-		return
-	}
-
-	// 注册新用户
-	if !config.RegisterEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员关闭了新用户注册",
-		})
-		return
-	}
-
-	// 检测推荐码
-	var inviterId int
-	affCode := c.Query("aff")
-	if affCode != "" {
-		inviterId, _ = model.GetUserIdByAffCode(affCode)
-	}
-
-	// 填充用户信息
-	user.Username = userName.(string)
-	if email, ok := claims["email"]; ok && email != nil {
-		emailStr := email.(string)
-		// 验证 OIDC 提供的邮箱格式
-		if emailStr != "" {
-			if err := common.ValidateEmailStrict(emailStr); err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "邮箱格式不符合要求",
-				})
-				return
-			}
-		}
-		user.Email = emailStr
-	}
-	if displayName, ok := claims["displayName"]; ok && displayName != nil {
-		user.DisplayName = displayName.(string)
-	}
-	if avatarUrl, ok := claims["avatar"]; ok && avatarUrl != nil {
-		user.AvatarUrl = avatarUrl.(string)
-	}
-	user.OidcId = idToken.Subject
-	user.Role = config.RoleCommonUser
-	user.Status = config.UserStatusEnabled
-
-	// 使用事务创建用户并处理邀请码
-	err = model.DB.Transaction(func(tx *gorm.DB) error {
-		// 验证和使用邀请码（如果启用）
-		usedInviteCode, err := validateAndUseInviteCodeForOAuth(c, tx)
-		if err != nil {
-			return err
-		}
-
-		// 设置邀请人ID（使用原有推荐码逻辑）
-		if inviterId > 0 {
-			user.InviterId = inviterId
-		}
-
-		// 设置使用的邀请码
-		if usedInviteCode != "" {
-			user.UsedInviteCode = usedInviteCode
-		}
-
-		// 在事务中创建用户
-		return user.InsertWithTx(tx, user.InviterId)
-	})
-
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-
-	setupLogin(&user, c)
+	// 完成登录
+	setupLogin(user, c)
 }

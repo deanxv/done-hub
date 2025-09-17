@@ -4,7 +4,6 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/utils"
 	"done-hub/model"
-	"done-hub/safty"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -13,6 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetOptions godoc
+// @Summary Get options (root)
+// @Description 获取所有配置项（Root）
+// @Tags Option
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /option/ [get]
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	for k, v := range config.GlobalOption.GetAll() {
@@ -32,15 +38,17 @@ func GetOptions(c *gin.Context) {
 	return
 }
 
-func GetSafeTools(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    safty.GetAllSafeToolsName(),
-	})
-	return
-}
+// 已移除安全工具列表（与业务强绑定）
 
+// UpdateOption godoc
+// @Summary Update option (root)
+// @Description 更新配置项（Root）
+// @Tags Option
+// @Accept json
+// @Produce json
+// @Param body body model.Option true "配置项"
+// @Success 200 {object} map[string]interface{}
+// @Router /option/ [put]
 func UpdateOption(c *gin.Context) {
 	var option model.Option
 	err := json.NewDecoder(c.Request.Body).Decode(&option)
@@ -125,36 +133,7 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "InviterRewardValue":
-		value, err := strconv.Atoi(option.Value)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "充值返利值必须是有效的数字",
-			})
-			return
-		}
-
-		// 验证充值返利值的范围
-		if config.InviterRewardType == "percentage" {
-			// 百分比类型：值应在0-100之间
-			if value < 0 || value > 100 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "当充值返利类型为百分比时，返利值应在0-100之间",
-				})
-				return
-			}
-		} else {
-			// 固定类型：值应>=0
-			if value < 0 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "当充值返利类型为固定时，返利值应大于等于0",
-				})
-				return
-			}
-		}
+		// 已移除邀请返利逻辑相关校验
 	}
 	err = model.UpdateOption(option.Key, option.Value)
 	if err != nil {

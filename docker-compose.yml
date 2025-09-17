@@ -18,7 +18,7 @@ services:
       # - HASHIDS_SALT=random_string # 可空，建议设置，字符串元素不能重复
     #      - NODE_TYPE=slave  # 多机部署时从节点取消注释该行
     #      - SYNC_FREQUENCY=60  # 需要定期从数据库加载数据时取消注释该行
-    #      - FRONTEND_BASE_URL=https://openai.justsong.cn  # 多机部署时从节点取消注释该行
+    #      - FRONTEND_BASE_URL=https://frontend.example.com  # 多机部署时从节点取消注释该行
     depends_on:
       - redis
       - db

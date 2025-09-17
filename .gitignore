@@ -18,3 +18,4 @@ test.yaml
 one-api
 _output
 .DS_Store
+.log

@@ -1,16 +1,18 @@
 package model
 
 import (
-	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"strings"
 	"time"
 )
 
+// Option 配置项表（键值对，后台可通过接口修改并写入内存）
 type Option struct {
-	Key   string `json:"key" gorm:"primaryKey"`
-	Value string `json:"value"`
+	// Key 配置项键（主键）
+	Key string `json:"key" gorm:"primaryKey;comment:配置项Key"`
+	// Value 配置项值（字符串存储，复杂结构以 JSON 存储）
+	Value string `json:"value" gorm:"comment:配置项值(字符串/JSON)"`
 }
 
 func AllOption() ([]*Option, error) {
@@ -25,28 +27,12 @@ func GetOption(key string) (option Option, err error) {
 }
 
 func InitOptionMap() {
-
+	// 登录注册与邮箱
 	config.GlobalOption.RegisterBool("PasswordLoginEnabled", &config.PasswordLoginEnabled)
 	config.GlobalOption.RegisterBool("PasswordRegisterEnabled", &config.PasswordRegisterEnabled)
 	config.GlobalOption.RegisterBool("EmailVerificationEnabled", &config.EmailVerificationEnabled)
-	config.GlobalOption.RegisterBool("GitHubOAuthEnabled", &config.GitHubOAuthEnabled)
-	config.GlobalOption.RegisterBool("WeChatAuthEnabled", &config.WeChatAuthEnabled)
-	config.GlobalOption.RegisterBool("LarkAuthEnabled", &config.LarkAuthEnabled)
-	config.GlobalOption.RegisterBool("OIDCAuthEnabled", &config.OIDCAuthEnabled)
-	config.GlobalOption.RegisterBool("LinuxDoOAuthEnabled", &config.LinuxDoOAuthEnabled)
-	config.GlobalOption.RegisterBool("InviteCodeRegisterEnabled", &config.InviteCodeRegisterEnabled)
-	config.GlobalOption.RegisterBool("LinuxDoOAuthTrustLevelEnabled", &config.LinuxDoOAuthTrustLevelEnabled)
-	config.GlobalOption.RegisterBool("TurnstileCheckEnabled", &config.TurnstileCheckEnabled)
-	config.GlobalOption.RegisterBool("RegisterEnabled", &config.RegisterEnabled)
-	config.GlobalOption.RegisterBool("AutomaticDisableChannelEnabled", &config.AutomaticDisableChannelEnabled)
-	config.GlobalOption.RegisterBool("AutomaticEnableChannelEnabled", &config.AutomaticEnableChannelEnabled)
-	config.GlobalOption.RegisterBool("ApproximateTokenEnabled", &config.ApproximateTokenEnabled)
-	config.GlobalOption.RegisterBool("LogConsumeEnabled", &config.LogConsumeEnabled)
-	config.GlobalOption.RegisterBool("EmptyResponseBillingEnabled", &config.EmptyResponseBillingEnabled)
-	config.GlobalOption.RegisterBool("DisplayInCurrencyEnabled", &config.DisplayInCurrencyEnabled)
-	config.GlobalOption.RegisterFloat("ChannelDisableThreshold", &config.ChannelDisableThreshold)
 	config.GlobalOption.RegisterBool("EmailDomainRestrictionEnabled", &config.EmailDomainRestrictionEnabled)
-
+	config.GlobalOption.RegisterBool("RegisterEnabled", &config.RegisterEnabled)
 	config.GlobalOption.RegisterCustom("EmailDomainWhitelist", func() string {
 		return strings.Join(config.EmailDomainWhitelist, ",")
 	}, func(value string) error {
@@ -54,11 +40,22 @@ func InitOptionMap() {
 		return nil
 	}, "")
 
+	// SMTP
 	config.GlobalOption.RegisterString("SMTPServer", &config.SMTPServer)
 	config.GlobalOption.RegisterString("SMTPFrom", &config.SMTPFrom)
 	config.GlobalOption.RegisterInt("SMTPPort", &config.SMTPPort)
 	config.GlobalOption.RegisterString("SMTPAccount", &config.SMTPAccount)
 	config.GlobalOption.RegisterString("SMTPToken", &config.SMTPToken)
+
+	// OIDC
+	config.GlobalOption.RegisterBool("OIDCAuthEnabled", &config.OIDCAuthEnabled)
+	config.GlobalOption.RegisterString("OIDCClientId", &config.OIDCClientId)
+	config.GlobalOption.RegisterString("OIDCClientSecret", &config.OIDCClientSecret)
+	config.GlobalOption.RegisterString("OIDCIssuer", &config.OIDCIssuer)
+	config.GlobalOption.RegisterString("OIDCScopes", &config.OIDCScopes)
+	config.GlobalOption.RegisterString("OIDCUsernameClaims", &config.OIDCUsernameClaims)
+
+	// 页面与系统信息
 	config.GlobalOption.RegisterValue("Notice")
 	config.GlobalOption.RegisterValue("About")
 	config.GlobalOption.RegisterValue("HomePageContent")
@@ -66,83 +63,10 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterString("SystemName", &config.SystemName)
 	config.GlobalOption.RegisterString("Logo", &config.Logo)
 	config.GlobalOption.RegisterString("ServerAddress", &config.ServerAddress)
-	config.GlobalOption.RegisterString("GitHubClientId", &config.GitHubClientId)
-	config.GlobalOption.RegisterString("GitHubClientSecret", &config.GitHubClientSecret)
 
-	config.GlobalOption.RegisterString("OIDCClientId", &config.OIDCClientId)
-	config.GlobalOption.RegisterString("OIDCClientSecret", &config.OIDCClientSecret)
-	config.GlobalOption.RegisterString("OIDCIssuer", &config.OIDCIssuer)
-	config.GlobalOption.RegisterString("OIDCScopes", &config.OIDCScopes)
-	config.GlobalOption.RegisterString("OIDCUsernameClaims", &config.OIDCUsernameClaims)
-
-	config.GlobalOption.RegisterString("LinuxDoClientId", &config.LinuxDoClientId)
-	config.GlobalOption.RegisterString("LinuxDoClientSecret", &config.LinuxDoClientSecret)
-	config.GlobalOption.RegisterInt("LinuxDoOAuthLowestTrustLevel", &config.LinuxDoOAuthLowestTrustLevel)
-
-	config.GlobalOption.RegisterString("WeChatServerAddress", &config.WeChatServerAddress)
-	config.GlobalOption.RegisterString("WeChatServerToken", &config.WeChatServerToken)
-	config.GlobalOption.RegisterString("WeChatAccountQRCodeImageURL", &config.WeChatAccountQRCodeImageURL)
-	config.GlobalOption.RegisterString("TurnstileSiteKey", &config.TurnstileSiteKey)
-	config.GlobalOption.RegisterString("TurnstileSecretKey", &config.TurnstileSecretKey)
-	config.GlobalOption.RegisterInt("QuotaForNewUser", &config.QuotaForNewUser)
-	config.GlobalOption.RegisterInt("QuotaForInviter", &config.QuotaForInviter)
-	config.GlobalOption.RegisterInt("QuotaForInvitee", &config.QuotaForInvitee)
-	config.GlobalOption.RegisterString("InviterRewardType", &config.InviterRewardType)
-	config.GlobalOption.RegisterInt("InviterRewardValue", &config.InviterRewardValue)
-	config.GlobalOption.RegisterInt("QuotaRemindThreshold", &config.QuotaRemindThreshold)
-	config.GlobalOption.RegisterInt("PreConsumedQuota", &config.PreConsumedQuota)
-
-	config.GlobalOption.RegisterString("TopUpLink", &config.TopUpLink)
-	config.GlobalOption.RegisterString("ChatLink", &config.ChatLink)
-	config.GlobalOption.RegisterString("ChatLinks", &config.ChatLinks)
-	config.GlobalOption.RegisterFloat("QuotaPerUnit", &config.QuotaPerUnit)
-	config.GlobalOption.RegisterInt("RetryTimes", &config.RetryTimes)
-	config.GlobalOption.RegisterInt("RetryCooldownSeconds", &config.RetryCooldownSeconds)
-
-	config.GlobalOption.RegisterBool("MjNotifyEnabled", &config.MjNotifyEnabled)
-	config.GlobalOption.RegisterString("ChatImageRequestProxy", &config.ChatImageRequestProxy)
+	// 支付基础配置
 	config.GlobalOption.RegisterFloat("PaymentUSDRate", &config.PaymentUSDRate)
 	config.GlobalOption.RegisterInt("PaymentMinAmount", &config.PaymentMinAmount)
-
-	config.GlobalOption.RegisterCustom("RechargeDiscount", func() string {
-		return common.RechargeDiscount2JSONString()
-	}, func(value string) error {
-		config.RechargeDiscount = value
-		common.UpdateRechargeDiscountByJSONString(value)
-		return nil
-	}, "")
-
-	config.GlobalOption.RegisterString("CFWorkerImageUrl", &config.CFWorkerImageUrl)
-	config.GlobalOption.RegisterString("CFWorkerImageKey", &config.CFWorkerImageKey)
-	config.GlobalOption.RegisterInt("OldTokenMaxId", &config.OldTokenMaxId)
-	config.GlobalOption.RegisterBool("GitHubOldIdCloseEnabled", &config.GitHubOldIdCloseEnabled)
-
-	config.GlobalOption.RegisterBool("GeminiAPIEnabled", &config.GeminiAPIEnabled)
-	config.GlobalOption.RegisterBool("ClaudeAPIEnabled", &config.ClaudeAPIEnabled)
-
-	config.GlobalOption.RegisterCustom("DisableChannelKeywords", func() string {
-		return common.DisableChannelKeywordsInstance.GetKeywords()
-	}, func(value string) error {
-		common.DisableChannelKeywordsInstance.Load(value)
-		return nil
-	}, common.GetDefaultDisableChannelKeywords())
-
-	config.GlobalOption.RegisterInt("RetryTimeOut", &config.RetryTimeOut)
-
-	config.GlobalOption.RegisterBool("EnableSafe", &config.EnableSafe)
-	config.GlobalOption.RegisterString("SafeToolName", &config.SafeToolName)
-	config.GlobalOption.RegisterCustom("SafeKeyWords", func() string {
-		return strings.Join(config.SafeKeyWords, "\n")
-	}, func(value string) error {
-		config.SafeKeyWords = strings.Split(value, "\n")
-		return nil
-	}, "")
-
-	// 注册统一请求响应模型配置项
-	config.GlobalOption.RegisterBool("UnifiedRequestResponseModelEnabled", &config.UnifiedRequestResponseModelEnabled)
-
-	// 注册模型名称大小写不敏感配置项
-	config.GlobalOption.RegisterBool("ModelNameCaseInsensitiveEnabled", &config.ModelNameCaseInsensitiveEnabled)
 
 	loadOptionsFromDatabase()
 }

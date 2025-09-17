@@ -1,9 +1,0 @@
-{
-  "compilerOptions": {
-    "target": "esnext",
-    "module": "commonjs",
-    "baseUrl": "./src"
-  },
-  "include": ["src/**/*", "vite.config.mjs"],
-  "exclude": ["node_modules"]
-}

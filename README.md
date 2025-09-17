@@ -1,79 +1,125 @@
-<p align="right">
-   <strong>中文</strong> | <a href="./README.en.md">English</a>
-</p>
+# Done Hub（本地启动指南）
 
-<p align="center">
-   <picture>
-   <img style="width: 80%" src="https://pic1.imgdb.cn/item/6846e33158cb8da5c83eb1eb.png" alt="image__3_-removebg-preview.png"> 
-    </picture>
-</p>
+本项目已精简为可直接本地编译和运行的版本，默认使用 SQLite 存储，不依赖前端构建。下面仅保留本地启动相关说明。
 
-<div align="center">
+## 前置要求
+- Go 1.24+（已在 1.25 测试）
+- macOS/Linux/Windows 任意环境
 
-_本项目是基于[one-hub](https://github.com/MartialBE/one-api)二次开发而来的_
+## 快速开始（傻瓜式）
+1) 编译（可选）
+```
+go build -v -o bin/done-hub .
+```
 
-<a href="https://t.me/+LGKwlC_xa-E5ZDk9">
-  <img src="https://img.shields.io/badge/Telegram-AI Wave交流群-0088cc?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram 交流群" />
-</a>
+2) 使用 SQLite 直接运行（推荐，最少依赖）
+```
+GIN_MODE=release \
+PORT=3000 \
+TZ=Asia/Shanghai \
+go run .
+```
 
-<sup><i>AI Wave 社群</i></sup> · <sup><i>(群内提供公益API、AI机器人)</i></sup>
+或运行已编译的二进制：
+```
+PORT=3000 ./bin/done-hub
+```
 
-### [📚 点击查看原项目文档](https://one-hub-doc.vercel.app/)
+3) 使用 MySQL + Redis 运行（生产场景常见）
 
-</div>
+- 准备 MySQL 连接串（示例）：
+  - MySQL: `oneapi:123456@tcp(127.0.0.1:3306)/done_hub?charset=utf8mb4&parseTime=true&loc=Local`
+  - PostgreSQL（可选）: `postgres://user:password@127.0.0.1:5432/done_hub`
 
+```
+GIN_MODE=release \
+PORT=3000 \
+TZ=Asia/Shanghai \
+SQL_DSN='oneapi:123456@tcp(127.0.0.1:3306)/done_hub?charset=utf8mb4&parseTime=true&loc=Local' \
+REDIS_CONN_STRING='redis://127.0.0.1:6379/0' \
+SESSION_SECRET='please_change_me' \
+go run .
+```
 
-## 目前与原版(最新镜像)的区别
+可选的数据库连接池配置（如需）：
+```
+SQL_MAX_IDLE_CONNS=100 \
+SQL_MAX_OPEN_CONNS=1000 \
+SQL_MAX_LIFETIME=60 \
+go run .
+```
 
-- 重构**系统信息**模块
-- 支持**批量删除渠道**
-- 支持`LinuxDo`登录
-- 支持**夜间模式跟随系统配置**
-- 支持对**多个渠道批量新增模型**
-- 支持配置**模型名称大小写不敏感**
-- 支持配置**请求-响应统一模型名称**
-- 支持渠道**额外参数中删除指定参数**
-- 支持渠道`BaseURL`添加**模型变量替换**
-- 支持`/gemini`原生生图请求的**额外参数透传**
-- 支持**自定义渠道**使用`Claude`原生路由 - 接入`ClaudeCode`
-- 支持`VertexAI`渠道使用`Gemini`原生路由 - 接入`GeminiCli`
-- 支持`VertexAI`渠道使用`Claude`原生路由 - 接入`ClaudeCode`
-- 支持`VertexAI`渠道下可配置多个`Region`, 每次请求随机选取`Region`
-- 支持`Google Gemini`渠道`/gemini`使用原生**生成视频请求**(`Veo`系列模型)
-- 支持`gemini-2.0-flash-preview-image-generation`文生图/图生图，并兼容`OpenAI`对话接口
-- 新增**邀请码设置**模块
-- 新增**批量添加渠道的用户分组功能**
-- 新增**空回复是否计费配置** （默认:计费）
-- 新增**分析功能-充值统计中的时间周期条件**
-- 新增**分析功能中的 RPM / TPM / CPM 展示**
-- 新增**邀请充值返利功能**（可选类型: 固定/百分比）
-- 修复用户相关接口失效的`bug`
-- 修复邀请记录字段缺失的`bug`
-- 修复时区硬编码影响统计数据的`bug`
-- 修复更新渠道后未重新内存加载的`bug`
-- 修复多实例部署下的支付回调异常的`bug`
-- 修复智谱`GLM`模型`token`浮点数计算的`bug`
-- 修复`API`路由下允许`cdn`缓存引起越权的`bug`
-- 修复mysql多种版本下时间类型格式化不统一的`bug`
-- 修复若干用户额度缓存与`DB`数据不一致的导致计费异常的`bug`
-- 删除日志功能中无意义的原始价格相关样式
-- 优化邮箱规则校验
-- 优化若干`UI`交互
-- 优化大量日志打印格式
-- 优化禁用渠道邮件推送逻辑
-- 优化`VertexAI`的鉴权缓存
-- 优化`/gemini`请求下`google_search`的响应
-- ...
+4) 验证服务
+浏览器或命令行访问：
+```
+http://127.0.0.1:3000/api/status
+```
 
-## 部署
+看到包含 `success: true` 的 JSON 即表示启动成功。
 
-> 按照原版部署教程将镜像替换为 `deanxv/done-hub` 即可。
+## 默认行为与说明
+- 数据库：首次启动会在当前目录创建 `done-hub.db`（SQLite），并自动创建一个初始管理员：
+  - 用户名：`root`
+  - 密码：`123456`
+- 日志：默认写入 `./logs` 目录。
+- 首页：未嵌入前端构建，访问根路径 `/` 返回一个简单的运行页。
 
-> 数据库兼容，原版可直接拉取此镜像迁移。
+## 环境变量（完整清单）
+说明：所有变量均可通过环境变量直接注入（基于 Viper 自动映射），无需配置文件。
 
-## 感谢
+```
+| 变量名                      | 默认值                          | 说明 |
+|---------------------------|---------------------------------|-----|
+| PORT                      | 3000                            | 服务监听端口 |
+| GIN_MODE                  | release                         | Gin 运行模式：release/debug |
+| TZ                        | Asia/Shanghai                   | 时区（影响日志、统计分组等） |
+| LOG_LEVEL                 | info                            | 日志级别：debug/info/warn/error... |
+| LOG_DIR                   | ./logs                          | 日志目录 |
+| LOGS_FILENAME             | done-hub.log                    | 日志文件名 |
+| LOGS_MAX_SIZE             | 100                             | 单文件最大 MB |
+| LOGS_MAX_AGE              | 7                               | 保留天数 |
+| LOGS_MAX_BACKUP           | 10                              | 最大备份数 |
+| LOGS_COMPRESS             | false                           | 是否压缩历史日志 |
+| 
+| SQL_DSN                   | （空）                          | 设置即用 MySQL/PostgreSQL；不设置则使用 SQLite |
+| SQLITE_PATH               | done-hub.db                     | SQLite 文件路径 |
+| SQLITE_BUSY_TIMEOUT       | 3000                            | SQLite busy timeout（ms） |
+| SQL_MAX_IDLE_CONNS        | 100                             | 连接池：最大空闲连接数 |
+| SQL_MAX_OPEN_CONNS        | 1000                            | 连接池：最大打开连接数 |
+| SQL_MAX_LIFETIME          | 60                              | 连接生命周期（秒） |
+|
+| REDIS_CONN_STRING         | （空）                          | 形如 redis://127.0.0.1:6379/0，设置即启用 Redis |
+| REDIS_DB                  | 0                               | Redis DB 索引（若连接串未带 db，可用本变量指定） |
+| SYNC_FREQUENCY            | 600                             | 同步频率（秒），为 0 时认为不启用 Redis 功能 |
+|
+| HTTPS                     | false                           | 处于 HTTPS 环境（影响 Cookie Secure） |
+| TRUSTED_HEADER            | （空）                          | 可信代理源 IP 头，如 CF-Connecting-IP |
+| FRONTEND_BASE_URL         | （空）                          | 从节点 Web 重定向到前端的地址 |
+| NODE_TYPE                 | master                          | 节点类型：master/slave（slave 关闭 Cron） |
+|
+| LANGUAGE                  | zh_CN                           | 语言标识，用于部分文案默认值 |
+| FAVICON                   | （空）                          | 网站 favicon 地址（留空则不设置） |
+| USER_INVOICE_MONTH        | false                           | 是否开启用户月账单（保留字段） |
+|
+| SESSION_SECRET            | 随机生成                        | 会话加密密钥（建议显式设置） |
+| POLLING_INTERVAL          | （空）                          | 轮询间隔（秒，保留字段） |
+|
+| MCP_ENABLE                | false                           | MCP 功能开关（保留字段） |
+| UPTIME_KUMA_ENABLE        | false                           | Uptime Kuma 开关（保留字段） |
+| UPTIME_KUMA_DOMAIN        | （空）                          | Uptime Kuma 域名（保留字段） |
+| UPTIME_KUMA_STATUS_PAGE_NAME | （空）                      | Uptime Kuma 状态页（保留字段） |
+|
+| GLOBAL_API_RATE_LIMIT     | 300                             | 全局 API 速率阈值（次/窗口） |
+| GLOBAL_WEB_RATE_LIMIT     | 300                             | 全局 WEB 速率阈值（次/窗口） |
+```
 
-- 本程序使用了以下开源项目
-    - [one-hub](https://github.com/MartialBE/one-api)为本项目的基础
-  
-感谢以上项目的作者和贡献者
+## 停止服务
+- 前台运行：直接 `Ctrl + C`
+- 后台运行（自行放入后台时）：找到进程并终止，或在启动脚本中保存 PID 以便停止。
+
+## 使用 Docker Compose（可选）
+项目已提供 `docker-compose.yml`，内含 MySQL 与 Redis，一条命令启动：
+```
+docker compose up -d
+```
+启动后访问 `http://127.0.0.1:3000/api/status` 验证，管理员初始账号为 `root/123456`。

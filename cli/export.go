@@ -2,47 +2,9 @@ package cli
 
 import (
 	"done-hub/common/logger"
-	"done-hub/model"
-	"encoding/json"
-	"os"
-	"sort"
 )
 
+// ExportPrices is not supported in the minimal edition; keep a stub to satisfy CLI flag.
 func ExportPrices() {
-	prices := model.GetPricesList("default")
-
-	if len(prices) == 0 {
-		logger.SysError("No prices found")
-		return
-	}
-
-	// Sort prices by ChannelType
-	sort.Slice(prices, func(i, j int) bool {
-		if prices[i].ChannelType == prices[j].ChannelType {
-			return prices[i].Model < prices[j].Model
-		}
-		return prices[i].ChannelType < prices[j].ChannelType
-	})
-
-	// 导出到当前目录下的 prices.json 文件
-	file, err := os.Create("prices.json")
-	if err != nil {
-		logger.SysError("Failed to create file: " + err.Error())
-		return
-	}
-	defer file.Close()
-
-	jsonData, err := json.MarshalIndent(prices, "", "  ")
-	if err != nil {
-		logger.SysError("Failed to encode prices: " + err.Error())
-		return
-	}
-
-	_, err = file.Write(jsonData)
-	if err != nil {
-		logger.SysError("Failed to write to file: " + err.Error())
-		return
-	}
-
-	logger.SysLog("Prices exported to prices.json")
+	logger.SysLog("ExportPrices is disabled in the minimal edition")
 }

@@ -29,6 +29,15 @@ type OrderResponse struct {
 }
 
 // CreateOrder
+// CreateOrder godoc
+// @Summary Create order
+// @Description 创建充值/支付订单
+// @Tags Order
+// @Accept json
+// @Produce json
+// @Param body body OrderRequest true "订单请求"
+// @Success 200 {object} map[string]interface{}
+// @Router /order/ [post]
 func CreateOrder(c *gin.Context) {
 	var orderReq OrderRequest
 	if err := c.ShouldBindJSON(&orderReq); err != nil {
@@ -127,6 +136,12 @@ func UnlockOrder(tradeNo string) {
 	}
 }
 
+// PaymentCallback godoc
+// @Summary Payment callback
+// @Description 支付回调入口
+// @Tags Payment
+// @Param uuid path string true "回调网关UUID"
+// @Router /payment/notify/{uuid} [post]
 func PaymentCallback(c *gin.Context) {
 	uuid := c.Param("uuid")
 	paymentService, err := payment.NewPaymentService(uuid)
@@ -162,27 +177,17 @@ func PaymentCallback(c *gin.Context) {
 		return
 	}
 
-	err = model.IncreaseUserQuota(order.UserId, order.Quota)
-	if err != nil {
-		logger.SysError(fmt.Sprintf("gateway callback failed to increase user quota, trade_no: %s,", payNotify.TradeNo))
-		return
-	}
-
-	// Try to upgrade user group based on cumulative recharge amount
-	err = model.CheckAndUpgradeUserGroup(order.UserId, order.Quota)
-	if err != nil {
-		logger.SysError(fmt.Sprintf("failed to check and upgrade user group, trade_no: %s, error: %s", payNotify.TradeNo, err.Error()))
-	}
-
-	model.RecordQuotaLog(order.UserId, model.LogTypeTopup, order.Quota, c.ClientIP(), fmt.Sprintf("在线充值成功，充值积分: %d，支付金额：%.2f %s", order.Quota, order.OrderAmount, order.OrderCurrency))
-
-	// 处理邀请人充值返利
-	err = model.ProcessInviterReward(order.UserId, order.Quota, c.ClientIP())
-	if err != nil {
-		logger.SysError(fmt.Sprintf("failed to process inviter reward, trade_no: %s, error: %s", payNotify.TradeNo, err.Error()))
-	}
+	// 仅更新订单状态，不做配额发放、分组升级或返利
 }
 
+// CheckOrderStatus godoc
+// @Summary Check order status
+// @Description 查询订单状态
+// @Tags Order
+// @Produce json
+// @Param trade_no query string false "订单号"
+// @Success 200 {object} map[string]interface{}
+// @Router /order/status [get]
 func CheckOrderStatus(c *gin.Context) {
 	tradeNo := c.Query("trade_no")
 	userId := c.GetInt("id")
@@ -230,6 +235,16 @@ func calculateOrderAmount(payment *model.Payment, amount int) (discountMoney, fe
 	return
 }
 
+// GetOrderList godoc
+// @Summary List orders (admin)
+// @Description 查询订单列表（管理员）
+// @Tags Order
+// @Produce json
+// @Param page query int false "页码"
+// @Param size query int false "每页数量"
+// @Param order query string false "排序"
+// @Success 200 {object} map[string]interface{}
+// @Router /order/ [get]
 func GetOrderList(c *gin.Context) {
 	var params model.SearchOrderParams
 	if err := c.ShouldBindQuery(&params); err != nil {

@@ -1,39 +1,29 @@
 package router
 
 import (
-	"done-hub/controller"
 	"done-hub/middleware"
-	"embed"
 	"github.com/gin-contrib/gzip"
-	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"strings"
 )
 
-func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
-	router.Use(middleware.GlobalWebRateLimit())
+// SetWebRouter 使用内嵌的极简页面（不依赖 web/build）
+func SetWebRouter(engine *gin.Engine, indexPage []byte) {
+	engine.Use(gzip.Gzip(gzip.DefaultCompression))
+	engine.Use(middleware.GlobalWebRateLimit())
 
-	// 特别处理favicon.ico请求，设置缓存
-	router.GET("/favicon.ico", func(c *gin.Context) {
-		c.Header("Cache-Control", "public, max-age=3600") // 1小时缓存
-		controller.Favicon(buildFS)(c)
-	})
-
-	embedFS, err := static.EmbedFolder(buildFS, "web/build")
-	if err != nil {
-		// 处理错误，可以选择记录日志或者 panic
-		panic("无法创建嵌入文件系统: " + err.Error())
-	}
-	router.Use(static.Serve("/", embedFS))
-
-	router.NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") {
-			controller.RelayNotFound(c)
+	engine.GET("/", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-cache")
+		if len(indexPage) == 0 {
+			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("<!doctype html><html><head><meta charset=\"utf-8\"><title>Done Hub</title></head><body><h1>Done Hub</h1><p>Server is running.</p></body></html>"))
 			return
 		}
-		c.Header("Cache-Control", "no-cache")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
+	})
+
+	// 简单的 favicon 处理（200 空内容，避免 404）
+	engine.GET("/favicon.ico", func(c *gin.Context) {
+		c.Header("Cache-Control", "public, max-age=3600")
+		c.Status(http.StatusNoContent)
 	})
 }

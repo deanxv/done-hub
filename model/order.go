@@ -15,22 +15,38 @@ const (
 	OrderStatusClosed  OrderStatus = "closed"
 )
 
+// Order 订单表（充值/支付用，不耦合配额发放）
 type Order struct {
-	ID            int            `json:"id"`
-	UserId        int            `json:"user_id"`
-	GatewayId     int            `json:"gateway_id"`
-	TradeNo       string         `json:"trade_no" gorm:"type:varchar(50);uniqueIndex"`
-	GatewayNo     string         `json:"gateway_no" gorm:"type:varchar(100)"`
-	Amount        int            `json:"amount" gorm:"default:0"`
-	OrderAmount   float64        `json:"order_amount" gorm:"type:decimal(10,2);default:0"`
-	OrderCurrency CurrencyType   `json:"order_currency" gorm:"type:varchar(16)"`
-	Quota         int            `json:"quota" gorm:"type:int;default:0"`
-	Fee           float64        `json:"fee" gorm:"type:decimal(10,2);default:0"`
-	Discount      float64        `json:"discount" gorm:"type:decimal(10,2);default:0"`
-	Status        OrderStatus    `json:"status" gorm:"type:varchar(32)"`
-	CreatedAt     int            `json:"created_at"`
-	UpdatedAt     int            `json:"-"`
-	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
+	// ID 主键自增ID
+	ID int `json:"id" gorm:"comment:主键ID"`
+	// UserId 下单用户ID
+	UserId int `json:"user_id" gorm:"comment:下单用户ID"`
+	// GatewayId 支付网关ID（关联 Payment.ID）
+	GatewayId int `json:"gateway_id" gorm:"comment:支付网关ID"`
+	// TradeNo 站内订单号（唯一）
+	TradeNo string `json:"trade_no" gorm:"type:varchar(50);uniqueIndex;comment:站内订单号"`
+	// GatewayNo 第三方支付渠道返回的订单号/流水号
+	GatewayNo string `json:"gateway_no" gorm:"type:varchar(100);comment:第三方订单号"`
+	// Amount 充值面额（站内单位，整数）
+	Amount int `json:"amount" gorm:"default:0;comment:充值面额(站内单位)"`
+	// OrderAmount 实付金额（单位与 OrderCurrency 对应）
+	OrderAmount float64 `json:"order_amount" gorm:"type:decimal(10,2);default:0;comment:实付金额"`
+	// OrderCurrency 订单币种（USD/CNY）
+	OrderCurrency CurrencyType `json:"order_currency" gorm:"type:varchar(16);comment:订单币种"`
+	// Quota 折算内部额度（当前版本仅记录，不做发放）
+	Quota int `json:"quota" gorm:"type:int;default:0;comment:折算内部额度(仅记录)"`
+	// Fee 手续费（按配置计算）
+	Fee float64 `json:"fee" gorm:"type:decimal(10,2);default:0;comment:手续费"`
+	// Discount 优惠金额（按配置计算）
+	Discount float64 `json:"discount" gorm:"type:decimal(10,2);default:0;comment:优惠金额"`
+	// Status 订单状态（pending/success/failed/closed）
+	Status OrderStatus `json:"status" gorm:"type:varchar(32);comment:订单状态"`
+	// CreatedAt 创建时间（Unix 秒）
+	CreatedAt int `json:"created_at" gorm:"comment:创建时间(Unix秒)"`
+	// UpdatedAt 更新时间（保留字段）
+	UpdatedAt int `json:"-" gorm:"comment:更新时间保留字段"`
+	// DeletedAt 软删除（索引）
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index;comment:软删除时间"`
 }
 
 // 查询并关闭未完成的订单

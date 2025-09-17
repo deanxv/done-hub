@@ -1,0 +1,779 @@
+basePath: /api
+definitions:
+  controller.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  controller.ManageRequest:
+    properties:
+      action:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  controller.OrderRequest:
+    properties:
+      amount:
+        type: integer
+      uuid:
+        type: string
+    required:
+    - amount
+    - uuid
+    type: object
+  controller.PasswordResetRequest:
+    properties:
+      email:
+        type: string
+      token:
+        type: string
+    type: object
+  model.CurrencyType:
+    enum:
+    - USD
+    - CNY
+    type: string
+    x-enum-varnames:
+    - CurrencyTypeUSD
+    - CurrencyTypeCNY
+  model.Option:
+    properties:
+      key:
+        description: Key 配置项键（主键）
+        type: string
+      value:
+        description: Value 配置项值（字符串存储，复杂结构以 JSON 存储）
+        type: string
+    type: object
+  model.Payment:
+    properties:
+      config:
+        description: Config 网关配置（JSON 文本，按网关类型定义）
+        type: string
+      created_at:
+        description: CreatedAt 创建时间（Unix 秒）
+        type: integer
+      currency:
+        allOf:
+        - $ref: '#/definitions/model.CurrencyType'
+        description: Currency 币种（USD/CNY）
+      enable:
+        description: Enable 是否启用
+        type: boolean
+      fixed_fee:
+        description: FixedFee 固定手续费
+        type: number
+      icon:
+        description: Icon 图标URL（前端展示）
+        type: string
+      id:
+        description: ID 主键自增ID
+        type: integer
+      name:
+        description: Name 网关名称（展示使用）
+        type: string
+      notify_domain:
+        description: NotifyDomain 回调域名（如需外网回调，配置对外可访问域名）
+        type: string
+      percent_fee:
+        description: PercentFee 百分比手续费（0~1，示例：0.05=5%）
+        type: number
+      sort:
+        description: Sort 排序（数字越小越靠前）
+        type: integer
+      type:
+        description: Type 网关类型（如 stripe/alipay/wxpay/epay 等）
+        type: string
+      uuid:
+        description: UUID 网关唯一标识（用于回调识别），系统生成
+        type: string
+    type: object
+  model.User:
+    properties:
+      access_token:
+        description: AccessToken 用户访问令牌（无 Session 时用于 API 鉴权，唯一）
+        type: string
+      avatar_url:
+        description: AvatarUrl 头像地址（可选）
+        type: string
+      created_time:
+        description: CreatedTime 账户创建时间（Unix 秒）
+        type: integer
+      display_name:
+        description: DisplayName 显示名称（可搜索）
+        maxLength: 20
+        type: string
+      email:
+        description: Email 邮箱（可选，用于找回密码/通知）
+        maxLength: 50
+        type: string
+      id:
+        description: Id 主键自增ID
+        type: integer
+      last_login_time:
+        description: LastLoginTime 最近登录时间（Unix 秒）
+        type: integer
+      oidc_id:
+        description: OidcId OIDC Subject ID（开启 OIDC 登录时回填）
+        type: string
+      password:
+        description: Password 密码（加密存储，最小8、最大20字符）
+        maxLength: 20
+        minLength: 8
+        type: string
+      role:
+        description: Role 角色（0访客/1普通/10管理员/100超管）
+        type: integer
+      status:
+        description: Status 状态（1启用/2禁用）
+        type: integer
+      username:
+        description: Username 用户名（唯一，用于登录），最大12字符
+        maxLength: 12
+        type: string
+      verification_code:
+        description: VerificationCode 非持久化字段：注册/绑定时的验证码
+        type: string
+    required:
+    - username
+    type: object
+info:
+  contact: {}
+  description: Minimal backend framework APIs (users, auth, options, payment, order,
+    status).
+  title: Done Hub Minimal API
+  version: "1.0"
+paths:
+  /oauth/email/bind:
+    get:
+      description: 绑定邮箱
+      parameters:
+      - description: 邮箱
+        in: query
+        name: email
+        required: true
+        type: string
+      - description: 验证码
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Bind email with code
+      tags:
+      - User
+  /oauth/endpoint:
+    get:
+      description: 返回 OIDC 登录跳转地址
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get OIDC login URL
+      tags:
+      - OIDC
+  /oauth/oidc:
+    get:
+      description: OIDC 回调，内部完成用户登录或创建
+      parameters:
+      - description: state
+        in: query
+        name: state
+        required: true
+        type: string
+      - description: 授权码
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: OIDC callback
+      tags:
+      - OIDC
+  /option/:
+    get:
+      description: 获取所有配置项（Root）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get options (root)
+      tags:
+      - Option
+    put:
+      consumes:
+      - application/json
+      description: 更新配置项（Root）
+      parameters:
+      - description: 配置项
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.Option'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update option (root)
+      tags:
+      - Option
+  /order/:
+    get:
+      description: 查询订单列表（管理员）
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List orders (admin)
+      tags:
+      - Order
+    post:
+      consumes:
+      - application/json
+      description: 创建充值/支付订单
+      parameters:
+      - description: 订单请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.OrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create order
+      tags:
+      - Order
+  /order/status:
+    get:
+      description: 查询订单状态
+      parameters:
+      - description: 订单号
+        in: query
+        name: trade_no
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Check order status
+      tags:
+      - Order
+  /payment/:
+    get:
+      description: 获取支付网关列表（管理员）
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List payments (admin)
+      tags:
+      - Payment
+    post:
+      consumes:
+      - application/json
+      description: 新增支付网关（管理员）
+      parameters:
+      - description: 网关信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.Payment'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create payment (admin)
+      tags:
+      - Payment
+    put:
+      consumes:
+      - application/json
+      description: 更新支付网关（管理员）
+      parameters:
+      - description: 网关信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.Payment'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update payment (admin)
+      tags:
+      - Payment
+  /payment/{id}:
+    delete:
+      description: 删除支付网关（管理员）
+      parameters:
+      - description: 网关ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete payment (admin)
+      tags:
+      - Payment
+    get:
+      description: 获取支付网关详情（管理员）
+      parameters:
+      - description: 网关ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get payment (admin)
+      tags:
+      - Payment
+  /payment/notify/{uuid}:
+    post:
+      description: 支付回调入口
+      parameters:
+      - description: 回调网关UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses: {}
+      summary: Payment callback
+      tags:
+      - Payment
+  /payment/user:
+    get:
+      description: 获取可用支付网关（用户）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List enabled payments (user)
+      tags:
+      - Payment
+  /reset_password:
+    get:
+      description: 发送重置密码链接到邮箱
+      parameters:
+      - description: 邮箱地址
+        in: query
+        name: email
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Send password reset email
+      tags:
+      - Email
+  /status:
+    get:
+      description: 获取框架基础状态与站点信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get system status
+      tags:
+      - System
+  /user/:
+    get:
+      description: 获取用户列表（管理员）
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 排序，如 -id,username
+        in: query
+        name: order
+        type: string
+      - description: 搜索关键字
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List users (admin)
+      tags:
+      - Admin
+    post:
+      consumes:
+      - application/json
+      description: 创建用户（管理员）
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create user (admin)
+      tags:
+      - Admin
+    put:
+      consumes:
+      - application/json
+      description: 更新用户信息（管理员）
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update user (admin)
+      tags:
+      - Admin
+  /user/{id}:
+    delete:
+      description: 删除用户（管理员）
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete user (admin)
+      tags:
+      - Admin
+    get:
+      description: 获取用户详情（管理员）
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get user (admin)
+      tags:
+      - Admin
+  /user/login:
+    post:
+      consumes:
+      - application/json
+      description: 用户名密码登录
+      parameters:
+      - description: 登录请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: User login
+      tags:
+      - User
+  /user/logout:
+    get:
+      description: 注销当前会话
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: User logout
+      tags:
+      - User
+  /user/manage:
+    post:
+      consumes:
+      - application/json
+      description: 管理用户（封禁、升级/降级等）
+      parameters:
+      - description: 管理操作
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.ManageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Manage user (admin)
+      tags:
+      - Admin
+  /user/register:
+    post:
+      consumes:
+      - application/json
+      description: 用户注册（用户名+密码，可选邮箱验证）
+      parameters:
+      - description: 注册信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: User register
+      tags:
+      - User
+  /user/reset:
+    post:
+      consumes:
+      - application/json
+      description: 通过邮箱令牌重置密码，返回新密码
+      parameters:
+      - description: 重置请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.PasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Reset password with token
+      tags:
+      - User
+  /user/self:
+    get:
+      description: 获取当前用户信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get self profile
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: 更新当前用户信息
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update self profile
+      tags:
+      - User
+  /user/token:
+    get:
+      description: 生成用户 AccessToken（无 Session 的 API 鉴权使用）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Generate access token
+      tags:
+      - User
+  /verification:
+    get:
+      description: 发送邮箱验证码（用于注册/绑定等场景）
+      parameters:
+      - description: 邮箱地址
+        in: query
+        name: email
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Send email verification code
+      tags:
+      - Email
+swagger: "2.0"
