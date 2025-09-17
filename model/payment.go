@@ -1,7 +1,7 @@
 package model
 
 import (
-	"done-hub/common/utils"
+	"go-template/common/utils"
 
 	"gorm.io/gorm"
 )

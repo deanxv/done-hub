@@ -15,17 +15,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 22.4.1
-      - name: Build Frontend
-        env:
-          CI: ""
-        run: |
-          cd web
-          yarn install
-          VITE_APP_VERSION=$(git describe --tags) yarn run build
-          cd ..
+      # Frontend removed in go-template; skip Node/Yarn steps
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -33,22 +23,22 @@ jobs:
       - name: Build Backend (amd64)
         run: |
           go mod download
-          go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(git describe --tags)' -extldflags '-static'" -o done-hub
+          go build -ldflags "-s -w -X 'go-template/common/config.Version=$(git describe --tags)' -extldflags '-static'" -o go-template
 
       - name: Build Backend (arm64)
         run: |
           sudo rm /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo apt-get install gcc-aarch64-linux-gnu
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(git describe --tags)' -extldflags '-static'" -o done-hub-arm64
+          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'go-template/common/config.Version=$(git describe --tags)' -extldflags '-static'" -o go-template-arm64
 
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            done-hub
-            done-hub-arm64
+            go-template
+            go-template-arm64
           draft: true
           generate_release_notes: true
         env:

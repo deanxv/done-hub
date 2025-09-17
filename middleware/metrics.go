@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"done-hub/common/utils"
+	"go-template/common/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

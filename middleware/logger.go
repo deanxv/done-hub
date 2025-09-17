@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"done-hub/common/logger"
-	"done-hub/metrics"
+	"go-template/common/logger"
+	"go-template/metrics"
 	"strings"
 	"time"
 

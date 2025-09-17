@@ -1,8 +1,8 @@
 {
     "swagger": "2.0",
-    "info": {
-        "description": "Minimal backend framework APIs (users, auth, options, payment, order, status).",
-        "title": "Done Hub Minimal API",
+  "info": {
+    "description": "Minimal backend framework APIs (users, auth, options, payment, order, status).",
+    "title": "Go Template Minimal API",
         "contact": {},
         "version": "1.0"
     },

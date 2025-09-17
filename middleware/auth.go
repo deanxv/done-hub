@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	"done-hub/common/config"
-	"done-hub/model"
 	"fmt"
+	"go-template/common/config"
+	"go-template/model"
 	"net/http"
 
 	"github.com/gin-contrib/sessions"

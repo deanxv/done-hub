@@ -1,16 +1,16 @@
 version: "3.4"
 
 services:
-  one-hub:
-    image: deanxv/done-hub:latest
-    container_name: done-hub
+  go-template:
+    image: your-org/go-template:latest
+    container_name: go-template
     restart: always
     ports:
       - "3000:3000"
     volumes:
       - ./data:/data
     environment:
-      - SQL_DSN=oneapi:123456@tcp(db:3306)/done-hub # 修改此行，或注释掉以使用 SQLite 作为数据库
+      - SQL_DSN=gotemplate:123456@tcp(db:3306)/go-template # 修改此行，或注释掉以使用 SQLite 作为数据库
       - REDIS_CONN_STRING=redis://redis # redis
       - SESSION_SECRET=random_string # 修改为随机字符串
       - USER_TOKEN_SECRET=random_string # 修改为随机字符串,32位以上
@@ -47,7 +47,7 @@ services:
       - "3306:3306"
     environment:
       TZ: Asia/Shanghai # 设置时区
-      MYSQL_ROOT_PASSWORD: "DoneHub@justsong" # 设置 root 用户的密码
-      MYSQL_USER: oneapi # 创建专用用户
+      MYSQL_ROOT_PASSWORD: "GoTemplate@pwd" # 设置 root 用户的密码
+      MYSQL_USER: gotemplate # 创建专用用户
       MYSQL_PASSWORD: "123456" # 设置专用用户密码
-      MYSQL_DATABASE: done-hub # 自动创建数据库
+      MYSQL_DATABASE: go-template # 自动创建数据库

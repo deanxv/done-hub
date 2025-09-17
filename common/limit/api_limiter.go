@@ -1,7 +1,7 @@
 package limit
 
 import (
-	"done-hub/common/config"
+	"go-template/common/config"
 	"time"
 )
 

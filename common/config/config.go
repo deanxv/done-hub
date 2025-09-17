@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"done-hub/common/utils"
+	"go-template/common/utils"
 
 	"github.com/spf13/viper"
 )
@@ -33,7 +33,7 @@ func defaultConfig() {
 	viper.SetDefault("port", "3000")
 	viper.SetDefault("gin_mode", "release")
 	viper.SetDefault("log_dir", "./logs")
-	viper.SetDefault("sqlite_path", "done-hub.db")
+	viper.SetDefault("sqlite_path", "go-template.db")
 	viper.SetDefault("sqlite_busy_timeout", 3000)
 	viper.SetDefault("sync_frequency", 600)
 	viper.SetDefault("batch_update_interval", 5)
@@ -43,7 +43,6 @@ func defaultConfig() {
 	viper.SetDefault("auto_price_updates", false)
 	viper.SetDefault("auto_price_updates_mode", "system")
 	viper.SetDefault("auto_price_updates_interval", 1440)
-	viper.SetDefault("update_price_service", "https://raw.githubusercontent.com/MartialBE/done-hub/prices/prices.json")
 	viper.SetDefault("language", "zh_CN")
 	viper.SetDefault("favicon", "")
 	viper.SetDefault("user_invoice_month", false)

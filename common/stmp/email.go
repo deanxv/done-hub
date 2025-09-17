@@ -2,11 +2,11 @@ package stmp
 
 import (
 	"context"
-	"done-hub/common"
-	"done-hub/common/config"
-	"done-hub/common/utils"
 	"errors"
 	"fmt"
+	"go-template/common"
+	"go-template/common/config"
+	"go-template/common/utils"
 	"strings"
 
 	"github.com/wneessen/go-mail"
@@ -45,7 +45,7 @@ func (s *StmpConfig) Send(to, subject, body string) error {
 	message.Subject(subject)
 	message.SetGenHeader("References", s.getReferences())
 	message.SetBodyString(mail.TypeTextHTML, body)
-	message.SetUserAgent(fmt.Sprintf("Done Hub %s // https://github.com/deanxv/done-hub", config.Version))
+	message.SetUserAgent(fmt.Sprintf("Go Template %s // https://github.com/your-org/go-template", config.Version))
 
 	client, err := mail.NewClient(
 		s.Host,

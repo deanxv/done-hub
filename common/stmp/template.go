@@ -1,7 +1,7 @@
 package stmp
 
 import (
-	"done-hub/common/config"
+	"go-template/common/config"
 )
 
 func getLogo() string {
@@ -20,7 +20,7 @@ func getLogo() string {
 
 func getSystemName() string {
 	if config.SystemName == "" {
-		return "Done Hub"
+		return "Go Template"
 	}
 
 	return config.SystemName

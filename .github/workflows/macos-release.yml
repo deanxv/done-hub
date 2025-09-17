@@ -15,17 +15,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 22.4.1
-      - name: Build Frontend
-        env:
-          CI: ""
-        run: |
-          cd web
-          yarn install
-          VITE_APP_VERSION=$(git describe --tags) yarn run build
-          cd ..
+      # Frontend removed in go-template; skip Node/Yarn steps
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -33,12 +23,12 @@ jobs:
       - name: Build Backend
         run: |
           go mod download
-          go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(git describe --tags)'" -o done-hub-macos
+          go build -ldflags "-s -w -X 'go-template/common/config.Version=$(git describe --tags)'" -o go-template-macos
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: done-hub-macos
+          files: go-template-macos
           draft: true
           generate_release_notes: true
         env:

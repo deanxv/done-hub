@@ -1,3 +1,4 @@
+swagger: "2.0"
 basePath: /api
 definitions:
   controller.LoginRequest:
@@ -144,7 +145,7 @@ info:
   contact: {}
   description: Minimal backend framework APIs (users, auth, options, payment, order,
     status).
-  title: Done Hub Minimal API
+  title: Go Template Minimal API
   version: "1.0"
 paths:
   /oauth/email/bind:
@@ -777,3 +778,9 @@ paths:
       tags:
       - Email
 swagger: "2.0"
+# info block inserted/updated by rename
+info:
+  contact: {}
+  description: Minimal backend framework APIs (users, auth, options, payment, order, status).
+  title: Go Template Minimal API
+  version: "1.0"

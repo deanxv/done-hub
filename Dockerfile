@@ -1,17 +1,4 @@
-FROM node:20 as builder
-
-WORKDIR /build
-
-COPY web/package.json .
-COPY web/yarn.lock .
-
-RUN yarn --frozen-lockfile
-
-COPY ./web .
-COPY ./VERSION .
-RUN DISABLE_ESLINT_PLUGIN='true' VITE_APP_VERSION=$(cat VERSION) npm run build
-
-FROM golang:1.24.2 AS builder2
+FROM golang:1.24.2 AS builder
 
 ENV GO111MODULE=on \
     CGO_ENABLED=1 \
@@ -22,8 +9,7 @@ WORKDIR /build
 ADD go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=builder /build/build ./web/build
-RUN go build -ldflags "-s -w -X 'done-hub/common.Version=$(cat VERSION)' -extldflags '-static'" -o done-hub
+RUN go build -ldflags "-s -w -X 'go-template/common/config.Version=$(cat VERSION)' -extldflags '-static'" -o go-template
 
 FROM alpine:latest
 
@@ -32,7 +18,7 @@ RUN apk update && \
     apk add --no-cache ca-certificates tzdata && \
     update-ca-certificates 2>/dev/null || true
 
-COPY --from=builder2 /build/done-hub /
+COPY --from=builder /build/go-template /
 EXPOSE 3000
 WORKDIR /data
-ENTRYPOINT ["/done-hub"]
+ENTRYPOINT ["/go-template"]

@@ -1,12 +1,12 @@
 package payment
 
 import (
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/model"
-	"done-hub/payment/types"
 	"errors"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/model"
+	"go-template/payment/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"

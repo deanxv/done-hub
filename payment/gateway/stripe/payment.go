@@ -1,14 +1,14 @@
 package stripe
 
 import (
-	"done-hub/model"
-	"done-hub/payment/types"
 	"encoding/json"
 	"fmt"
+	"go-template/model"
+	"go-template/payment/types"
 	"math"
 	"strconv"
 
-	sysconfig "done-hub/common/config"
+	sysconfig "go-template/common/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v80"

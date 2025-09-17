@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"sync"
 
-	"done-hub/common"
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/common/utils"
-	"done-hub/model"
-	"done-hub/payment"
-	"done-hub/payment/types"
+	"go-template/common"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/common/utils"
+	"go-template/model"
+	"go-template/payment"
+	"go-template/payment/types"
 
 	"github.com/gin-gonic/gin"
 )

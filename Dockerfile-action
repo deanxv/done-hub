@@ -7,7 +7,7 @@ RUN apk update \
     && apk add --no-cache ca-certificates tzdata \
     && update-ca-certificates 2>/dev/null || true
 
-COPY done-hub-$TARGETARCH /done-hub
+COPY go-template-$TARGETARCH /go-template
 EXPOSE 3000
 WORKDIR /data
-ENTRYPOINT ["/done-hub"]
+ENTRYPOINT ["/go-template"]

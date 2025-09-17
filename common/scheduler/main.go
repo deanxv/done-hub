@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"done-hub/common/logger"
 	"fmt"
+	"go-template/common/logger"
 	"sync"
 
 	"github.com/go-co-op/gocron/v2"

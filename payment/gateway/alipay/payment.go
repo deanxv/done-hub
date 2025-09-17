@@ -1,11 +1,11 @@
 package alipay
 
 import (
-	"done-hub/model"
-	"done-hub/payment/types"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go-template/model"
+	"go-template/payment/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/smartwalle/alipay/v3"

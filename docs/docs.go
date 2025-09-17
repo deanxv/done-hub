@@ -1169,7 +1169,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "Done Hub Minimal API",
+	Title:            "Go Template Minimal API",
 	Description:      "Minimal backend framework APIs (users, auth, options, payment, order, status).",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

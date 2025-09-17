@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"done-hub/common/logger"
+	"go-template/common/logger"
 )
 
 // ExportPrices is not supported in the minimal edition; keep a stub to satisfy CLI flag.

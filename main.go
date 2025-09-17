@@ -1,21 +1,21 @@
 package main
 
-// @title Done Hub Minimal API
+// @title Go Template Minimal API
 // @version 1.0
 // @description Minimal backend framework APIs (users, auth, options, payment, order, status).
 // @BasePath /api
 
 import (
-	"done-hub/cli"
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/common/oidc"
-	"done-hub/common/redis"
-	"done-hub/cron"
-	_ "done-hub/docs" // swagger docs
-	"done-hub/middleware"
-	"done-hub/model"
-	"done-hub/router"
+	"go-template/cli"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/common/oidc"
+	"go-template/common/redis"
+	"go-template/cron"
+	_ "go-template/docs" // swagger docs
+	"go-template/middleware"
+	"go-template/model"
+	"go-template/router"
 	"net/http"
 	"os"
 	"time"
@@ -90,8 +90,8 @@ func initHttpServer() {
 		Path:     "/",
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
-		Secure:   isHTTPS,                 // 在 HTTPS 环境下启用 Secure
-		SameSite: http.SameSiteStrictMode, // 改为 Lax 模式，兼容 CDN 环境
+		Secure:   isHTTPS,              // 在 HTTPS 环境下启用 Secure
+		SameSite: http.SameSiteLaxMode, // Lax 模式，兼容回调/导航
 	})
 
 	server.Use(sessions.Sessions("session", store))

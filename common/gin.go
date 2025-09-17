@@ -2,9 +2,9 @@ package common
 
 import (
 	"bytes"
-	"done-hub/common/config"
-	"done-hub/common/logger"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/logger"
 	"io"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +40,7 @@ func AbortWithMessage(c *gin.Context, statusCode int, message string) {
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"message": message,
-			"type":    "one_hub_error",
+			"type":    "go_template_error",
 		},
 	})
 	c.Abort()

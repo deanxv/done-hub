@@ -1,6 +1,6 @@
 package types
 
-import "done-hub/model"
+import "go-template/model"
 
 // 支付网关的通用配置
 type PayConfig struct {

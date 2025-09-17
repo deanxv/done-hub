@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"done-hub/common/config"
-	"done-hub/common/logger"
 	"encoding/json"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"go-template/common/config"
+	"go-template/common/logger"
 	"net/http"
 	"net/url"
 )

@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"context"
-	"done-hub/common/logger"
-	"done-hub/common/utils"
+	"go-template/common/logger"
+	"go-template/common/utils"
 	"time"
 
 	"github.com/gin-gonic/gin"

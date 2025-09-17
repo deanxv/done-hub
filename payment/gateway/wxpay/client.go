@@ -2,11 +2,11 @@ package wxpay
 
 import (
 	"context"
-	sysconfig "done-hub/common/config"
-	"done-hub/payment/types"
 	"fmt"
 	"github.com/wechatpay-apiv3/wechatpay-go/core"
 	"github.com/wechatpay-apiv3/wechatpay-go/services/payments/native"
+	sysconfig "go-template/common/config"
+	"go-template/payment/types"
 	"net/http"
 	"strconv"
 )

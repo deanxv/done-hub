@@ -1,11 +1,11 @@
 package controller
 
 import (
-	"done-hub/common"
-	"done-hub/common/config"
-	"done-hub/common/utils"
-	"done-hub/model"
 	"encoding/json"
+	"go-template/common"
+	"go-template/common/config"
+	"go-template/common/utils"
+	"go-template/model"
 	"net/http"
 	"strconv"
 	"strings"

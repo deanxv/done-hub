@@ -1,8 +1,8 @@
 package common
 
 import (
-	"done-hub/common/logger"
 	"fmt"
+	"go-template/common/logger"
 	"runtime/debug"
 )
 

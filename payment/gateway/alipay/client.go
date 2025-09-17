@@ -2,9 +2,9 @@ package alipay
 
 import (
 	"context"
-	sysconfig "done-hub/common/config"
-	"done-hub/payment/types"
 	"fmt"
+	sysconfig "go-template/common/config"
+	"go-template/payment/types"
 	"net/http"
 	"net/url"
 	"strconv"

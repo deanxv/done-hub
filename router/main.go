@@ -1,9 +1,9 @@
 package router
 
 import (
-	"done-hub/common/config"
-	"done-hub/common/logger"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/logger"
 	"net/http"
 	"strings"
 

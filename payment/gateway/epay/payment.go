@@ -1,11 +1,11 @@
 package epay
 
 import (
-	"done-hub/model"
-	"done-hub/payment/types"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go-template/model"
+	"go-template/payment/types"
 	"net/http"
 	"strconv"
 

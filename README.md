@@ -1,4 +1,4 @@
-# Done Hub（本地启动指南）
+# Go Template（本地启动指南）
 
 本项目已精简为可直接本地编译和运行的版本，默认使用 SQLite 存储，不依赖前端构建。下面仅保留本地启动相关说明。
 
@@ -6,10 +6,10 @@
 - Go 1.24+（已在 1.25 测试）
 - macOS/Linux/Windows 任意环境
 
-## 快速开始（傻瓜式）
+## 快速开始
 1) 编译（可选）
 ```
-go build -v -o bin/done-hub .
+go build -v -o bin/go-template .
 ```
 
 2) 使用 SQLite 直接运行（推荐，最少依赖）
@@ -22,20 +22,20 @@ go run .
 
 或运行已编译的二进制：
 ```
-PORT=3000 ./bin/done-hub
+PORT=3000 ./bin/go-template
 ```
 
 3) 使用 MySQL + Redis 运行（生产场景常见）
 
 - 准备 MySQL 连接串（示例）：
-  - MySQL: `oneapi:123456@tcp(127.0.0.1:3306)/done_hub?charset=utf8mb4&parseTime=true&loc=Local`
-  - PostgreSQL（可选）: `postgres://user:password@127.0.0.1:5432/done_hub`
+  - MySQL: `gotemplate:123456@tcp(127.0.0.1:3306)/go_template?charset=utf8mb4&parseTime=true&loc=Local`
+  - PostgreSQL（可选）: `postgres://user:password@127.0.0.1:5432/go_template`
 
 ```
 GIN_MODE=release \
 PORT=3000 \
 TZ=Asia/Shanghai \
-SQL_DSN='oneapi:123456@tcp(127.0.0.1:3306)/done_hub?charset=utf8mb4&parseTime=true&loc=Local' \
+SQL_DSN='gotemplate:123456@tcp(127.0.0.1:3306)/go_template?charset=utf8mb4&parseTime=true&loc=Local' \
 REDIS_CONN_STRING='redis://127.0.0.1:6379/0' \
 SESSION_SECRET='please_change_me' \
 go run .
@@ -58,7 +58,7 @@ http://127.0.0.1:3000/api/status
 看到包含 `success: true` 的 JSON 即表示启动成功。
 
 ## 默认行为与说明
-- 数据库：首次启动会在当前目录创建 `done-hub.db`（SQLite），并自动创建一个初始管理员：
+- 数据库：首次启动会在当前目录创建 `go-template.db`（SQLite），并自动创建一个初始管理员：
   - 用户名：`root`
   - 密码：`123456`
 - 日志：默认写入 `./logs` 目录。
@@ -75,14 +75,14 @@ http://127.0.0.1:3000/api/status
 | TZ                        | Asia/Shanghai                   | 时区（影响日志、统计分组等） |
 | LOG_LEVEL                 | info                            | 日志级别：debug/info/warn/error... |
 | LOG_DIR                   | ./logs                          | 日志目录 |
-| LOGS_FILENAME             | done-hub.log                    | 日志文件名 |
+| LOGS_FILENAME             | go-template.log                    | 日志文件名 |
 | LOGS_MAX_SIZE             | 100                             | 单文件最大 MB |
 | LOGS_MAX_AGE              | 7                               | 保留天数 |
 | LOGS_MAX_BACKUP           | 10                              | 最大备份数 |
 | LOGS_COMPRESS             | false                           | 是否压缩历史日志 |
 | 
 | SQL_DSN                   | （空）                          | 设置即用 MySQL/PostgreSQL；不设置则使用 SQLite |
-| SQLITE_PATH               | done-hub.db                     | SQLite 文件路径 |
+| SQLITE_PATH               | go-template.db                     | SQLite 文件路径 |
 | SQLITE_BUSY_TIMEOUT       | 3000                            | SQLite busy timeout（ms） |
 | SQL_MAX_IDLE_CONNS        | 100                             | 连接池：最大空闲连接数 |
 | SQL_MAX_OPEN_CONNS        | 1000                            | 连接池：最大打开连接数 |
@@ -111,6 +111,8 @@ http://127.0.0.1:3000/api/status
 |
 | GLOBAL_API_RATE_LIMIT     | 300                             | 全局 API 速率阈值（次/窗口） |
 | GLOBAL_WEB_RATE_LIMIT     | 300                             | 全局 WEB 速率阈值（次/窗口） |
+| METRICS_USER              | （空）                          | Prometheus 指标的 BasicAuth 用户，未设置则 /api/metrics 返回 404 |
+| METRICS_PASSWORD          | （空）                          | Prometheus 指标的 BasicAuth 密码 |
 ```
 
 ## 停止服务
@@ -123,3 +125,25 @@ http://127.0.0.1:3000/api/status
 docker compose up -d
 ```
 启动后访问 `http://127.0.0.1:3000/api/status` 验证，管理员初始账号为 `root/123456`。
+
+## 版本信息注入（可选）
+默认日志中的版本为 `v0.0.0`。为了在日志里打印真实版本/构建时间/提交号，可在构建或运行时通过 `-ldflags` 注入：
+
+```
+VER=$(git describe --tags --always || echo dev)
+TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+COMMIT=$(git rev-parse --short HEAD)
+
+go run -ldflags "-X 'go-template/common/config.Version=$VER' \
+               -X 'go-template/common/config.BuildTime=$TIME' \
+               -X 'go-template/common/config.Commit=$COMMIT'" .
+```
+
+- 二进制构建同理：
+```
+go build -ldflags "-s -w -X 'go-template/common/config.Version=$VER' \
+                        -X 'go-template/common/config.BuildTime=$TIME' \
+                        -X 'go-template/common/config.Commit=$COMMIT'" -o bin/go-template .
+```
+
+Docker 与 CI 工作流已默认注入 `Version`，直接使用即可。

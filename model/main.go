@@ -1,11 +1,11 @@
 package model
 
 import (
-	"done-hub/common"
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/common/utils"
 	"fmt"
+	"go-template/common"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/common/utils"
 	"net/url"
 	"strings"
 	"time"

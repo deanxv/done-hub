@@ -1,12 +1,12 @@
 package controller
 
 import (
-	"done-hub/common"
-	"done-hub/common/config"
-	"done-hub/common/stmp"
-	"done-hub/model"
 	"encoding/json"
 	"fmt"
+	"go-template/common"
+	"go-template/common/config"
+	"go-template/common/stmp"
+	"go-template/model"
 	"net/http"
 	"strings"
 

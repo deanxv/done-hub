@@ -2,8 +2,8 @@ package oidc
 
 import (
 	"context"
-	"done-hub/common/config"
-	"done-hub/common/logger"
+	"go-template/common/config"
+	"go-template/common/logger"
 	"strings"
 	"sync"
 

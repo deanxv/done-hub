@@ -2,12 +2,12 @@ package controller
 
 import (
 	"context"
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/common/oidc"
-	"done-hub/common/utils"
-	"done-hub/model"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/common/oidc"
+	"go-template/common/utils"
+	"go-template/model"
 	"net/http"
 	"strings"
 

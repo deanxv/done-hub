@@ -7,14 +7,14 @@ vars:
   GOSUMDB: sum.golang.google.cn
   ROOT_DIR: $(pwd)
   BUILD_DIR: $(pwd)/_output
-  BIN_DIR: $(pwd)/_output/done-hub
-  VERSION_PKG: done-hub/common/config
+  BIN_DIR: $(pwd)/_output/go-template
+  VERSION_PKG: go-template/common/config
   BUILD_VERSION: $(git describe --tags || echo "dev")
   BUILD_DATE: $(date +%Y%m%d)
   GIT_BRANCH: $(git branch -r --contains | head -1 | sed -E -e "s%(HEAD ->|origin|upstream)/?%%g" | xargs)
   GIT_COMMIT: $(git rev-parse --short HEAD || echo "abcdefgh")
   BUILD_RELEASE: "{{.BUILD_VERSION}}-{{.BUILD_DATE}}-{{.GIT_COMMIT}}"
-  IMAGE: "ttl.sh/one-hub:{{.BUILD_RELEASE}}"
+  IMAGE: "ttl.sh/go-template:{{.BUILD_RELEASE}}"
   LOCAL_OS: $(go version | awk '{print $NF}')
   GOOS: $(go env GOOS)
   GOARCH: $(go env GOARCH)
@@ -25,12 +25,7 @@ vars:
     -X '{{.VERSION_PKG}}.Commit={{.GIT_COMMIT}}'"
 
 tasks:
-  web:
-    desc: build web
-    cmds:
-      - hack/scripts/genui.sh {{.BUILD_VERSION}}
-    status:
-      - test -f web/build/index.html
+  # web removed
 
   gomod:
     desc: update go mod
@@ -63,7 +58,6 @@ tasks:
     desc: clean
     run: once
     cmds:
-      - rm -rf web/build
       - rm -rf {{.BUILD_DIR}}
 
   run:
@@ -77,7 +71,6 @@ tasks:
     desc: build binary
     deps:
       - gomod
-      - web
     cmds:
       - go build -o {{.BIN_DIR}} -ldflags "{{.LDFLAGS}}"
 
@@ -85,7 +78,6 @@ tasks:
     desc: build docker image
     deps:
       - gomod
-      - web
     cmds:
       - GOOS=linux GOARCH=amd64 go build -o {{.BIN_DIR}} -ldflags "{{.LDFLAGS}}"
       - docker buildx build --pull --push --platform linux/amd64 -t "{{.IMAGE}}" .

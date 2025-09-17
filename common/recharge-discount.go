@@ -1,8 +1,8 @@
 package common
 
 import (
-	"done-hub/common/logger"
 	"encoding/json"
+	"go-template/common/logger"
 )
 
 var RechargeDiscount = map[string]float64{}

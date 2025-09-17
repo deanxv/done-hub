@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"done-hub/common/config"
-	"done-hub/common/utils"
 	"flag"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/utils"
 	"os"
 
 	"github.com/spf13/viper"
@@ -57,9 +57,9 @@ func InitCli() {
 }
 
 func help() {
-	fmt.Println("Done Hub " + config.Version + " - Minimal backend service framework.")
+	fmt.Println("Go Template " + config.Version + " - Minimal backend service framework.")
 	fmt.Println("Copyright (C) 2025 deanxv. All rights reserved.")
 	fmt.Println("Original copyright holder: JustSong")
-	fmt.Println("GitHub: https://github.com/deanxv/done-hub")
-	fmt.Println("Usage: done-hub [--port <port>] [--log-dir <log directory>] [--config <config.yaml path>] [--version] [--help]")
+	fmt.Println("GitHub: https://github.com/your-org/go-template")
+	fmt.Println("Usage: go-template [--port <port>] [--log-dir <log directory>] [--config <config.yaml path>] [--version] [--help]")
 }

@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"context"
-	"done-hub/common"
-	"done-hub/common/config"
-	"done-hub/common/redis"
-	"done-hub/common/utils"
+	"go-template/common"
+	"go-template/common/config"
+	"go-template/common/redis"
+	"go-template/common/utils"
 	"net/http"
 	"time"
 

@@ -1,0 +1,21 @@
+# File path: /etc/systemd/system/go-template.service
+# sudo systemctl start go-template
+# sudo systemctl enable go-template
+# sudo systemctl status go-template
+
+[Unit]
+Description=Go Template Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/go-template  # 注意修改路径
+ExecStart=/path/to/go-template/go-template --port 3000 --log-dir /path/to/go-template/logs  # 注意修改路径和端口号
+Restart=always
+RestartSec=5s
+TimeoutStopSec=10s
+
+[Install]
+WantedBy=multi-user.target
+

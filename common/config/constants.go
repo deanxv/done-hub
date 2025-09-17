@@ -10,7 +10,7 @@ var StartTime = time.Now().Unix() // unit: second
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
 var Commit = "unknown"
 var BuildTime = "unknown"
-var SystemName = "Done Hub"
+var SystemName = "Go Template"
 var ServerAddress = "http://localhost:3000"
 var Debug = false
 
@@ -18,7 +18,6 @@ var Language = ""
 var Footer = ""
 var Logo = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
-var DisplayInCurrencyEnabled = true
 
 // 是否开启用户月账单功能
 var UserInvoiceMonth = false

@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"done-hub/common"
-	"done-hub/model"
-	paymentService "done-hub/payment"
+	"go-template/common"
+	"go-template/model"
+	paymentService "go-template/payment"
 	"log"
 	"net/http"
 	"strconv"

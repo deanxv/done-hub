@@ -1,9 +1,9 @@
 package model
 
 import (
-	"done-hub/common"
-	"done-hub/common/config"
 	"fmt"
+	"go-template/common"
+	"go-template/common/config"
 	"os"
 	"strings"
 	"time"

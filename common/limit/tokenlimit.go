@@ -22,12 +22,12 @@ package limit
 
 import (
 	"context"
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/common/redis"
 	_ "embed"
 	"errors"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/common/redis"
 	"strconv"
 	"time"
 )

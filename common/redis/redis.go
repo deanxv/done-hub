@@ -2,8 +2,8 @@ package redis
 
 import (
 	"context"
-	"done-hub/common/config"
-	"done-hub/common/logger"
+	"go-template/common/config"
+	"go-template/common/logger"
 	"time"
 
 	"github.com/redis/go-redis/v9"

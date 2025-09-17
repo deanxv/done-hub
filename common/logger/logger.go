@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"done-hub/common/utils"
+	"go-template/common/utils"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -27,7 +27,7 @@ const (
 	loggerDEBUG = "DEBUG"
 )
 const (
-	RequestIdKey = "X-Oneapi-Request-Id"
+	RequestIdKey = "X-Request-Id"
 )
 
 // LogEntry represents a single log entry in memory
@@ -128,7 +128,7 @@ func getEncoder() zapcore.Encoder {
 }
 
 func getLogWriter(logDir string) zapcore.WriteSyncer {
-	filename := utils.GetOrDefault("logs.filename", "done-hub.log")
+	filename := utils.GetOrDefault("logs.filename", "go-template.log")
 	logPath := filepath.Join(logDir, filename)
 
 	maxsize := utils.GetOrDefault("logs.max_size", 100)
@@ -338,7 +338,7 @@ func queryLogsFromFile(params LogQueryParams) (*LogQueryResult, error) {
 		return nil, fmt.Errorf("log directory not configured")
 	}
 
-	filename := utils.GetOrDefault("logs.filename", "done-hub.log")
+	filename := utils.GetOrDefault("logs.filename", "go-template.log")
 	logPath := filepath.Join(logDir, filename)
 
 	// Read logs from file

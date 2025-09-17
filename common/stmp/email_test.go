@@ -1,19 +1,19 @@
 package stmp_test
 
 import (
-	"done-hub/common/config"
 	"fmt"
+	"go-template/common/config"
 	"testing"
 
-	"done-hub/common"
-	"done-hub/common/stmp"
+	"go-template/common"
+	"go-template/common/stmp"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
 func InitConfig() {
-	viper.AddConfigPath("/done-hub")
+	viper.AddConfigPath("/go-template")
 	viper.SetConfigName("test")
 	viper.ReadInConfig()
 }

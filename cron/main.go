@@ -1,9 +1,9 @@
 package cron
 
 import (
-	"done-hub/common/config"
-	"done-hub/common/logger"
-	"done-hub/common/scheduler"
+	"go-template/common/config"
+	"go-template/common/logger"
+	"go-template/common/scheduler"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"

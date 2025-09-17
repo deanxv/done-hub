@@ -2,10 +2,10 @@ package limit
 
 import (
 	"context"
-	"done-hub/common/config"
-	"done-hub/common/redis"
 	_ "embed"
 	"fmt"
+	"go-template/common/config"
+	"go-template/common/redis"
 	"time"
 )
 

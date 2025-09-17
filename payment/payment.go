@@ -1,12 +1,12 @@
 package payment
 
 import (
-	"done-hub/model"
-	"done-hub/payment/gateway/alipay"
-	"done-hub/payment/gateway/epay"
-	"done-hub/payment/gateway/stripe"
-	"done-hub/payment/gateway/wxpay"
-	"done-hub/payment/types"
+	"go-template/model"
+	"go-template/payment/gateway/alipay"
+	"go-template/payment/gateway/epay"
+	"go-template/payment/gateway/stripe"
+	"go-template/payment/gateway/wxpay"
+	"go-template/payment/types"
 
 	"github.com/gin-gonic/gin"
 )
