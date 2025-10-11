@@ -38,7 +38,8 @@ const originalKeyword = {
   test_model: '',
   other: '',
   filter_tag: 0,
-  tag: ''
+  tag: '',
+  base_url: ''
 }
 
 export async function fetchChannelData(page, rowsPerPage, keyword, order, orderBy) {

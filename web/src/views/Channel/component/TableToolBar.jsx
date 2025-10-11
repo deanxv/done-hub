@@ -128,6 +128,26 @@ export default function TableToolBar({ filterName, handleFilterName, groupOption
             }
           />
         </FormControl>
+        <FormControl>
+          <InputLabel htmlFor="channel-base_url-label">{t('channel_index.channelApiAddress')}</InputLabel>
+          <OutlinedInput
+            id="base_url"
+            name="base_url"
+            sx={{
+              minWidth: '100%'
+            }}
+            label={t('channel_index.channelApiAddress')}
+            value={filterName.base_url}
+            onChange={handleFilterName}
+            onKeyDown={handleKeyDown}
+            placeholder={t('channel_index.channelApiAddress')}
+            startAdornment={
+              <InputAdornment position="start">
+                <Icon icon="solar:link-bold-duotone" width={20} height={20} color={grey500} />
+              </InputAdornment>
+            }
+          />
+        </FormControl>
       </Stack>
 
       <Stack

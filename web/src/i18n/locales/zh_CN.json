@@ -186,6 +186,7 @@
     "modelName": "模型名称",
     "channelName": "渠道名称",
     "testModel": "测试模型",
+    "channelApiAddress": "渠道API地址",
     "otherParameters": "其他参数",
     "channelType": "渠道类型",
     "all": "全部",

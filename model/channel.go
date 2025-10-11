@@ -72,7 +72,8 @@ var allowedChannelOrderFields = map[string]bool{
 type SearchChannelsParams struct {
 	Channel
 	PaginationParams
-	FilterTag int `json:"filter_tag" form:"filter_tag"`
+	FilterTag int    `json:"filter_tag" form:"filter_tag"`
+	BaseURL   string `json:"base_url" form:"base_url"`
 }
 
 func GetChannelsList(params *SearchChannelsParams) (*DataResult[Channel], error) {
@@ -122,6 +123,11 @@ func GetChannelsList(params *SearchChannelsParams) (*DataResult[Channel], error)
 	if params.TestModel != "" {
 		db = db.Where("test_model LIKE ?", params.TestModel+"%")
 		tagDB = tagDB.Where("test_model LIKE ?", params.TestModel+"%")
+	}
+
+	if params.BaseURL != "" {
+		db = db.Where("base_url LIKE ?", "%"+params.BaseURL+"%")
+		tagDB = tagDB.Where("base_url LIKE ?", "%"+params.BaseURL+"%")
 	}
 
 	if params.Tag != "" {

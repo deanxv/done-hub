@@ -191,6 +191,7 @@
     "channel": "Channel",
     "channelList": "Channel List",
     "channelName": "Channel Name",
+    "channelApiAddress": "Channel API Address",
     "channelTags": "Channel Tags",
     "channelType": "Channel Type",
     "deleteDisabledChannels": "Delete Disabled Channels",
