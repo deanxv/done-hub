@@ -24,7 +24,7 @@ type GeminiStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
 
-	key     string
+	Key     string
 	Context *gin.Context // 添加 Context 用于获取响应模型名称
 }
 
@@ -87,7 +87,7 @@ func (p *GeminiProvider) CreateChatCompletionStream(request *types.ChatCompletio
 		Usage:   p.Usage,
 		Request: request,
 
-		key:     channel.Key,
+		Key:     channel.Key,
 		Context: p.Context, // 传递 Context
 	}
 
@@ -700,7 +700,7 @@ func (h *GeminiStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan strin
 		return
 	}
 
-	aiError := errorHandle(&geminiResponse.GeminiErrorResponse, h.key)
+	aiError := errorHandle(&geminiResponse.GeminiErrorResponse, h.Key)
 	if aiError != nil {
 		errChan <- aiError
 		return

@@ -299,6 +299,13 @@ export const CHANNEL_OPTIONS = {
     color: 'orange',
     url: 'https://aistudio.google.com/'
   },
+  61: {
+    key: 61,
+    text: 'VertexAI Express',
+    value: 61,
+    color: 'orange',
+    url: 'https://console.cloud.google.com/'
+  },
   8: {
     key: 8,
     text: '自定义渠道',

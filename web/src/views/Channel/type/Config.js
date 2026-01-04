@@ -583,6 +583,20 @@ const typeConfig = {
       key: '请输入完整的 OAuth2 凭证 JSON，或点击下方"OAuth 授权"按钮自动获取',
       other: '可选，留空将自动检测或随机生成。例如：my-project-123'
     }
+  },
+  61: {
+    input: {
+      models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+      test_model: 'gemini-2.5-flash'
+    },
+    inputLabel: {
+      other: 'Region|ProjectID'
+    },
+    prompt: {
+      key: '请输入 API Key（从 Google Cloud Console 获取）',
+      other: '格式：us-central1|your-project-id'
+    },
+    modelGroup: 'VertexAI Express'
   }
 }
 

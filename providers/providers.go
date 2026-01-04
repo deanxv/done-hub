@@ -42,6 +42,7 @@ import (
 	"done-hub/providers/suno"
 	"done-hub/providers/tencent"
 	"done-hub/providers/vertexai"
+	vertexai_express "done-hub/providers/vertexai_express"
 	"done-hub/providers/xAI"
 	"done-hub/providers/xunfei"
 	"done-hub/providers/zhipu"
@@ -101,6 +102,7 @@ func init() {
 		config.ChannelTypeClaudeCode:      claudecode.ClaudeCodeProviderFactory{},
 		config.ChannelTypeCodex:           codex.CodexProviderFactory{},
 		config.ChannelTypeAntigravity:     antigravity.AntigravityProviderFactory{},
+		config.ChannelTypeVertexAIExpress: vertexai_express.VertexAIExpressProviderFactory{},
 	}
 }
 
