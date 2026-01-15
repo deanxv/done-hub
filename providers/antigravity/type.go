@@ -18,7 +18,7 @@ import (
 const (
 	AntigravityClientID     = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
 	AntigravityClientSecret = "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"
-	AntigravityUserAgent    = "antigravity/1.11.3 windows/amd64"
+	AntigravityUserAgent    = "antigravity/1.104.0 darwin/arm64"
 	TokenEndpoint           = "https://oauth2.googleapis.com/token"
 )
 

@@ -29,7 +29,7 @@ func (f AntigravityProviderFactory) Create(channel *model.Channel) base.Provider
 		GeminiProvider: gemini.GeminiProvider{
 			OpenAIProvider: openai.OpenAIProvider{
 				BaseProvider: base.BaseProvider{
-					Config:    getConfig("https://cloudcode-pa.googleapis.com"),
+					Config:    getConfig("https://daily-cloudcode-pa.sandbox.googleapis.com"),
 					Channel:   channel,
 					Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle("")),
 				},
@@ -54,7 +54,7 @@ func parseAntigravityConfig(provider *AntigravityProvider) {
 	channel := provider.Channel
 
 	// 默认配置
-	endpoint := "https://cloudcode-pa.googleapis.com"
+	endpoint := "https://daily-cloudcode-pa.sandbox.googleapis.com"
 
 	// 尝试从 Plugin 中获取配置
 	if channel.Plugin != nil {
