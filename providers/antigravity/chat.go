@@ -236,7 +236,7 @@ func (p *AntigravityProvider) getChatRequest(geminiRequest *gemini.GeminiChatReq
 
 	// Claude 模型特殊处理：添加 Antigravity 前置提示
 	isClaudeModel := strings.Contains(strings.ToLower(geminiRequest.Model), "claude")
-	isGemini3Pro := strings.Contains(geminiRequest.Model, "gemini-3-pro-preview")
+	isGemini3Pro := strings.Contains(geminiRequest.Model, "gemini-3-pro")
 	if isClaudeModel || isGemini3Pro {
 		applyAntigravitySystemInstruction(requestMap)
 	}
