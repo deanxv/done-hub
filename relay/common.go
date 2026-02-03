@@ -757,6 +757,32 @@ func relayRerankResponseWithErr(c *gin.Context, err *types.OpenAIErrorWithStatus
 	})
 }
 
+// removeNestedParam removes a parameter from the map, supporting nested paths like "generationConfig.thinkingConfig"
+func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
+	// 使用 "." 分割路径
+	parts := strings.Split(paramPath, ".")
+	
+	// 如果只有一层，直接删除
+	if len(parts) == 1 {
+		delete(requestMap, paramPath)
+		return
+	}
+	
+	// 处理嵌套路径
+	current := requestMap
+	for i := 0; i < len(parts)-1; i++ {
+		if next, ok := current[parts[i]].(map[string]interface{}); ok {
+			current = next
+		} else {
+			// 如果中间路径不存在或不是 map，则无法继续
+			return
+		}
+	}
+	
+	// 删除最后一级的键
+	delete(current, parts[len(parts)-1])
+}
+
 // mergeCustomParamsForPreMapping applies custom parameter logic similar to OpenAI provider
 func mergeCustomParamsForPreMapping(requestMap map[string]interface{}, customParams map[string]interface{}) map[string]interface{} {
 	// 检查是否需要覆盖已有参数
@@ -795,7 +821,7 @@ func mergeCustomParamsForPreMapping(requestMap map[string]interface{}, customPar
 		if paramsList, ok := removeParams.([]interface{}); ok {
 			for _, param := range paramsList {
 				if paramName, ok := param.(string); ok {
-					delete(requestMap, paramName)
+					removeNestedParam(requestMap, paramName)
 				}
 			}
 		}
