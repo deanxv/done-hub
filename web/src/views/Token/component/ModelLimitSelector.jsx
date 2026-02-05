@@ -4,6 +4,7 @@ import { useFormikContext } from 'formik';
 import { Autocomplete, Box, Chip, FormControl, FormHelperText, Grid, Paper, TextField, Typography } from '@mui/material';
 import PropTypes from 'prop-types';
 import { useMemo } from 'react';
+import UnknownType from 'assets/images/icons/unknown_type.svg';
 
 const ModelLimitSelector = ({ modelOptions, getModelIcon }) => {
   const { t } = useTranslation();
@@ -53,7 +54,7 @@ const ModelLimitSelector = ({ modelOptions, getModelIcon }) => {
                   alt={option.owned_by}
                   style={{ width: 24, height: 24, borderRadius: '4px' }}
                   onError={(e) => {
-                    e.target.src = '/src/assets/images/icons/unknown_type.svg';
+                    e.target.src = UnknownType;
                   }}
                 />
               </Grid>

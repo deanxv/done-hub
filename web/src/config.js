@@ -36,6 +36,7 @@ const config = {
     lark_login: false,
     lark_client_id: '',
     telegram_bot: '',
+    max_log_query_days: 180,
     isLoading: true // 添加加载状态
   }
 };

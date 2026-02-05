@@ -32,6 +32,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { renderQuotaWithPrompt, showSuccess, showError } from 'utils/common';
 import { API } from 'utils/api';
+import UnknownType from 'assets/images/icons/unknown_type.svg';
 import { useTranslation } from 'react-i18next';
 import 'dayjs/locale/zh-cn';
 
@@ -98,7 +99,7 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions }) => {
       if (success) {
         const iconMap = {};
         data.forEach((provider) => {
-          iconMap[provider.name] = provider.icon || '/src/assets/images/icons/unknown_type.svg';
+          iconMap[provider.name] = provider.icon;
         });
         setOwnedByIcons(iconMap);
       }
@@ -127,7 +128,7 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions }) => {
   };
 
   const getModelIcon = (ownedBy) => {
-    return ownedByIcons[ownedBy] || '/src/assets/images/icons/unknown_type.svg';
+    return ownedByIcons[ownedBy] || UnknownType;
   };
 
   const submit = async (values, { setErrors, setStatus, setSubmitting }) => {

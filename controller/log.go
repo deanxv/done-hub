@@ -13,10 +13,63 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 日志查询最大时间范围（天）
+const MaxLogQueryDays = 180
+
+// validateLogTimeRange 验证日志查询的时间范围
+func validateLogTimeRange(startTimestamp, endTimestamp int64) error {
+	if startTimestamp == 0 && endTimestamp == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	maxDuration := time.Duration(MaxLogQueryDays) * 24 * time.Hour
+	minAllowedTime := now.Add(-maxDuration)
+
+	if startTimestamp > 0 {
+		if time.Unix(startTimestamp, 0).Before(minAllowedTime) {
+			return fmt.Errorf("开始时间不能早于 %d 天前", MaxLogQueryDays)
+		}
+	}
+
+	if endTimestamp > 0 {
+		if time.Unix(endTimestamp, 0).Before(minAllowedTime) {
+			return fmt.Errorf("结束时间不能早于 %d 天前", MaxLogQueryDays)
+		}
+	}
+
+	if startTimestamp > 0 && endTimestamp > 0 {
+		if endTimestamp < startTimestamp {
+			return fmt.Errorf("结束时间不能早于开始时间")
+		}
+		if time.Unix(endTimestamp, 0).Sub(time.Unix(startTimestamp, 0)) > maxDuration {
+			return fmt.Errorf("查询时间跨度不能超过 %d 天", MaxLogQueryDays)
+		}
+	}
+
+	return nil
+}
+
+// checkLogTimeRange 校验时间范围，失败时写入错误响应并返回 true
+func checkLogTimeRange(c *gin.Context, startTimestamp, endTimestamp int64) bool {
+	if err := validateLogTimeRange(startTimestamp, endTimestamp); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return true
+	}
+	return false
+}
+
 func GetLogsList(c *gin.Context) {
 	var params model.LogsListParams
 	if err := c.ShouldBindQuery(&params); err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
+		return
+	}
+
+	if checkLogTimeRange(c, params.StartTimestamp, params.EndTimestamp) {
 		return
 	}
 
@@ -41,6 +94,10 @@ func GetUserLogsList(c *gin.Context) {
 		return
 	}
 
+	if checkLogTimeRange(c, params.StartTimestamp, params.EndTimestamp) {
+		return
+	}
+
 	logs, err := model.GetUserLogsList(userId, &params)
 	if err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
@@ -57,6 +114,11 @@ func GetLogsStat(c *gin.Context) {
 	// logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+
+	if checkLogTimeRange(c, startTimestamp, endTimestamp) {
+		return
+	}
+
 	tokenName := c.Query("token_name")
 	username := c.Query("username")
 	modelName := c.Query("model_name")
@@ -78,6 +140,11 @@ func GetLogsSelfStat(c *gin.Context) {
 	// logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+
+	if checkLogTimeRange(c, startTimestamp, endTimestamp) {
+		return
+	}
+
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
@@ -124,6 +191,10 @@ func ExportLogsList(c *gin.Context) {
 		return
 	}
 
+	if checkLogTimeRange(c, params.StartTimestamp, params.EndTimestamp) {
+		return
+	}
+
 	// Get all matching records without pagination
 	logs, err := model.GetAllLogsList(&params)
 	if err != nil {
@@ -166,6 +237,10 @@ func ExportUserLogsList(c *gin.Context) {
 	var params model.LogsListParams
 	if err := c.ShouldBindQuery(&params); err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
+		return
+	}
+
+	if checkLogTimeRange(c, params.StartTimestamp, params.EndTimestamp) {
 		return
 	}
 

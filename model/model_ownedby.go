@@ -10,6 +10,9 @@ var UnknownOwnedBy = "未知"
 
 const ModelOwnedByReserveID = 1000
 
+// 默认模型图标（当未设置图标时使用）
+const DefaultModelIcon = "https://registry.npmmirror.com/@lobehub/icons-static-svg/latest/files/icons/ai.svg"
+
 type ModelOwnedBy struct {
 	Id   int    `json:"id" gorm:"index"`
 	Name string `json:"name" gorm:"type:varchar(100)"`
@@ -128,8 +131,8 @@ func (m *ModelOwnedBys) GetName(id int) string {
 
 func (m *ModelOwnedBys) GetIcon(id int) string {
 	modelOwnedBy := m.Get(id)
-	if modelOwnedBy == nil {
-		return ""
+	if modelOwnedBy == nil || modelOwnedBy.Icon == "" {
+		return DefaultModelIcon
 	}
 	return modelOwnedBy.Icon
 }

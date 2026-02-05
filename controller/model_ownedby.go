@@ -17,6 +17,12 @@ func GetAllModelOwnedBy(c *gin.Context) {
 		return
 	}
 
+	for _, m := range modelOwnedBies {
+		if m.Icon == "" {
+			m.Icon = model.DefaultModelIcon
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

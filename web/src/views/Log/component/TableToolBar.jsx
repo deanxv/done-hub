@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { useMemo } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { Icon } from '@iconify/react';
 import { InputAdornment, OutlinedInput, Stack, FormControl, InputLabel } from '@mui/material';
@@ -6,6 +7,7 @@ import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
 import 'dayjs/locale/zh-cn';
 
 // ----------------------------------------------------------------------
@@ -14,6 +16,9 @@ export default function TableToolBar({ filterName, handleFilterName, userIsAdmin
   const { t } = useTranslation();
   const theme = useTheme();
   const grey500 = theme.palette.grey[500];
+  const maxLogQueryDays = useSelector((state) => state.siteInfo.max_log_query_days);
+
+  const minDate = useMemo(() => dayjs().subtract(maxLogQueryDays, 'day'), [maxLogQueryDays]);
 
   // 处理回车键搜索
   const handleKeyDown = (event) => {
@@ -98,6 +103,7 @@ export default function TableToolBar({ filterName, handleFilterName, userIsAdmin
               label={t('tableToolBar.startTime')}
               ampm={false}
               name="start_timestamp"
+              minDate={minDate}
               value={filterName.start_timestamp === 0 ? null : dayjs.unix(filterName.start_timestamp)}
               onChange={(value) => {
                 if (value === null) {
@@ -120,6 +126,7 @@ export default function TableToolBar({ filterName, handleFilterName, userIsAdmin
               label={t('tableToolBar.endTime')}
               name="end_timestamp"
               ampm={false}
+              minDate={minDate}
               value={filterName.end_timestamp === 0 ? null : dayjs.unix(filterName.end_timestamp)}
               onChange={(value) => {
                 if (value === null) {

@@ -64,6 +64,7 @@ func GetStatus(c *gin.Context) {
 			"UptimeEnabled":        config.UPTIMEKUMA_ENABLE,
 			"GeminiAPIEnabled":     config.GeminiAPIEnabled,
 			"ClaudeAPIEnabled":     config.ClaudeAPIEnabled,
+			"max_log_query_days":   MaxLogQueryDays,
 		},
 	})
 }
