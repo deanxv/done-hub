@@ -69,29 +69,29 @@ func (stream *streamReader[T]) processLines() {
 
 	for {
 		rawLine, readErr := stream.reader.ReadBytes('\n')
+
+		// 先处理读取到的数据（即使有错误，ReadBytes 也可能返回部分数据）
+		if len(rawLine) > 0 {
+			if !stream.NoTrim {
+				rawLine = bytes.TrimSpace(rawLine)
+			}
+
+			if len(rawLine) > 0 {
+				stream.handlerPrefix(&rawLine, stream.DataChan, stream.ErrChan)
+
+				if rawLine != nil && bytes.Equal(rawLine, StreamClosed) {
+					return
+				}
+			}
+		}
+
+		// 然后处理错误
 		if readErr != nil {
 			select {
 			case stream.ErrChan <- readErr:
 			case <-time.After(1000 * time.Millisecond):
 				logger.SysError(fmt.Sprintf("无法发送流错误: %v", readErr))
 			}
-			return
-		}
-
-		if !stream.NoTrim {
-			rawLine = bytes.TrimSpace(rawLine)
-			if len(rawLine) == 0 {
-				continue
-			}
-		}
-
-		stream.handlerPrefix(&rawLine, stream.DataChan, stream.ErrChan)
-
-		if rawLine == nil {
-			continue
-		}
-
-		if bytes.Equal(rawLine, StreamClosed) {
 			return
 		}
 	}
