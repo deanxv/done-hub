@@ -71,7 +71,11 @@ func (stream *streamReader[T]) processLines() {
 		rawLine, readErr := stream.reader.ReadBytes('\n')
 
 		// 先处理读取到的数据（即使有错误，ReadBytes 也可能返回部分数据）
-		if len(rawLine) > 0 {
+		// 对于 NoTrim 流（relay 场景），跳过 EOF 时不以 '\n' 结尾的不完整数据，
+		// 避免转发给客户端导致解析错误
+		isIncomplete := stream.NoTrim && readErr != nil && len(rawLine) > 0 && rawLine[len(rawLine)-1] != '\n'
+
+		if len(rawLine) > 0 && !isIncomplete {
 			if !stream.NoTrim {
 				rawLine = bytes.TrimSpace(rawLine)
 			}
