@@ -224,62 +224,64 @@ func CleanGeminiRequestMap(data map[string]interface{}, isVertexAI bool) {
 		}
 	}
 
-	// 如果是 Vertex AI，还需要清理 tools 中的 tool_type 字段
-	if isVertexAI {
-		if tools, ok := data["tools"].([]interface{}); ok {
-			var validTools []interface{}
-			for _, tool := range tools {
-				if toolMap, ok := tool.(map[string]interface{}); ok {
-					// 移除所有可能的 tool_type 相关字段，因为 Gemini API 不需要
+	// 清理 tools 中 Gemini API 不支持的字段
+	if tools, ok := data["tools"].([]interface{}); ok {
+		var validTools []interface{}
+		for _, tool := range tools {
+			if toolMap, ok := tool.(map[string]interface{}); ok {
+				// Vertex AI 需要移除 tool_type 相关字段
+				if isVertexAI {
 					delete(toolMap, "tool_type")
 					delete(toolMap, "toolType")
 					delete(toolMap, "type")
+				}
 
-					// 清理 functionDeclarations 中的 $schema 字段
-					if functionDeclarations, ok := toolMap["functionDeclarations"].([]interface{}); ok {
-						for _, funcDecl := range functionDeclarations {
-							if funcDeclMap, ok := funcDecl.(map[string]interface{}); ok {
-								if parameters, ok := funcDeclMap["parameters"].(map[string]interface{}); ok {
-									// 移除 Vertex AI 不支持的 $schema 字段
-									delete(parameters, "$schema")
-									// 递归清理嵌套的 schema 对象
-									cleanSchemaRecursively(parameters)
-								}
+				// 清理 functionDeclarations 中 Gemini API 不支持的字段
+				if functionDeclarations, ok := toolMap["functionDeclarations"].([]interface{}); ok {
+					for _, funcDecl := range functionDeclarations {
+						if funcDeclMap, ok := funcDecl.(map[string]interface{}); ok {
+							// 移除 Gemini API 不支持的 strict 字段（OpenAI 特有）
+							delete(funcDeclMap, "strict")
+							if parameters, ok := funcDeclMap["parameters"].(map[string]interface{}); ok {
+								// 移除 Gemini API 不支持的 $schema 字段
+								delete(parameters, "$schema")
+								// 递归清理嵌套的 schema 对象
+								cleanSchemaRecursively(parameters)
 							}
-						}
-
-						if len(functionDeclarations) == 0 {
-							// 跳过空的工具
-							continue
 						}
 					}
 
-					// 检查工具是否有任何有效内容
-					hasValidContent := false
-					for key, value := range toolMap {
-						if key == "functionDeclarations" {
-							if arr, ok := value.([]interface{}); ok && len(arr) > 0 {
-								hasValidContent = true
-								break
-							}
-						} else if value != nil {
+					if len(functionDeclarations) == 0 {
+						// 跳过空的工具
+						continue
+					}
+				}
+
+				// 检查工具是否有任何有效内容
+				hasValidContent := false
+				for key, value := range toolMap {
+					if key == "functionDeclarations" {
+						if arr, ok := value.([]interface{}); ok && len(arr) > 0 {
 							hasValidContent = true
 							break
 						}
-					}
-
-					if hasValidContent {
-						validTools = append(validTools, toolMap)
+					} else if value != nil {
+						hasValidContent = true
+						break
 					}
 				}
-			}
 
-			// 如果没有有效工具，移除整个 tools 字段
-			if len(validTools) == 0 {
-				delete(data, "tools")
-			} else {
-				data["tools"] = validTools
+				if hasValidContent {
+					validTools = append(validTools, toolMap)
+				}
 			}
+		}
+
+		// 如果没有有效工具，移除整个 tools 字段
+		if len(validTools) == 0 {
+			delete(data, "tools")
+		} else {
+			data["tools"] = validTools
 		}
 	}
 }
