@@ -188,7 +188,7 @@ func CleanGeminiRequestMap(data map[string]interface{}, isVertexAI bool) {
 	// 清理 contents 中的 function_call 和 function_response 字段中的 id
 	if contents, ok := data["contents"].([]interface{}); ok {
 		// 验证和修复函数调用序列
-		contents = validateAndFixFunctionCallSequence(contents, isVertexAI)
+		contents = validateAndFixFunctionCallSequence(contents)
 		data["contents"] = contents
 
 		for _, content := range contents {
@@ -286,98 +286,177 @@ func CleanGeminiRequestMap(data map[string]interface{}, isVertexAI bool) {
 	}
 }
 
-// validateAndFixFunctionCallSequence 验证和修复函数调用序列
-func validateAndFixFunctionCallSequence(contents []interface{}, isVertexAI bool) []interface{} {
-	if !isVertexAI {
-		return contents // 只对 Vertex AI 进行修复
+// getFunctionCallName 从 part 中提取 functionCall 的 name（兼容 camelCase 和 snake_case）
+func getFunctionCallName(partMap map[string]interface{}) (string, bool) {
+	for _, field := range []string{"functionCall", "function_call"} {
+		if fc, ok := partMap[field].(map[string]interface{}); ok {
+			name, _ := fc["name"].(string)
+			return name, true
+		}
 	}
+	return "", false
+}
 
-	var fixedContents []interface{}
-	functionCallCount := 0
-	functionResponseCount := 0
+// getFunctionResponseName 从 part 中提取 functionResponse 的 name（兼容 camelCase 和 snake_case）
+func getFunctionResponseName(partMap map[string]interface{}) (string, bool) {
+	for _, field := range []string{"functionResponse", "function_response"} {
+		if fr, ok := partMap[field].(map[string]interface{}); ok {
+			name, _ := fr["name"].(string)
+			return name, true
+		}
+	}
+	return "", false
+}
 
-	// 第一遍：统计函数调用和响应的数量
-	for _, content := range contents {
-		contentMap, ok := content.(map[string]interface{})
+// extractFunctionCallNames 从 model turn 的 parts 中提取所有 functionCall 的 name
+func extractFunctionCallNames(contentMap map[string]interface{}) []string {
+	var names []string
+	parts, _ := contentMap["parts"].([]interface{})
+	for _, part := range parts {
+		if partMap, ok := part.(map[string]interface{}); ok {
+			if name, ok := getFunctionCallName(partMap); ok {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// extractFunctionResponseNames 从 function/user turn 的 parts 中提取所有 functionResponse 的 name
+func extractFunctionResponseNames(contentMap map[string]interface{}) []string {
+	var names []string
+	parts, _ := contentMap["parts"].([]interface{})
+	for _, part := range parts {
+		if partMap, ok := part.(map[string]interface{}); ok {
+			if name, ok := getFunctionResponseName(partMap); ok {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// detectResponseFieldStyle 检测已有 parts 中 functionResponse 使用的字段风格
+func detectResponseFieldStyle(parts []interface{}) string {
+	for _, part := range parts {
+		if partMap, ok := part.(map[string]interface{}); ok {
+			if _, exists := partMap["functionResponse"]; exists {
+				return "functionResponse"
+			}
+			if _, exists := partMap["function_response"]; exists {
+				return "function_response"
+			}
+		}
+	}
+	return "functionResponse"
+}
+
+// validateAndFixFunctionCallSequence 验证和修复函数调用序列
+// 逐 turn 配对：当 model turn 包含 functionCall 时，检查紧随其后的 turn，
+// 确保 functionResponse 数量与 functionCall 1:1 匹配
+func validateAndFixFunctionCallSequence(contents []interface{}) []interface{} {
+	n := len(contents)
+	for i := 0; i < n-1; i++ {
+		modelMap, ok := contents[i].(map[string]interface{})
 		if !ok {
 			continue
 		}
 
-		parts, _ := contentMap["parts"].([]interface{})
+		role, _ := modelMap["role"].(string)
+		if role != "model" {
+			continue
+		}
 
+		callNames := extractFunctionCallNames(modelMap)
+		if len(callNames) == 0 {
+			continue
+		}
+
+		nextMap, ok := contents[i+1].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// 校验下一个 turn 的 role，避免在非 response turn 上误操作
+		nextRole, _ := nextMap["role"].(string)
+		if nextRole == "model" {
+			continue
+		}
+
+		// 构建 call 名称频次
+		callFreq := make(map[string]int)
+		for _, name := range callNames {
+			callFreq[name]++
+		}
+
+		// 构建 response 名称频次
+		respNames := extractFunctionResponseNames(nextMap)
+		respFreq := make(map[string]int)
+		for _, name := range respNames {
+			respFreq[name]++
+		}
+
+		// 按名称比对是否完全匹配
+		matched := true
+		for name, cnt := range callFreq {
+			if respFreq[name] != cnt {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			for name, cnt := range respFreq {
+				if callFreq[name] != cnt {
+					matched = false
+					break
+				}
+			}
+		}
+		if matched {
+			continue
+		}
+
+		parts, _ := nextMap["parts"].([]interface{})
+
+		// 裁剪：移除没有对应 call 的多余 response
+		trimCallFreq := make(map[string]int)
+		for k, v := range callFreq {
+			trimCallFreq[k] = v
+		}
+		var fixedParts []interface{}
 		for _, part := range parts {
 			if partMap, ok := part.(map[string]interface{}); ok {
-				if _, exists := partMap["functionCall"]; exists {
-					functionCallCount++
+				if name, ok := getFunctionResponseName(partMap); ok {
+					if trimCallFreq[name] > 0 {
+						trimCallFreq[name]--
+						fixedParts = append(fixedParts, part)
+					}
+					continue
 				}
-				if _, exists := partMap["function_call"]; exists {
-					functionCallCount++
-				}
-				if _, exists := partMap["functionResponse"]; exists {
-					functionResponseCount++
-				}
-				if _, exists := partMap["function_response"]; exists {
-					functionResponseCount++
-				}
+			}
+			fixedParts = append(fixedParts, part)
+		}
+
+		// 补齐：为缺少 response 的 call 补充空响应
+		fieldName := detectResponseFieldStyle(fixedParts)
+		for _, callName := range callNames {
+			if trimCallFreq[callName] > 0 {
+				trimCallFreq[callName]--
+				fixedParts = append(fixedParts, map[string]interface{}{
+					fieldName: map[string]interface{}{
+						"name": callName,
+						"response": map[string]interface{}{
+							"output": "",
+						},
+					},
+				})
 			}
 		}
+
+		nextMap["parts"] = fixedParts
 	}
 
-	// 如果函数调用和响应数量不匹配，移除所有函数调用相关内容
-	if functionCallCount != functionResponseCount {
-
-		for _, content := range contents {
-			contentMap, ok := content.(map[string]interface{})
-			if !ok {
-				fixedContents = append(fixedContents, content)
-				continue
-			}
-
-			parts, _ := contentMap["parts"].([]interface{})
-			var cleanParts []interface{}
-			hasNonFunctionContent := false
-
-			// 移除所有函数调用相关的 parts
-			for _, part := range parts {
-				if partMap, ok := part.(map[string]interface{}); ok {
-					hasFunctionCall := false
-					hasFunctionResponse := false
-
-					if _, exists := partMap["functionCall"]; exists {
-						hasFunctionCall = true
-					}
-					if _, exists := partMap["function_call"]; exists {
-						hasFunctionCall = true
-					}
-					if _, exists := partMap["functionResponse"]; exists {
-						hasFunctionResponse = true
-					}
-					if _, exists := partMap["function_response"]; exists {
-						hasFunctionResponse = true
-					}
-
-					if !hasFunctionCall && !hasFunctionResponse {
-						cleanParts = append(cleanParts, part)
-						hasNonFunctionContent = true
-					}
-				} else {
-					cleanParts = append(cleanParts, part)
-					hasNonFunctionContent = true
-				}
-			}
-
-			// 只有当有非函数内容时才添加这个 content
-			if hasNonFunctionContent && len(cleanParts) > 0 {
-				contentMap["parts"] = cleanParts
-				fixedContents = append(fixedContents, contentMap)
-			}
-		}
-	} else {
-		// 函数调用和响应匹配，保持原样
-		fixedContents = contents
-	}
-
-	return fixedContents
+	return contents
 }
 
 // cleanSchemaRecursively 递归清理 schema 对象中的 $schema 和 additionalProperties 字段
@@ -533,9 +612,12 @@ func ConvertFromChatOpenai(request *types.ChatCompletionRequest) (*GeminiChatReq
 			if params, ok := function.Parameters.(map[string]interface{}); ok {
 				if properties, ok := params["properties"].(map[string]interface{}); ok && len(properties) == 0 {
 					function.Parameters = nil
+				} else {
+					cleanSchemaRecursively(params)
 				}
 			}
 
+			function.Strict = nil
 			geminiChatTools.FunctionDeclarations = append(geminiChatTools.FunctionDeclarations, *function)
 		}
 
