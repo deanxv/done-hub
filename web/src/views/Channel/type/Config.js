@@ -5,6 +5,7 @@ const defaultConfig = {
     key: '',
     base_url: '',
     other: '',
+    remark: '',
     proxy: '',
     test_model: '',
     model_mapping: [],
@@ -31,6 +32,7 @@ const defaultConfig = {
     base_url: '渠道API地址',
     key: '密钥',
     other: '其他参数',
+    remark: '备注',
     proxy: '代理地址',
     test_model: '测速模型',
     models: '模型',
@@ -57,6 +59,7 @@ const defaultConfig = {
     base_url: '可空，请输入中转API地址，例如通过cloudflare中转。支持使用{model}变量，例如：https://api.example.com/v1/{model}/chat',
     key: '请输入渠道对应的鉴权密钥',
     other: '',
+    remark: '填写备注信息，方便后续识别与管理',
     proxy:
       '单独设置代理地址，支持http和socks5，例如：http://127.0.0.1:1080,代理地址中可以通过 `%s` 作为会话标识占位符，程序中检测到有占位符会根据Key生成唯一会话标识符进行替换',
     test_model: '用于测试使用的模型，为空时无法测速,如：gpt-3.5-turbo，仅支持chat模型',
@@ -68,7 +71,7 @@ const defaultConfig = {
       '将客户端请求头透传至上游。值支持固定值、{api_key}（渠道密钥）、{client_header:X-Request-Id}（取客户端同名请求头）；键填 * 透传全部客户端请求头，键以 re: 或 regex: 开头按正则透传匹配的请求头。注意：鉴权头由渠道自身处理，不会被覆盖；键名建议使用标准 Header 大小写（如 X-Request-Id），避免同名头大小写不一致。',
     custom_parameter:
       '支持通过 JSON 注入额外参数（可嵌套）。可用控制项：overwrite：设为 true 覆盖同名字段，未设置或 false 时仅补充缺失字段；per_model：设为 true 后按模型名进行参数覆盖，如 {"per_model":true,"gpt-3.5-turbo":{"temperature": 0.7},"gpt-4":{"temperature": 0.5}}；pre_add：设为 true 时在请求入口即完成参数覆盖，否则会在发送请求前再进行参数覆盖，适用于所有渠道（含 Claude、Gemini），如 {"pre_add":true,"overwrite":true,"stream":false}。',
-    need2response_models: '一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。留空表示该渠道不做转换。',
+    need2response_models: '一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。',
     groups: '请选择该渠道所支持的用户组',
     only_chat: '如果选择了仅支持聊天，那么遇到有函数调用的请求会跳过该渠道',
     provider_models_list: '必须填写所有数据后才能获取模型列表',

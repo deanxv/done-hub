@@ -1130,6 +1130,39 @@ export default function ChannelTableRow({
                     </Box>
                   </Grid>
                 )}
+                {item.remark && (
+                  <Grid item xs={12}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        m: 1,
+                        px: 1,
+                        py: 0.5,
+                        bgcolor: 'background.neutral',
+                        borderRadius: 1,
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Typography
+                        variant="body1"
+                        component="div"
+                        sx={{
+                          fontWeight: 600,
+                          color: 'text.secondary',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Icon icon="mdi:note-text-outline" sx={{ mr: 0.5 }} /> {t('channel_row.remark')}
+                      </Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {item.remark}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
                 {item.tag && (
                   <Grid item xs={12}>
                     {/* 面板已被 sticky 钉在视口内，子表格在此独立横向滚动；不再加横向 margin，
