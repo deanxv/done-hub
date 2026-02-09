@@ -62,6 +62,7 @@ const getValidationSchema = (t) =>
     type: Yup.number().required(t('channel_edit.requiredChannel')),
     key: Yup.string().when('is_edit', { is: false, then: Yup.string().required(t('channel_edit.requiredKey')) }),
     other: Yup.string(),
+    remark: Yup.string(),
     proxy: Yup.string(),
     test_model: Yup.string(),
     models: Yup.array().min(1, t('channel_edit.requiredModels')),
@@ -959,6 +960,7 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
         }
 
         data.base_url = data.base_url ?? ''
+        data.remark = data.remark ?? ''
         data.is_edit = true
         if (data.plugin === null) {
           data.plugin = {}
@@ -1160,6 +1162,32 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     )}
                   </FormControl>
                 )}
+
+                <FormControl fullWidth error={Boolean(touched.remark && errors.remark)}
+                             sx={{ ...theme.typography.otherInput }}>
+                  <InputLabel htmlFor="channel-remark-label">{customizeT(inputLabel.remark)}</InputLabel>
+                  <OutlinedInput
+                    id="channel-remark-label"
+                    label={customizeT(inputLabel.remark)}
+                    type="text"
+                    value={values.remark}
+                    name="remark"
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    multiline
+                    minRows={2}
+                    inputProps={{}}
+                    aria-describedby="helper-text-channel-remark-label"
+                  />
+                  {touched.remark && errors.remark ? (
+                    <FormHelperText error id="helper-tex-channel-remark-label">
+                      {errors.remark}
+                    </FormHelperText>
+                  ) : (
+                    <FormHelperText
+                      id="helper-tex-channel-remark-label"> {customizeT(inputPrompt.remark)} </FormHelperText>
+                  )}
+                </FormControl>
 
                 <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
                   <Autocomplete

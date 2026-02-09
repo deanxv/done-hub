@@ -5,6 +5,7 @@ const defaultConfig = {
     key: '',
     base_url: '',
     other: '',
+    remark: '',
     proxy: '',
     test_model: '',
     model_mapping: [],
@@ -25,6 +26,7 @@ const defaultConfig = {
     base_url: '渠道API地址',
     key: '密钥',
     other: '其他参数',
+    remark: '备注',
     proxy: '代理地址',
     test_model: '测速模型',
     models: '模型',
@@ -45,6 +47,7 @@ const defaultConfig = {
     base_url: '可空，请输入中转API地址，例如通过cloudflare中转。支持使用{model}变量，例如：https://api.example.com/v1/{model}/chat',
     key: '请输入渠道对应的鉴权密钥',
     other: '',
+    remark: '填写备注信息，方便后续识别与管理',
     proxy:
       '单独设置代理地址，支持http和socks5，例如：http://127.0.0.1:1080,代理地址中可以通过 `%s` 作为会话标识占位符，程序中检测到有占位符会根据Key生成唯一会话标识符进行替换',
     test_model: '用于测试使用的模型，为空时无法测速,如：gpt-3.5-turbo，仅支持chat模型',
