@@ -74,6 +74,13 @@ func (r *HTTPRequester) NewRequest(method, url string, setters ...requestOption)
 
 // 发送请求
 func (r *HTTPRequester) SendRequest(req *http.Request, response any, outputResp bool) (*http.Response, *types.OpenAIErrorWithStatusCode) {
+	// 非流式请求添加独立超时，防止上游无响应时 goroutine 和内存泄漏
+	if _, hasDeadline := req.Context().Deadline(); !hasDeadline && relayRequestTimeout > 0 {
+		ctx, cancel := context.WithTimeout(req.Context(), relayRequestTimeout)
+		defer cancel()
+		req = req.WithContext(ctx)
+	}
+
 	resp, err := HTTPClient.Do(req)
 	if err != nil {
 		return nil, common.ErrorWrapper(err, "http_request_failed", http.StatusInternalServerError)
