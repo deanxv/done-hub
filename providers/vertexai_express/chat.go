@@ -2,6 +2,7 @@ package vertexai_express
 
 import (
 	"done-hub/common"
+	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/providers/gemini"
 	"done-hub/types"
@@ -137,24 +138,24 @@ func (p *VertexAIExpressProvider) getChatRequest(geminiRequest *gemini.GeminiCha
 
 	var body any
 	if isRelay {
-		// 尝试获取已处理的请求体（重试时复用）
 		dataMap, wasVertexAI, exists := p.GetProcessedBody()
 		if !exists || !wasVertexAI {
-			rawData, rawExists := p.GetRawBody()
-			if !rawExists {
-				if exists {
-					gemini.CleanGeminiRequestMap(dataMap, true)
-				} else {
-					return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
-				}
-			} else {
+			if rawMap, ok := p.GetRawMapBody(); ok {
+				dataMap = rawMap
+				gemini.CleanGeminiRequestMap(dataMap, true)
+			} else if rawData, rawExists := p.GetRawBody(); rawExists {
 				dataMap = make(map[string]interface{})
 				if err := json.Unmarshal(rawData, &dataMap); err != nil {
 					return nil, common.ErrorWrapper(err, "unmarshal_relay_data_failed", http.StatusInternalServerError)
 				}
 				gemini.CleanGeminiRequestMap(dataMap, true)
+			} else if exists {
+				gemini.CleanGeminiRequestMap(dataMap, true)
+			} else {
+				return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
 			}
 			p.SetProcessedBody(dataMap, true)
+			p.Context.Set(config.GinRawMapBodyKey, nil)
 		}
 		body = dataMap
 	} else {

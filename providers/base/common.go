@@ -285,25 +285,26 @@ func (p *BaseProvider) NewRequestWithCustomParams(method, url string, originalRe
 
 	// 如果有额外参数，将其添加到请求体中
 	if customParams != nil {
-		// 将请求体转换为map，以便添加额外参数
 		var requestMap map[string]interface{}
-		var requestBytes []byte
 
-		// 检查 originalRequest 是否已经是 []byte 类型
-		if rawBytes, ok := originalRequest.([]byte); ok {
-			// 如果已经是 []byte，直接使用
-			requestBytes = rawBytes
-		} else {
-			// 否则进行 JSON 编码
-			requestBytes, err = json.Marshal(originalRequest)
+		switch v := originalRequest.(type) {
+		case map[string]interface{}:
+			requestMap = make(map[string]interface{}, len(v))
+			for k, val := range v {
+				requestMap[k] = val
+			}
+		case []byte:
+			if err = json.Unmarshal(v, &requestMap); err != nil {
+				return nil, common.ErrorWrapper(err, "unmarshal_request_failed", http.StatusInternalServerError)
+			}
+		default:
+			requestBytes, err := json.Marshal(v)
 			if err != nil {
 				return nil, common.ErrorWrapper(err, "marshal_request_failed", http.StatusInternalServerError)
 			}
-		}
-
-		err = json.Unmarshal(requestBytes, &requestMap)
-		if err != nil {
-			return nil, common.ErrorWrapper(err, "unmarshal_request_failed", http.StatusInternalServerError)
+			if err = json.Unmarshal(requestBytes, &requestMap); err != nil {
+				return nil, common.ErrorWrapper(err, "unmarshal_request_failed", http.StatusInternalServerError)
+			}
 		}
 
 		// 处理自定义额外参数
@@ -473,6 +474,16 @@ func (p *BaseProvider) GetRawBody() ([]byte, bool) {
 // 应在请求体不再需要后调用（如已发送到上游后）
 func (p *BaseProvider) ClearRawBody() {
 	p.Context.Set(config.GinRequestBodyKey, nil)
+}
+
+// GetRawMapBody 获取 relay 层预解析的未清理 map（由 ReadBodyToMap 创建）
+func (p *BaseProvider) GetRawMapBody() (map[string]interface{}, bool) {
+	if raw, exists := p.Context.Get(config.GinRawMapBodyKey); exists {
+		if m, ok := raw.(map[string]interface{}); ok {
+			return m, true
+		}
+	}
+	return nil, false
 }
 
 // GetProcessedBody 获取已处理的 Gemini 请求体，返回：map、是否 VertexAI 模式、是否存在

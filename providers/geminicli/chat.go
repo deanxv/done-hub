@@ -3,6 +3,7 @@ package geminicli
 import (
 	"bytes"
 	"done-hub/common"
+	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
@@ -98,17 +99,17 @@ func (p *GeminiCliProvider) getChatRequest(geminiRequest *gemini.GeminiChatReque
 	// 只有在 relay 模式下才清理数据（与 gemini provider 保持一致）
 	var geminiRequestBody any
 	if isRelay {
-		// 尝试获取已处理的请求体（重试时复用）
 		rawMap, _, exists := p.GetProcessedBody()
 		if !exists {
-			rawData, rawExists := p.GetRawBody()
-			if !rawExists {
+			if preMap, ok := p.GetRawMapBody(); ok {
+				rawMap = preMap
+			} else if rawData, rawExists := p.GetRawBody(); rawExists {
+				rawMap = make(map[string]interface{})
+				if err := json.Unmarshal(rawData, &rawMap); err != nil {
+					return nil, common.ErrorWrapper(err, "unmarshal_request_failed", http.StatusInternalServerError)
+				}
+			} else {
 				return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
-			}
-
-			rawMap = make(map[string]interface{})
-			if err := json.Unmarshal(rawData, &rawMap); err != nil {
-				return nil, common.ErrorWrapper(err, "unmarshal_request_failed", http.StatusInternalServerError)
 			}
 
 			// 清理 contents 中的 role 和 id 字段
@@ -142,6 +143,7 @@ func (p *GeminiCliProvider) getChatRequest(geminiRequest *gemini.GeminiChatReque
 
 			delete(rawMap, "model")
 			p.SetProcessedBody(rawMap, false)
+			p.Context.Set(config.GinRawMapBodyKey, nil)
 		}
 
 		geminiRequestBody = rawMap

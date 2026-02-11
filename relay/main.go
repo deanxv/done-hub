@@ -26,6 +26,7 @@ func Relay(c *gin.Context) {
 		c.Set(config.GinRequestBodyKey, nil)
 		c.Set(config.GinProcessedBodyKey, nil)
 		c.Set(config.GinProcessedBodyIsVertexAI, nil)
+		c.Set(config.GinRawMapBodyKey, nil)
 	}()
 
 	relay := Path2Relay(c, c.Request.URL.Path)

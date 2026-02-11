@@ -108,24 +108,24 @@ func (p *GeminiProvider) getChatRequest(geminiRequest *GeminiChatRequest, isRela
 
 	var body any
 	if isRelay {
-		// 尝试获取已处理的请求体（重试时复用）
 		dataMap, wasVertexAI, exists := p.GetProcessedBody()
 		if !exists || wasVertexAI {
-			rawData, rawExists := p.GetRawBody()
-			if !rawExists {
-				if exists {
-					CleanGeminiRequestMap(dataMap, false)
-				} else {
-					return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
-				}
-			} else {
+			if rawMap, ok := p.GetRawMapBody(); ok {
+				dataMap = rawMap
+				CleanGeminiRequestMap(dataMap, false)
+			} else if rawData, rawExists := p.GetRawBody(); rawExists {
 				dataMap = make(map[string]interface{})
 				if err := json.Unmarshal(rawData, &dataMap); err != nil {
 					return nil, common.ErrorWrapper(err, "unmarshal_relay_data_failed", http.StatusInternalServerError)
 				}
 				CleanGeminiRequestMap(dataMap, false)
+			} else if exists {
+				CleanGeminiRequestMap(dataMap, false)
+			} else {
+				return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
 			}
 			p.SetProcessedBody(dataMap, false)
+			p.Context.Set(config.GinRawMapBodyKey, nil)
 		}
 		body = dataMap
 	} else {

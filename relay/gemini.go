@@ -20,6 +20,7 @@ var AllowGeminiChannelType = []int{config.ChannelTypeGemini, config.ChannelTypeV
 type relayGeminiOnly struct {
 	relayBase
 	geminiRequest *gemini.GeminiChatRequest
+	requestMap    map[string]interface{} // 预解析的请求 map，消除 struct 反序列化
 }
 
 func NewRelayGeminiOnly(c *gin.Context) *relayGeminiOnly {
@@ -59,13 +60,18 @@ func (r *relayGeminiOnly) setRequest() error {
 		isStream = true
 	}
 
-	r.geminiRequest = &gemini.GeminiChatRequest{}
-	if err := common.UnmarshalBodyReusable(r.c, r.geminiRequest); err != nil {
+	// 直接读取为 map，跳过 struct 反序列化
+	requestMap, err := common.ReadBodyToMap(r.c)
+	if err != nil {
 		return err
 	}
-	r.geminiRequest.Model = modelList[0]
-	r.geminiRequest.Stream = isStream
-	r.geminiRequest.Action = action // 设置 Action
+	r.requestMap = requestMap
+
+	r.geminiRequest = &gemini.GeminiChatRequest{
+		Model:  modelList[0],
+		Stream: isStream,
+		Action: action,
+	}
 	r.setOriginalModel(r.geminiRequest.Model)
 	// 设置原始模型到 Context，用于统一请求响应模型功能
 	r.c.Set("original_model", r.geminiRequest.Model)
@@ -83,7 +89,7 @@ func (r *relayGeminiOnly) IsStream() bool {
 
 func (r *relayGeminiOnly) getPromptTokens() (int, error) {
 	channel := r.provider.GetChannel()
-	return CountGeminiTokenMessages(r.geminiRequest, channel.PreCost)
+	return countGeminiTokenMessagesFromMap(r.requestMap, r.geminiRequest.Model, channel.PreCost)
 }
 
 func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
@@ -94,13 +100,23 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 
 	// 内容审查
 	if config.EnableSafe {
-		for _, message := range r.geminiRequest.Contents {
-			if message.Parts != nil {
-				CheckResult, _ := safty.CheckContent(message.Parts)
-				if !CheckResult.IsSafe {
-					err = common.StringErrorWrapperLocal(CheckResult.Reason, CheckResult.Code, http.StatusBadRequest)
-					done = true
-					return
+		if contents, ok := r.requestMap["contents"].([]interface{}); ok {
+			for _, content := range contents {
+				if contentMap, ok := content.(map[string]interface{}); ok {
+					if parts, ok := contentMap["parts"].([]interface{}); ok {
+						for _, part := range parts {
+							if partMap, ok := part.(map[string]interface{}); ok {
+								if text, ok := partMap["text"].(string); ok && text != "" {
+									CheckResult, _ := safty.CheckContent(text)
+									if !CheckResult.IsSafe {
+										err = common.StringErrorWrapperLocal(CheckResult.Reason, CheckResult.Code, http.StatusBadRequest)
+										done = true
+										return
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -169,26 +185,36 @@ func (r *relayGeminiOnly) HandleStreamError(err *types.OpenAIErrorWithStatusCode
 	r.c.Writer.Flush()
 }
 
-func CountGeminiTokenMessages(request *gemini.GeminiChatRequest, preCostType int) (int, error) {
+func countGeminiTokenMessagesFromMap(requestMap map[string]interface{}, model string, preCostType int) (int, error) {
 	if preCostType == config.PreContNotAll {
 		return 0, nil
 	}
 
-	tokenEncoder := common.GetTokenEncoder(request.Model)
+	tokenEncoder := common.GetTokenEncoder(model)
 
 	tokenNum := 0
 	tokensPerMessage := 4
 	var textMsg strings.Builder
 
-	for _, message := range request.Contents {
+	contents, _ := requestMap["contents"].([]interface{})
+	for _, content := range contents {
 		tokenNum += tokensPerMessage
-		for _, part := range message.Parts {
-			if part.Text != "" {
-				textMsg.WriteString(part.Text)
+		contentMap, ok := content.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		parts, _ := contentMap["parts"].([]interface{})
+		for _, part := range parts {
+			partMap, ok := part.(map[string]interface{})
+			if !ok {
+				continue
 			}
-
-			if part.InlineData != nil {
-				// 其他类型的，暂时按200个token计算
+			if text, ok := partMap["text"].(string); ok && text != "" {
+				textMsg.WriteString(text)
+			}
+			if _, ok := partMap["inlineData"]; ok {
+				tokenNum += 200
+			} else if _, ok := partMap["inline_data"]; ok {
 				tokenNum += 200
 			}
 		}
