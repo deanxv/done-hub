@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type ProviderConfig struct {
@@ -399,7 +401,7 @@ func (p *BaseProvider) MergeCustomParams(requestMap map[string]interface{}, cust
 	// 添加额外参数
 	for key, value := range customParamsModel {
 		// 忽略控制参数
-		if key == "stream" || key == "overwrite" || key == "per_model" || key == "remove_params" {
+		if key == "stream" || key == "overwrite" || key == "per_model" || key == "remove_params" || key == "pre_add" {
 			continue
 		}
 		// 根据覆盖设置决定如何添加参数
@@ -502,4 +504,133 @@ func (p *BaseProvider) SetProcessedBody(dataMap map[string]interface{}, isVertex
 	p.Context.Set(config.GinProcessedBodyKey, dataMap)
 	p.Context.Set(config.GinProcessedBodyIsVertexAI, isVertexAI)
 	p.Context.Set(config.GinRequestBodyKey, nil)
+}
+
+// GetProcessedBodyBytes 获取已处理的字节级请求体，返回：bytes、是否 VertexAI 模式、是否存在
+func (p *BaseProvider) GetProcessedBodyBytes() ([]byte, bool, bool) {
+	if processed, exists := p.Context.Get(config.GinProcessedBytesKey); exists {
+		if data, ok := processed.([]byte); ok && data != nil {
+			isVertexAI, _ := p.Context.Get(config.GinProcessedBytesIsVertexAI)
+			return data, isVertexAI == true, true
+		}
+	}
+	return nil, false, false
+}
+
+// SetProcessedBodyBytes 缓存处理后的字节级请求体
+// 不清除 GinRequestBodyKey，保留原始字节供 map 类 provider 回退
+func (p *BaseProvider) SetProcessedBodyBytes(data []byte, isVertexAI bool) {
+	p.Context.Set(config.GinProcessedBytesKey, data)
+	p.Context.Set(config.GinProcessedBytesIsVertexAI, isVertexAI)
+	p.Context.Set(config.GinRawMapBodyKey, nil)
+}
+
+// MergeCustomParamsBytes 用 sjson 在字节层面合并自定义参数，避免对大 body 做完整 unmarshal
+func (p *BaseProvider) MergeCustomParamsBytes(bodyBytes []byte, customParams map[string]interface{}, modelName string) ([]byte, error) {
+	shouldOverwrite := false
+	if overwriteValue, exists := customParams["overwrite"]; exists {
+		if boolValue, ok := overwriteValue.(bool); ok {
+			shouldOverwrite = boolValue
+		}
+	}
+
+	perModel := false
+	if perModelValue, exists := customParams["per_model"]; exists {
+		if boolValue, ok := perModelValue.(bool); ok {
+			perModel = boolValue
+		}
+	}
+
+	customParamsModel := customParams
+	if perModel && modelName != "" {
+		if v, exists := customParams[modelName]; exists {
+			if modelConfig, ok := v.(map[string]interface{}); ok {
+				customParamsModel = modelConfig
+			} else {
+				return bodyBytes, nil
+			}
+		} else {
+			return bodyBytes, nil
+		}
+	}
+
+	// 处理参数删除
+	if removeParams, exists := customParamsModel["remove_params"]; exists {
+		if paramsList, ok := removeParams.([]interface{}); ok {
+			for _, param := range paramsList {
+				if paramName, ok := param.(string); ok {
+					bodyBytes, _ = sjson.DeleteBytes(bodyBytes, paramName)
+				}
+			}
+		}
+	}
+
+	// 添加/合并自定义参数
+	for key, value := range customParamsModel {
+		if key == "stream" || key == "overwrite" || key == "per_model" || key == "remove_params" || key == "pre_add" {
+			continue
+		}
+
+		if shouldOverwrite {
+			valueBytes, err := json.Marshal(value)
+			if err != nil {
+				continue
+			}
+			bodyBytes, err = sjson.SetRawBytes(bodyBytes, key, valueBytes)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			existing := gjson.GetBytes(bodyBytes, key)
+			if existing.Exists() {
+				// 如果都是 map 类型，进行深度合并（子对象很小，不含 base64）
+				if newMap, ok := value.(map[string]interface{}); ok && existing.IsObject() {
+					var existingMap map[string]interface{}
+					if err := json.Unmarshal([]byte(existing.Raw), &existingMap); err == nil {
+						merged := p.DeepMergeMap(existingMap, newMap)
+						if mergedBytes, err := json.Marshal(merged); err == nil {
+							bodyBytes, _ = sjson.SetRawBytes(bodyBytes, key, mergedBytes)
+						}
+					}
+				}
+				// 非 map 或类型不匹配，保持原值（非覆盖模式）
+			} else {
+				// 参数不存在，直接添加
+				valueBytes, err := json.Marshal(value)
+				if err != nil {
+					continue
+				}
+				bodyBytes, err = sjson.SetRawBytes(bodyBytes, key, valueBytes)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	return bodyBytes, nil
+}
+
+// NewRequestWithCustomParamsBytes 创建带有额外参数处理的字节级请求
+// 直接操作 []byte，避免对大 body 做 json.Marshal/Unmarshal
+func (p *BaseProvider) NewRequestWithCustomParamsBytes(method, url string, bodyBytes []byte, headers map[string]string, modelName string) (*http.Request, *types.OpenAIErrorWithStatusCode) {
+	customParams, err := p.CustomParameterHandler()
+	if err != nil {
+		return nil, common.ErrorWrapper(err, "custom_parameter_error", http.StatusInternalServerError)
+	}
+
+	if customParams != nil {
+		bodyBytes, err = p.MergeCustomParamsBytes(bodyBytes, customParams, modelName)
+		if err != nil {
+			return nil, common.ErrorWrapper(err, "merge_custom_params_bytes_failed", http.StatusInternalServerError)
+		}
+	}
+
+	// bodyBytes 是 []byte，RequestBuilder 会直接 bytes.NewBuffer，不做 json.Marshal
+	req, err := p.Requester.NewRequest(method, url, p.Requester.WithBody(bodyBytes), p.Requester.WithHeader(headers))
+	if err != nil {
+		return nil, common.ErrorWrapper(err, "new_request_failed", http.StatusInternalServerError)
+	}
+
+	return req, nil
 }

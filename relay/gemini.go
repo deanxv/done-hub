@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 var AllowGeminiChannelType = []int{config.ChannelTypeGemini, config.ChannelTypeVertexAI, config.ChannelTypeGeminiCli, config.ChannelTypeAntigravity, config.ChannelTypeVertexAIExpress}
@@ -20,7 +21,7 @@ var AllowGeminiChannelType = []int{config.ChannelTypeGemini, config.ChannelTypeV
 type relayGeminiOnly struct {
 	relayBase
 	geminiRequest *gemini.GeminiChatRequest
-	requestMap    map[string]interface{} // 预解析的请求 map，消除 struct 反序列化
+	requestBody   []byte // 原始请求 bytes，延迟到 getChatRequest 再反序列化，避免大 payload 提前膨胀内存
 }
 
 func NewRelayGeminiOnly(c *gin.Context) *relayGeminiOnly {
@@ -60,12 +61,14 @@ func (r *relayGeminiOnly) setRequest() error {
 		isStream = true
 	}
 
-	// 直接读取为 map，跳过 struct 反序列化
-	requestMap, err := common.ReadBodyToMap(r.c)
+	// 只读取原始 bytes，不做 JSON 反序列化
+	// 避免 json.Unmarshal 对大 payload（如 base64 图片）的字符串分配开销
+	// 反序列化延迟到 getChatRequest 中按需执行
+	rawBody, err := common.ReadBodyRaw(r.c)
 	if err != nil {
 		return err
 	}
-	r.requestMap = requestMap
+	r.requestBody = rawBody
 
 	r.geminiRequest = &gemini.GeminiChatRequest{
 		Model:  modelList[0],
@@ -89,7 +92,7 @@ func (r *relayGeminiOnly) IsStream() bool {
 
 func (r *relayGeminiOnly) getPromptTokens() (int, error) {
 	channel := r.provider.GetChannel()
-	return countGeminiTokenMessagesFromMap(r.requestMap, r.geminiRequest.Model, channel.PreCost)
+	return countGeminiTokenMessagesFromBytes(r.requestBody, r.geminiRequest.Model, channel.PreCost)
 }
 
 func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
@@ -98,24 +101,17 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 		return nil, false
 	}
 
-	// 内容审查
+	// 内容审查：使用 gjson 直接在原始 bytes 上提取 text，避免完整 JSON 反序列化
 	if config.EnableSafe {
-		if contents, ok := r.requestMap["contents"].([]interface{}); ok {
-			for _, content := range contents {
-				if contentMap, ok := content.(map[string]interface{}); ok {
-					if parts, ok := contentMap["parts"].([]interface{}); ok {
-						for _, part := range parts {
-							if partMap, ok := part.(map[string]interface{}); ok {
-								if text, ok := partMap["text"].(string); ok && text != "" {
-									CheckResult, _ := safty.CheckContent(text)
-									if !CheckResult.IsSafe {
-										err = common.StringErrorWrapperLocal(CheckResult.Reason, CheckResult.Code, http.StatusBadRequest)
-										done = true
-										return
-									}
-								}
-							}
-						}
+		contents := gjson.GetBytes(r.requestBody, "contents")
+		for _, content := range contents.Array() {
+			for _, part := range content.Get("parts").Array() {
+				if text := part.Get("text").String(); text != "" {
+					CheckResult, _ := safty.CheckContent(text)
+					if !CheckResult.IsSafe {
+						err = common.StringErrorWrapperLocal(CheckResult.Reason, CheckResult.Code, http.StatusBadRequest)
+						done = true
+						return
 					}
 				}
 			}
@@ -185,7 +181,9 @@ func (r *relayGeminiOnly) HandleStreamError(err *types.OpenAIErrorWithStatusCode
 	r.c.Writer.Flush()
 }
 
-func countGeminiTokenMessagesFromMap(requestMap map[string]interface{}, model string, preCostType int) (int, error) {
+// countGeminiTokenMessagesFromBytes 使用 gjson 直接在原始 bytes 上计算 token 数
+// 相比 map 方式，避免了对整个 body（含 base64 图片等大字段）的 json.Unmarshal
+func countGeminiTokenMessagesFromBytes(requestBody []byte, model string, preCostType int) (int, error) {
 	if preCostType == config.PreContNotAll {
 		return 0, nil
 	}
@@ -196,25 +194,17 @@ func countGeminiTokenMessagesFromMap(requestMap map[string]interface{}, model st
 	tokensPerMessage := 4
 	var textMsg strings.Builder
 
-	contents, _ := requestMap["contents"].([]interface{})
-	for _, content := range contents {
+	contents := gjson.GetBytes(requestBody, "contents")
+	for _, content := range contents.Array() {
 		tokenNum += tokensPerMessage
-		contentMap, ok := content.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		parts, _ := contentMap["parts"].([]interface{})
-		for _, part := range parts {
-			partMap, ok := part.(map[string]interface{})
-			if !ok {
-				continue
+		parts := content.Get("parts")
+		for _, part := range parts.Array() {
+			if text := part.Get("text"); text.Exists() {
+				if s := text.String(); s != "" {
+					textMsg.WriteString(s)
+				}
 			}
-			if text, ok := partMap["text"].(string); ok && text != "" {
-				textMsg.WriteString(text)
-			}
-			if _, ok := partMap["inlineData"]; ok {
-				tokenNum += 200
-			} else if _, ok := partMap["inline_data"]; ok {
+			if part.Get("inlineData").Exists() || part.Get("inline_data").Exists() {
 				tokenNum += 200
 			}
 		}

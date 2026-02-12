@@ -2,7 +2,6 @@ package vertexai_express
 
 import (
 	"done-hub/common"
-	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/providers/gemini"
 	"done-hub/types"
@@ -136,44 +135,60 @@ func (p *VertexAIExpressProvider) getChatRequest(geminiRequest *gemini.GeminiCha
 		headers["Accept"] = "text/event-stream"
 	}
 
-	var body any
 	if isRelay {
-		dataMap, wasVertexAI, exists := p.GetProcessedBody()
-		if !exists || !wasVertexAI {
-			if rawMap, ok := p.GetRawMapBody(); ok {
-				dataMap = rawMap
-				gemini.CleanGeminiRequestMap(dataMap, true)
-			} else if rawData, rawExists := p.GetRawBody(); rawExists {
-				dataMap = make(map[string]interface{})
-				if err := json.Unmarshal(rawData, &dataMap); err != nil {
-					return nil, common.ErrorWrapper(err, "unmarshal_relay_data_failed", http.StatusInternalServerError)
-				}
-				gemini.CleanGeminiRequestMap(dataMap, true)
-			} else if exists {
-				gemini.CleanGeminiRequestMap(dataMap, true)
-			} else {
-				return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
+		// 字节级路径：优先使用已清理的字节缓存，避免对含 base64 的大请求做 json.Unmarshal/Marshal
+		bodyBytes, wasVertexAI, exists := p.GetProcessedBodyBytes()
+		if exists && wasVertexAI {
+			// 缓存命中（VertexAI → VertexAI Express 重试）
+			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, bodyBytes, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
 			}
-			p.SetProcessedBody(dataMap, true)
-			p.Context.Set(config.GinRawMapBodyKey, nil)
+			return req, nil
 		}
-		body = dataMap
-	} else {
-		p.pluginHandle(geminiRequest)
 
-		jsonBytes, err := json.Marshal(geminiRequest)
-		if err != nil {
-			return nil, common.ErrorWrapper(err, "marshal_failed", http.StatusInternalServerError)
+		// 从原始字节清理
+		if rawData, rawExists := p.GetRawBody(); rawExists {
+			cleaned, err := gemini.CleanGeminiRequestBytes(rawData, true)
+			if err != nil {
+				return nil, common.ErrorWrapper(err, "clean_gemini_request_bytes_failed", http.StatusInternalServerError)
+			}
+			p.SetProcessedBodyBytes(cleaned, true)
+			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, cleaned, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
+			}
+			return req, nil
 		}
-		var dataMap map[string]interface{}
-		if err := json.Unmarshal(jsonBytes, &dataMap); err != nil {
-			return nil, common.ErrorWrapper(err, "unmarshal_data_failed", http.StatusInternalServerError)
+
+		// map 回退（跨 provider 重试）
+		dataMap, _, mapExists := p.GetProcessedBody()
+		if mapExists {
+			gemini.CleanGeminiRequestMap(dataMap, true)
+			req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, dataMap, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
+			}
+			return req, nil
 		}
-		gemini.CleanGeminiRequestMap(dataMap, true)
-		body = dataMap
+
+		return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
 	}
 
-	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, body, headers, geminiRequest.Model)
+	// 非 relay 路径（OpenAI → Gemini 转换）
+	p.pluginHandle(geminiRequest)
+
+	jsonBytes, err := json.Marshal(geminiRequest)
+	if err != nil {
+		return nil, common.ErrorWrapper(err, "marshal_failed", http.StatusInternalServerError)
+	}
+	var dataMap map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &dataMap); err != nil {
+		return nil, common.ErrorWrapper(err, "unmarshal_data_failed", http.StatusInternalServerError)
+	}
+	gemini.CleanGeminiRequestMap(dataMap, true)
+
+	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, dataMap, headers, geminiRequest.Model)
 	if errWithCode != nil {
 		return nil, errWithCode
 	}

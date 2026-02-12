@@ -1776,7 +1776,7 @@ func (r *relayClaudeOnly) sendVertexAIGeminiWithClaudeFormat() (err *types.OpenA
 
 	// 2. 直接调用 VertexAI API（暂时使用现有的 provider，后续可以优化为直接 HTTP 调用）
 	// 为了保持兼容性，我们先转换为 OpenAI 格式，然后使用现有的 provider
-	// VertexAI 使用不清理schema的转换方法，因为后续会有专门的 CleanGeminiRequestData 处理
+	// VertexAI 使用不清理schema的转换方法，因为后续会有专门的 CleanGeminiRequestBytes 处理
 	openaiRequest, convertErr := r.convertClaudeToOpenAIForVertexAI()
 	if convertErr != nil {
 		return convertErr, true

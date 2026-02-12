@@ -29,19 +29,15 @@ func readBody(c *gin.Context) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ReadBodyToMap 读取请求体并直接反序列化为 map，避免先解析为 struct 再解析为 map 的双重开销
-// 注意：此函数不会设置 GinRequestBodyKey（原始 []byte），调用方不应依赖 GetRawBody()
-func ReadBodyToMap(c *gin.Context) (map[string]interface{}, error) {
+// ReadBodyRaw 只读取请求体原始 bytes 并缓存到 context，不做 JSON 反序列化
+// 适用于大 payload 场景（如含 base64 图片的 Gemini 请求），避免 json.Unmarshal 对所有字符串的内存分配
+func ReadBodyRaw(c *gin.Context) ([]byte, error) {
 	rawBody, err := readBody(c)
 	if err != nil {
 		return nil, err
 	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(rawBody, &m); err != nil {
-		return nil, err
-	}
-	c.Set(config.GinRawMapBodyKey, m)
-	return m, nil
+	c.Set(config.GinRequestBodyKey, rawBody)
+	return rawBody, nil
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {

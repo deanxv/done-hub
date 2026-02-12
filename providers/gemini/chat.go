@@ -106,35 +106,49 @@ func (p *GeminiProvider) getChatRequest(geminiRequest *GeminiChatRequest, isRela
 		headers["Accept"] = "text/event-stream"
 	}
 
-	var body any
 	if isRelay {
-		dataMap, wasVertexAI, exists := p.GetProcessedBody()
-		if !exists || wasVertexAI {
-			if rawMap, ok := p.GetRawMapBody(); ok {
-				dataMap = rawMap
-				CleanGeminiRequestMap(dataMap, false)
-			} else if rawData, rawExists := p.GetRawBody(); rawExists {
-				dataMap = make(map[string]interface{})
-				if err := json.Unmarshal(rawData, &dataMap); err != nil {
-					return nil, common.ErrorWrapper(err, "unmarshal_relay_data_failed", http.StatusInternalServerError)
-				}
-				CleanGeminiRequestMap(dataMap, false)
-			} else if exists {
-				CleanGeminiRequestMap(dataMap, false)
-			} else {
-				return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
+		// 字节级路径：优先使用已清理的字节缓存，避免对含 base64 的大请求做 json.Unmarshal/Marshal
+		bodyBytes, wasVertexAI, exists := p.GetProcessedBodyBytes()
+		if exists && !wasVertexAI {
+			// 缓存命中（Gemini → Gemini 重试）
+			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, bodyBytes, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
 			}
-			p.SetProcessedBody(dataMap, false)
-			p.Context.Set(config.GinRawMapBodyKey, nil)
+			return req, nil
 		}
-		body = dataMap
-	} else {
-		p.pluginHandle(geminiRequest)
-		body = geminiRequest
+
+		// 从原始字节清理
+		if rawData, rawExists := p.GetRawBody(); rawExists {
+			cleaned, err := CleanGeminiRequestBytes(rawData, false)
+			if err != nil {
+				return nil, common.ErrorWrapper(err, "clean_gemini_request_bytes_failed", http.StatusInternalServerError)
+			}
+			p.SetProcessedBodyBytes(cleaned, false)
+			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, cleaned, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
+			}
+			return req, nil
+		}
+
+		// map 回退（跨 provider 重试，如 GeminiCli → Gemini）
+		dataMap, _, mapExists := p.GetProcessedBody()
+		if mapExists {
+			CleanGeminiRequestMap(dataMap, false)
+			req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, dataMap, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
+			}
+			return req, nil
+		}
+
+		return nil, common.StringErrorWrapperLocal("request body not found", "request_body_not_found", http.StatusInternalServerError)
 	}
 
-	// 使用BaseProvider的统一方法创建请求，支持自定义参数处理
-	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, body, headers, geminiRequest.Model)
+	// 非 relay 路径（OpenAI → Gemini 转换）
+	p.pluginHandle(geminiRequest)
+	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, geminiRequest, headers, geminiRequest.Model)
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
@@ -171,16 +185,6 @@ func (p *GeminiProvider) getActionURL(geminiRequest *GeminiChatRequest) string {
 		}
 		return action
 	}
-}
-
-// CleanGeminiRequestData 清理 Gemini 请求数据中的不兼容字段
-func CleanGeminiRequestData(rawData []byte, isVertexAI bool) ([]byte, error) {
-	var data map[string]interface{}
-	if err := json.Unmarshal(rawData, &data); err != nil {
-		return nil, err
-	}
-	CleanGeminiRequestMap(data, isVertexAI)
-	return json.Marshal(data)
 }
 
 // CleanGeminiRequestMap 直接在 map 上清理 Gemini 请求数据中的不兼容字段
