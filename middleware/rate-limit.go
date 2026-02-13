@@ -6,11 +6,17 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/redis"
 	"done-hub/common/utils"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+func isLoopbackIP(remoteIP string) bool {
+	ip := net.ParseIP(remoteIP)
+	return ip != nil && ip.IsLoopback()
+}
 
 var timeFormat = "2006-01-02T15:04:05.000Z"
 
@@ -88,16 +94,23 @@ func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark s
 }
 
 func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
+	var limiter func(c *gin.Context)
 	if config.RedisEnabled {
-		return func(c *gin.Context) {
+		limiter = func(c *gin.Context) {
 			redisRateLimiter(c, maxRequestNum, duration, mark)
 		}
 	} else {
 		// It's safe to call multi times.
 		inMemoryRateLimiter.Init(config.RateLimitKeyExpirationDuration)
-		return func(c *gin.Context) {
+		limiter = func(c *gin.Context) {
 			memoryRateLimiter(c, maxRequestNum, duration, mark)
 		}
+	}
+	return func(c *gin.Context) {
+		if isLoopbackIP(c.ClientIP()) {
+			return
+		}
+		limiter(c)
 	}
 }
 
