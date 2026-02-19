@@ -8,6 +8,7 @@ import (
 	"done-hub/model"
 	"done-hub/types"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"time"
@@ -148,20 +149,25 @@ func (q *Quota) completedQuotaConsumption(usage *types.Usage, tokenName string, 
 	quota := q.GetTotalQuotaByUsage(usage)
 
 	quotaDelta := quota - q.preConsumedQuota
+	var quotaErr error
 	if quotaDelta != 0 {
 		err := model.PostConsumeTokenQuota(q.tokenId, quotaDelta)
 		if err != nil {
-			return errors.New("error consuming token remain quota: " + err.Error())
-		}
-		err = model.CacheUpdateUserQuota(q.userId)
-		if err != nil {
-			return errors.New("error consuming token remain quota: " + err.Error())
+			quotaErr = errors.New("error consuming token remain quota: " + err.Error())
+			logger.LogError(ctx, quotaErr.Error())
+		} else {
+			err = model.CacheUpdateUserQuota(q.userId)
+			if err != nil {
+				quotaErr = errors.New("error update user quota cache: " + err.Error())
+				logger.LogError(ctx, quotaErr.Error())
+			}
 		}
 	}
 	if quota > 0 {
 		model.UpdateChannelUsedQuota(q.channelId, quota)
 	}
 
+	// 无论配额操作是否成功，都要记录日志，避免上游已计费但本地无记录
 	model.RecordConsumeLog(
 		ctx,
 		q.userId,
@@ -179,7 +185,7 @@ func (q *Quota) completedQuotaConsumption(usage *types.Usage, tokenName string, 
 	)
 	model.UpdateUserUsedQuotaAndRequestCount(q.userId, quota)
 
-	return nil
+	return quotaErr
 }
 
 func (q *Quota) Undo(c *gin.Context) {
@@ -198,10 +204,16 @@ func (q *Quota) Undo(c *gin.Context) {
 
 func (q *Quota) Consume(c *gin.Context, usage *types.Usage, isStream bool) {
 	tokenName := c.GetString("token_name")
+	sourceIp := c.ClientIP() // 在 goroutine 外提取，避免 Gin Context 回收后数据竞争
 	q.startTime = c.GetTime("requestStartTime")
 	// 如果没有报错，则消费配额
 	go func(ctx context.Context) {
-		err := q.completedQuotaConsumption(usage, tokenName, isStream, c.ClientIP(), ctx)
+		defer func() {
+			if r := recover(); r != nil {
+				logger.LogError(ctx, fmt.Sprintf("panic in completedQuotaConsumption: %v", r))
+			}
+		}()
+		err := q.completedQuotaConsumption(usage, tokenName, isStream, sourceIp, ctx)
 		if err != nil {
 			logger.LogError(ctx, err.Error())
 		}
