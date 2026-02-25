@@ -343,6 +343,16 @@ func responseStreamClient(c *gin.Context, stream requester.StreamReaderInterface
 	go func() {
 		defer close(done)
 
+		ctxDone := ctx.Done()
+
+		// 安全写入：客户端断开后静默跳过
+		tryWrite := func(msg string) {
+			if !clientDisconnected {
+				c.Writer.Write([]byte(msg))
+				c.Writer.Flush()
+			}
+		}
+
 		for {
 			select {
 			case data, ok := <-dataChan:
@@ -356,53 +366,26 @@ func responseStreamClient(c *gin.Context, stream requester.StreamReaderInterface
 				}
 
 				// 客户端断开后继续消费数据以确保计费准确，但不写入
-				if !clientDisconnected {
-					select {
-					case <-ctx.Done():
-						clientDisconnected = true
-					default:
-						c.Writer.Write([]byte("data: " + data + "\n\n"))
-						c.Writer.Flush()
-					}
-				}
+				tryWrite("data: " + data + "\n\n")
 
 			case err := <-errChan:
 				if !errors.Is(err, io.EOF) {
-					if !clientDisconnected {
-						select {
-						case <-ctx.Done():
-							clientDisconnected = true
-						default:
-							c.Writer.Write([]byte("data: " + err.Error() + "\n\n"))
-							c.Writer.Flush()
-						}
-					}
+					tryWrite("data: " + err.Error() + "\n\n")
 					finalErr = common.StringErrorWrapper(err.Error(), "stream_error", 900)
 					logger.LogError(c.Request.Context(), "Stream err:"+err.Error())
 				} else {
 					if finalErr == nil && endHandler != nil {
-						if streamData := endHandler(); streamData != "" && !clientDisconnected {
-							select {
-							case <-ctx.Done():
-							default:
-								c.Writer.Write([]byte("data: " + streamData + "\n\n"))
-								c.Writer.Flush()
-							}
+						if streamData := endHandler(); streamData != "" {
+							tryWrite("data: " + streamData + "\n\n")
 						}
 					}
-					if !clientDisconnected {
-						select {
-						case <-ctx.Done():
-						default:
-							c.Writer.Write([]byte("data: [DONE]\n\n"))
-							c.Writer.Flush()
-						}
-					}
+					tryWrite("data: [DONE]\n\n")
 				}
 				return
 
-			case <-ctx.Done():
+			case <-ctxDone:
 				clientDisconnected = true
+				ctxDone = nil // 置 nil 后此 case 不再命中，避免 CPU 空转
 			}
 		}
 	}()
@@ -425,6 +408,15 @@ func responseGeneralStreamClient(c *gin.Context, stream requester.StreamReaderIn
 	go func() {
 		defer close(done)
 
+		ctxDone := ctx.Done()
+
+		tryWrite := func(msg string) {
+			if !clientDisconnected {
+				fmt.Fprint(c.Writer, msg)
+				c.Writer.Flush()
+			}
+		}
+
 		for {
 			select {
 			case data, ok := <-dataChan:
@@ -435,44 +427,24 @@ func responseGeneralStreamClient(c *gin.Context, stream requester.StreamReaderIn
 					firstResponseTime = time.Now()
 					isFirstResponse = true
 				}
-				if !clientDisconnected {
-					select {
-					case <-ctx.Done():
-						clientDisconnected = true
-					default:
-						fmt.Fprint(c.Writer, data)
-						c.Writer.Flush()
-					}
-				}
+				tryWrite(data)
 
 			case err := <-errChan:
 				if !errors.Is(err, io.EOF) {
-					if !clientDisconnected {
-						select {
-						case <-ctx.Done():
-							clientDisconnected = true
-						default:
-							fmt.Fprint(c.Writer, err.Error())
-							c.Writer.Flush()
-						}
-					}
+					tryWrite(err.Error())
 					logger.LogError(c.Request.Context(), "Stream err:"+err.Error())
 				} else {
 					if endHandler != nil {
-						if streamData := endHandler(); streamData != "" && !clientDisconnected {
-							select {
-							case <-ctx.Done():
-							default:
-								fmt.Fprint(c.Writer, streamData)
-								c.Writer.Flush()
-							}
+						if streamData := endHandler(); streamData != "" {
+							tryWrite(streamData)
 						}
 					}
 				}
 				return
 
-			case <-ctx.Done():
+			case <-ctxDone:
 				clientDisconnected = true
+				ctxDone = nil // 置 nil 后此 case 不再命中，避免 CPU 空转
 			}
 		}
 	}()
@@ -761,13 +733,13 @@ func relayRerankResponseWithErr(c *gin.Context, err *types.OpenAIErrorWithStatus
 func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
 	// 使用 "." 分割路径
 	parts := strings.Split(paramPath, ".")
-	
+
 	// 如果只有一层，直接删除
 	if len(parts) == 1 {
 		delete(requestMap, paramPath)
 		return
 	}
-	
+
 	// 处理嵌套路径
 	current := requestMap
 	for i := 0; i < len(parts)-1; i++ {
@@ -778,7 +750,7 @@ func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
 			return
 		}
 	}
-	
+
 	// 删除最后一级的键
 	delete(current, parts[len(parts)-1])
 }
