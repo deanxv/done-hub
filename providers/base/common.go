@@ -334,13 +334,13 @@ func (p *BaseProvider) NewRequestWithCustomParams(method, url string, originalRe
 func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
 	// 使用 "." 分割路径
 	parts := strings.Split(paramPath, ".")
-	
+
 	// 如果只有一层,直接删除
 	if len(parts) == 1 {
 		delete(requestMap, paramPath)
 		return
 	}
-	
+
 	// 处理嵌套路径
 	current := requestMap
 	for i := 0; i < len(parts)-1; i++ {
@@ -351,7 +351,7 @@ func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
 			return
 		}
 	}
-	
+
 	// 删除最后一级的键
 	delete(current, parts[len(parts)-1])
 }
@@ -517,12 +517,15 @@ func (p *BaseProvider) GetProcessedBodyBytes() ([]byte, bool, bool) {
 	return nil, false, false
 }
 
-// SetProcessedBodyBytes 缓存处理后的字节级请求体
-// 不清除 GinRequestBodyKey，保留原始字节供 map 类 provider 回退
+// SetProcessedBodyBytes 缓存处理后的字节级请求体，同时释放原始字节以减少内存占用
+// 原始字节在生成 cleaned bytes 后不再需要：
+// - 同 provider 重试：直接使用 GinProcessedBytesKey 缓存
+// - 跨 provider 重试：在已有 cleaned bytes 上增量清理 tools（见 getChatRequest）
 func (p *BaseProvider) SetProcessedBodyBytes(data []byte, isVertexAI bool) {
 	p.Context.Set(config.GinProcessedBytesKey, data)
 	p.Context.Set(config.GinProcessedBytesIsVertexAI, isVertexAI)
 	p.Context.Set(config.GinRawMapBodyKey, nil)
+	p.Context.Set(config.GinRequestBodyKey, nil) // 释放 raw bytes，cleaned bytes 足以覆盖所有重试场景
 }
 
 // MergeCustomParamsBytes 用 sjson 在字节层面合并自定义参数，避免对大 body 做完整 unmarshal

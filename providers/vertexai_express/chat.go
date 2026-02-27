@@ -139,7 +139,7 @@ func (p *VertexAIExpressProvider) getChatRequest(geminiRequest *gemini.GeminiCha
 		// 字节级路径：优先使用已清理的字节缓存，避免对含 base64 的大请求做 json.Unmarshal/Marshal
 		bodyBytes, wasVertexAI, exists := p.GetProcessedBodyBytes()
 		if exists && wasVertexAI {
-			// 缓存命中（VertexAI → VertexAI Express 重试）
+			// 缓存命中（VertexAI / VertexAIExpress → VertexAIExpress 重试）
 			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, bodyBytes, headers, geminiRequest.Model)
 			if errWithCode != nil {
 				return nil, errWithCode
@@ -147,7 +147,22 @@ func (p *VertexAIExpressProvider) getChatRequest(geminiRequest *gemini.GeminiCha
 			return req, nil
 		}
 
-		// 从原始字节清理
+		if exists && !wasVertexAI {
+			// 跨 provider 重试（Gemini → VertexAIExpress）：raw bytes 已释放，
+			// 在 Gemini-cleaned bytes 上增量执行 VertexAI tools 清理
+			cleaned, err := gemini.CleanToolsBytesOnly(bodyBytes, true)
+			if err != nil {
+				return nil, common.ErrorWrapper(err, "clean_tools_bytes_failed", http.StatusInternalServerError)
+			}
+			p.SetProcessedBodyBytes(cleaned, true)
+			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, cleaned, headers, geminiRequest.Model)
+			if errWithCode != nil {
+				return nil, errWithCode
+			}
+			return req, nil
+		}
+
+		// 从原始字节清理（首次调用，raw bytes 尚未释放）
 		if rawData, rawExists := p.GetRawBody(); rawExists {
 			cleaned, err := gemini.CleanGeminiRequestBytes(rawData, true)
 			if err != nil {

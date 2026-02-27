@@ -108,9 +108,10 @@ func (p *GeminiProvider) getChatRequest(geminiRequest *GeminiChatRequest, isRela
 
 	if isRelay {
 		// 字节级路径：优先使用已清理的字节缓存，避免对含 base64 的大请求做 json.Unmarshal/Marshal
-		bodyBytes, wasVertexAI, exists := p.GetProcessedBodyBytes()
-		if exists && !wasVertexAI {
-			// 缓存命中（Gemini → Gemini 重试）
+		// 接受任意 variant（Gemini 或 VertexAI cleaned），因为 VertexAI 清理是 Gemini 的超集，
+		// 多删除的 tool_type/toolType/type 字段对 Gemini API 无影响
+		bodyBytes, _, exists := p.GetProcessedBodyBytes()
+		if exists {
 			req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, bodyBytes, headers, geminiRequest.Model)
 			if errWithCode != nil {
 				return nil, errWithCode
@@ -118,7 +119,7 @@ func (p *GeminiProvider) getChatRequest(geminiRequest *GeminiChatRequest, isRela
 			return req, nil
 		}
 
-		// 从原始字节清理
+		// 从原始字节清理（首次调用，raw bytes 尚未释放）
 		if rawData, rawExists := p.GetRawBody(); rawExists {
 			cleaned, err := CleanGeminiRequestBytes(rawData, false)
 			if err != nil {

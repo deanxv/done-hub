@@ -109,7 +109,23 @@ func (p *VertexAIProvider) getGeminiRequest(request *gemini.GeminiChatRequest) (
 		return req, nil
 	}
 
-	// 从原始字节清理
+	if exists && !wasVertexAI {
+		// 跨 provider 重试（Gemini → VertexAI）：raw bytes 已释放，在 Gemini-cleaned bytes 上
+		// 增量执行 VertexAI tools 清理（删除 tool_type/toolType/type）
+		// 前 3 步清理（validateAndFix/deleteIds/ensureRoles）与 isVertexAI 无关，已完成
+		cleaned, err := gemini.CleanToolsBytesOnly(bodyBytes, true)
+		if err != nil {
+			return nil, common.ErrorWrapper(err, "clean_tools_bytes_failed", http.StatusInternalServerError)
+		}
+		p.SetProcessedBodyBytes(cleaned, true)
+		req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, cleaned, headers, request.Model)
+		if errWithCode != nil {
+			return nil, errWithCode
+		}
+		return req, nil
+	}
+
+	// 从原始字节清理（首次调用，raw bytes 尚未释放）
 	if rawData, rawExists := p.GetRawBody(); rawExists {
 		cleaned, err := gemini.CleanGeminiRequestBytes(rawData, true)
 		if err != nil {

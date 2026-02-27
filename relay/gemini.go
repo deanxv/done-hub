@@ -20,8 +20,10 @@ var AllowGeminiChannelType = []int{config.ChannelTypeGemini, config.ChannelTypeV
 
 type relayGeminiOnly struct {
 	relayBase
-	geminiRequest *gemini.GeminiChatRequest
-	requestBody   []byte // 原始请求 bytes，延迟到 getChatRequest 再反序列化，避免大 payload 提前膨胀内存
+	geminiRequest      *gemini.GeminiChatRequest
+	requestBody        []byte // 原始请求 bytes，延迟到 getChatRequest 再反序列化，避免大 payload 提前膨胀内存
+	cachedPromptTokens int    // 缓存 token 计数结果，避免 retry 时读已释放的 requestBody
+	promptTokensCached bool   // 标记 token 计数是否已缓存
 }
 
 func NewRelayGeminiOnly(c *gin.Context) *relayGeminiOnly {
@@ -91,8 +93,18 @@ func (r *relayGeminiOnly) IsStream() bool {
 }
 
 func (r *relayGeminiOnly) getPromptTokens() (int, error) {
+	// 使用缓存：retry 时 r.requestBody 可能已被释放，直接返回首次计算结果
+	if r.promptTokensCached {
+		return r.cachedPromptTokens, nil
+	}
 	channel := r.provider.GetChannel()
-	return countGeminiTokenMessagesFromBytes(r.requestBody, r.geminiRequest.Model, channel.PreCost)
+	tokens, err := countGeminiTokenMessagesFromBytes(r.requestBody, r.geminiRequest.Model, channel.PreCost)
+	if err != nil {
+		return 0, err
+	}
+	r.cachedPromptTokens = tokens
+	r.promptTokensCached = true
+	return tokens, nil
 }
 
 func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
@@ -102,7 +114,8 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 	}
 
 	// 内容审查：使用 gjson 直接在原始 bytes 上提取 text，避免完整 JSON 反序列化
-	if config.EnableSafe {
+	// 注意：这是 r.requestBody 最后一次被使用的地方
+	if config.EnableSafe && r.requestBody != nil {
 		contents := gjson.GetBytes(r.requestBody, "contents")
 		for _, content := range contents.Array() {
 			for _, part := range content.Get("parts").Array() {
@@ -118,6 +131,11 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 		}
 	}
 
+	// 阶梯1释放：安全检查完毕后，relay 不再需要 raw bytes
+	// provider 通过 GinRequestBodyKey 独立访问（getChatRequest 处理后会释放）
+	// retry 时安全检查可跳过（内容不变），token 计数使用缓存
+	r.requestBody = nil
+
 	r.geminiRequest.Model = r.modelName
 
 	if r.geminiRequest.Stream {
@@ -126,6 +144,10 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 		if err != nil {
 			return
 		}
+
+		// 阶梯2释放：上游请求成功建立，不会再 retry，释放所有 body 引用
+		// 流式模式下 body 在响应流传输期间（可能数分钟）不再需要
+		r.releaseBody()
 
 		if r.heartbeat != nil {
 			r.heartbeat.Stop()
@@ -143,6 +165,9 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 			return
 		}
 
+		// 阶梯2释放：上游请求成功完成，不会再 retry，释放所有 body 引用
+		r.releaseBody()
+
 		if r.heartbeat != nil {
 			r.heartbeat.Stop()
 		}
@@ -155,6 +180,15 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 	}
 
 	return
+}
+
+// releaseBody 释放所有 body 相关的内存引用
+// 仅在确认不会再 retry 时调用（上游请求成功后）
+func (r *relayGeminiOnly) releaseBody() {
+	r.requestBody = nil
+	r.c.Set(config.GinRequestBodyKey, nil)
+	r.c.Set(config.GinProcessedBytesKey, nil)
+	r.c.Set(config.GinProcessedBytesIsVertexAI, nil)
 }
 
 func (r *relayGeminiOnly) GetError(err *types.OpenAIErrorWithStatusCode) (int, any) {

@@ -236,6 +236,14 @@ func ensureContentRolesBytes(data []byte) ([]byte, error) {
 	return data, nil
 }
 
+// CleanToolsBytesOnly 仅执行 tools 数组的清理步骤
+// 用于跨 provider 重试的增量清理：当已有 Gemini-cleaned bytes 需要适配 VertexAI 时，
+// 无需重新从 raw bytes 执行全部 4 步清理，只需增量执行此步骤即可
+// （前 3 步 validateAndFix/deleteIds/ensureRoles 与 isVertexAI 无关，已在首次清理中完成）
+func CleanToolsBytesOnly(data []byte, isVertexAI bool) ([]byte, error) {
+	return cleanToolsBytes(data, isVertexAI)
+}
+
 // cleanToolsBytes 清理 tools 数组中 Gemini API 不支持的字段
 // tools 数组很小（无 base64），直接 unmarshal → 清理 → marshal → sjson 写回
 func cleanToolsBytes(data []byte, isVertexAI bool) ([]byte, error) {
