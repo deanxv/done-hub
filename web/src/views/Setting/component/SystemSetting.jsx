@@ -69,6 +69,7 @@ const SystemSetting = () => {
     LinuxDoClientId: '',
     LinuxDoClientSecret: '',
     LinuxDoOAuthLowestTrustLevel: '',
+    Need2ResponseModels: '',
     EmailDomainRestrictionEnabled: '',
     EmailDomainWhitelist: []
   })
@@ -187,7 +188,8 @@ const SystemSetting = () => {
       name === 'LarkClientSecret' ||
       name === 'LinuxDoClientId' ||
       name === 'LinuxDoClientSecret' ||
-      name === 'LinuxDoOAuthLowestTrustLevel'
+      name === 'LinuxDoOAuthLowestTrustLevel' ||
+      name === 'Need2ResponseModels'
     ) {
       setInputs((inputs) => ({ ...inputs, [name]: value }))
     } else {
@@ -311,6 +313,12 @@ const SystemSetting = () => {
     }
     if (originInputs['LinuxDoOAuthLowestTrustLevel'] !== inputs.LinuxDoOAuthLowestTrustLevel) {
       await updateOption('LinuxDoOAuthLowestTrustLevel', inputs.LinuxDoOAuthLowestTrustLevel)
+    }
+  }
+
+  const submitNeed2ResponseModels = async() => {
+    if (originInputs['Need2ResponseModels'] !== inputs.Need2ResponseModels) {
+      await updateOption('Need2ResponseModels', inputs.Need2ResponseModels)
     }
   }
 
@@ -1082,6 +1090,32 @@ const SystemSetting = () => {
             <Grid xs={12}>
               <Button variant="contained" onClick={submitLinuxDoOAuth}>
                 {t('setting_index.systemSettings.configureLinuxDoOAuthApp.saveButton')}
+              </Button>
+            </Grid>
+          </Grid>
+        </SubCard>
+
+        <SubCard title={t('setting_index.systemSettings.configureNeed2ResponseModels.title')}
+          subTitle={t('setting_index.systemSettings.configureNeed2ResponseModels.subTitle')}>
+          <Grid container spacing={{ xs: 3, sm: 2, md: 4 }}>
+            <Grid xs={12}>
+              <FormControl fullWidth>
+                <TextField
+                  multiline
+                  minRows={6}
+                  id="Need2ResponseModels"
+                  name="Need2ResponseModels"
+                  label={t('setting_index.systemSettings.configureNeed2ResponseModels.label')}
+                  value={inputs.Need2ResponseModels || ''}
+                  onChange={handleInputChange}
+                  placeholder={t('setting_index.systemSettings.configureNeed2ResponseModels.placeholder')}
+                  disabled={loading}
+                />
+              </FormControl>
+            </Grid>
+            <Grid xs={12}>
+              <Button variant="contained" onClick={submitNeed2ResponseModels}>
+                {t('setting_index.systemSettings.configureNeed2ResponseModels.saveButton')}
               </Button>
             </Grid>
           </Grid>

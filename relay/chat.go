@@ -75,20 +75,8 @@ func (r *relayChat) getPromptTokens() (int, error) {
 	return common.CountTokenMessages(r.chatRequest.Messages, r.modelName, channel.PreCost), nil
 }
 
-var need2Response = map[string]bool{
-	"o3-pro-2025-06-10":                true,
-	"o3-pro":                           true,
-	"o1-pro-2025-03-19":                true,
-	"o1-pro":                           true,
-	"o3-deep-research-2025-06-26":      true,
-	"o3-deep-research":                 true,
-	"o4-mini-deep-research-2025-06-26": true,
-	"o4-mini-deep-research":            true,
-	"codex-mini-latest":                true,
-}
-
 func (r *relayChat) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
-	if need2Response[r.modelName] {
+	if config.ShouldUseResponsesForModel(r.modelName) {
 		resProvider, ok := r.provider.(providersBase.ResponsesInterface)
 		if ok {
 			return r.compatibleSend(resProvider)
