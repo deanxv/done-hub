@@ -11,6 +11,7 @@ const defaultConfig = {
     model_headers: [],
     header_override: [],
     custom_parameter: '',
+    need2response_models: '',
     models: [],
     groups: ['default'],
     plugin: {},
@@ -37,6 +38,7 @@ const defaultConfig = {
     model_headers: '自定义模型请求头',
     header_override: '请求头透传',
     custom_parameter: '额外参数',
+    need2response_models: 'Chat 转 Responses 模型',
     groups: '用户组',
     only_chat: '仅支持聊天',
     tag: '标签',
@@ -66,6 +68,7 @@ const defaultConfig = {
       '将客户端请求头透传至上游。值支持固定值、{api_key}（渠道密钥）、{client_header:X-Request-Id}（取客户端同名请求头）；键填 * 透传全部客户端请求头，键以 re: 或 regex: 开头按正则透传匹配的请求头。注意：鉴权头由渠道自身处理，不会被覆盖；键名建议使用标准 Header 大小写（如 X-Request-Id），避免同名头大小写不一致。',
     custom_parameter:
       '支持通过 JSON 注入额外参数（可嵌套）。可用控制项：overwrite：设为 true 覆盖同名字段，未设置或 false 时仅补充缺失字段；per_model：设为 true 后按模型名进行参数覆盖，如 {"per_model":true,"gpt-3.5-turbo":{"temperature": 0.7},"gpt-4":{"temperature": 0.5}}；pre_add：设为 true 时在请求入口即完成参数覆盖，否则会在发送请求前再进行参数覆盖，适用于所有渠道（含 Claude、Gemini），如 {"pre_add":true,"overwrite":true,"stream":false}。',
+    need2response_models: '一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。留空表示该渠道不做转换。',
     groups: '请选择该渠道所支持的用户组',
     only_chat: '如果选择了仅支持聊天，那么遇到有函数调用的请求会跳过该渠道',
     provider_models_list: '必须填写所有数据后才能获取模型列表',

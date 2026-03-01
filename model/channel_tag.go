@@ -190,7 +190,7 @@ func UpdateChannelsTag(tag string, channel *Channel) error {
 
 	// 用 Select("*") + Omit 黑名单覆盖共享配置：
 	//  - Select("*") 强制写入零值（修复 only_chat=false / pre_cost=0 / other="" 等无法保存的问题）
-	//  - 黑名单排除逐行/运行时字段；新增 Channel 字段会自动纳入批量更新，避免漏字段
+	//  - 黑名单排除逐行/运行时字段；新增 Channel 字段（如 need2response_models）会自动纳入批量更新，避免漏字段
 	//  - priority/weight/cost_ratio 为逐行可调字段（成本倍率支持组内各渠道单独设置），不随分组统一编辑覆盖
 	//  - type 为渠道的根本属性，由创建时决定；分组编辑弹窗不显示类型字段，故统一编辑不得改写 type，
 	//    否则会把代表渠道的类型悄悄覆盖到全组（类型不一致的分组尤其危险），违反「所见即所得」

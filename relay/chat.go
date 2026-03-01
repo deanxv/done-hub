@@ -83,18 +83,6 @@ func (r *relayChat) forcePromptTokens() int {
 	return common.CountTokenMessages(r.chatRequest.Messages, r.modelName, config.PreCostDefault)
 }
 
-var need2Response = map[string]bool{
-	"o3-pro-2025-06-10":                true,
-	"o3-pro":                           true,
-	"o1-pro-2025-03-19":                true,
-	"o1-pro":                           true,
-	"o3-deep-research-2025-06-26":      true,
-	"o3-deep-research":                 true,
-	"o4-mini-deep-research-2025-06-26": true,
-	"o4-mini-deep-research":            true,
-	"codex-mini-latest":                true,
-}
-
 func (r *relayChat) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
 	// 图像生成模型走 chat 入口是非标用法，按 chat 协议处理会把上游 base64 当文本反算成百万级 token、
 	// 计费爆炸；在 chat 入口分流到 image generations 协议做渠道降级。
@@ -110,9 +98,11 @@ func (r *relayChat) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
 		return
 	}
 
-	if need2Response[r.modelName] {
-		resProvider, ok := r.provider.(providersBase.ResponsesInterface)
-		if ok {
+	// chat→Responses 路由：渠道单独配置了 Need2ResponseModels 时以其为准，
+	// 未配置的渠道回退到全局默认表（见 model.ShouldUseResponsesForModel）。
+	channel := r.provider.GetChannel()
+	if channel != nil && channel.ShouldUseResponsesForModel(r.modelName) {
+		if resProvider, ok := r.provider.(providersBase.ResponsesInterface); ok {
 			return r.compatibleSend(resProvider)
 		}
 	}
