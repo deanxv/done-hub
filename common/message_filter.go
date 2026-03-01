@@ -70,6 +70,16 @@ func IsMessageContentEmpty(message types.ChatCompletionMessage) bool {
 	return !hasNonEmptyContent
 }
 
+// NormalizeNullContentWithToolCalls 将 assistant 消息中 content: null + tool_calls 的情况规范化为 content: ""
+// OpenAI 规范允许 content: null，但部分下游（如 Anthropic）不接受空 text block
+func NormalizeNullContentWithToolCalls(messages []types.ChatCompletionMessage) {
+	for i := range messages {
+		if messages[i].Content == nil && messages[i].ToolCalls != nil {
+			messages[i].Content = ""
+		}
+	}
+}
+
 func FilterEmptyContentParts(messages []types.ChatCompletionMessage) []types.ChatCompletionMessage {
 	if len(messages) == 0 {
 		return messages

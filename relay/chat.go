@@ -38,6 +38,8 @@ func (r *relayChat) setRequest() error {
 		return err
 	}
 
+	common.NormalizeNullContentWithToolCalls(r.chatRequest.Messages)
+
 	if r.chatRequest.MaxTokens < 0 || r.chatRequest.MaxTokens > math.MaxInt32/2 {
 		return errors.New("max_tokens is invalid")
 	}

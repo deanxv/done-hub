@@ -37,6 +37,12 @@ func CleanGeminiRequestBytes(data []byte, isVertexAI bool) ([]byte, error) {
 		return nil, err
 	}
 
+	// 5. 确保 model 角色的 thought/functionCall part 有 thoughtSignature
+	data, err = ensureThoughtSignaturesBytes(data)
+	if err != nil {
+		return nil, err
+	}
+
 	return data, nil
 }
 
@@ -236,10 +242,60 @@ func ensureContentRolesBytes(data []byte) ([]byte, error) {
 	return data, nil
 }
 
+const (
+	skipThoughtSignatureValidator = "skip_thought_signature_validator"
+	minThoughtSignatureLength     = 50
+)
+
+// ensureThoughtSignaturesBytes 确保 model 角色消息中 thought/functionCall part 有 thoughtSignature
+// Gemini 上游有时不返回 thoughtSignature，导致下一轮请求校验失败
+// 对缺失或长度不足的 thoughtSignature 注入哨兵值绕过验证
+func ensureThoughtSignaturesBytes(data []byte) ([]byte, error) {
+	contents := gjson.GetBytes(data, "contents")
+	if !contents.Exists() {
+		return data, nil
+	}
+
+	for i, content := range contents.Array() {
+		if content.Get("role").String() != "model" {
+			continue
+		}
+
+		parts := content.Get("parts")
+		if !parts.Exists() {
+			continue
+		}
+
+		for j, part := range parts.Array() {
+			needsSignature := part.Get("thought").Bool() ||
+				part.Get("functionCall").Exists() ||
+				part.Get("function_call").Exists()
+
+			if !needsSignature {
+				continue
+			}
+
+			sig := part.Get("thoughtSignature")
+			if sig.Exists() && len(sig.String()) >= minThoughtSignatureLength {
+				continue
+			}
+
+			path := fmt.Sprintf("contents.%d.parts.%d.thoughtSignature", i, j)
+			var err error
+			data, err = sjson.SetBytes(data, path, skipThoughtSignatureValidator)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return data, nil
+}
+
 // CleanToolsBytesOnly 仅执行 tools 数组的清理步骤
 // 用于跨 provider 重试的增量清理：当已有 Gemini-cleaned bytes 需要适配 VertexAI 时，
-// 无需重新从 raw bytes 执行全部 4 步清理，只需增量执行此步骤即可
-// （前 3 步 validateAndFix/deleteIds/ensureRoles 与 isVertexAI 无关，已在首次清理中完成）
+// 无需重新从 raw bytes 执行全部 5 步清理，只需增量执行此步骤即可
+// （其余 4 步与 isVertexAI 无关，已在首次清理中完成）
 func CleanToolsBytesOnly(data []byte, isVertexAI bool) ([]byte, error) {
 	return cleanToolsBytes(data, isVertexAI)
 }

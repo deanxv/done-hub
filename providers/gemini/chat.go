@@ -222,6 +222,27 @@ func CleanGeminiRequestMap(data map[string]interface{}, isVertexAI bool) {
 									delete(functionResponse, "id")
 								}
 							}
+
+							// 为 model 角色的 thought/functionCall part 注入 thoughtSignature 哨兵值
+							if role, _ := contentMap["role"].(string); role == "model" {
+								needsSig := false
+								if thought, _ := partMap["thought"].(bool); thought {
+									needsSig = true
+								}
+								if _, has := partMap["functionCall"]; has {
+									needsSig = true
+								}
+								if _, has := partMap["function_call"]; has {
+									needsSig = true
+								}
+
+								if needsSig {
+									existingSig, _ := partMap["thoughtSignature"].(string)
+									if existingSig == "" || len(existingSig) < minThoughtSignatureLength {
+										partMap["thoughtSignature"] = skipThoughtSignatureValidator
+									}
+								}
+							}
 						}
 					}
 				}
