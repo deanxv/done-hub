@@ -72,7 +72,7 @@ func ClaudeChatCompleteStrem(provider base.ProviderInterface, request *types.Cha
 	chatHandler := &claude.ClaudeStreamHandler{
 		Usage:   provider.GetUsage(),
 		Request: request,
-		Prefix:  `data: {"type"`,
+		Prefix:  "data:",
 	}
 
 	return chatHandler.HandlerStream

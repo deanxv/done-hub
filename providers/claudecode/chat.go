@@ -67,7 +67,7 @@ func (p *ClaudeCodeProvider) CreateChatCompletionStream(request *types.ChatCompl
 	chatHandler := &claude.ClaudeStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
-		Prefix:  `data: {"type"`,
+		Prefix:  "data:",
 		Context: p.Context,
 	}
 

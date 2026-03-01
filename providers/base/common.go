@@ -103,7 +103,9 @@ func (p *BaseProvider) GetFullRequestURL(requestURL string, _ string) string {
 func (p *BaseProvider) CommonRequestHeaders(headers map[string]string) {
 	if p.Context != nil {
 		headers["Content-Type"] = p.Context.Request.Header.Get("Content-Type")
-		headers["Accept"] = p.Context.Request.Header.Get("Accept")
+		if accept := p.Context.Request.Header.Get("Accept"); accept != "" {
+			headers["Accept"] = accept
+		}
 	}
 
 	if headers["Content-Type"] == "" {

@@ -8,7 +8,7 @@ type CompletionRequest struct {
 	Temperature      float32        `json:"temperature,omitempty"`
 	TopP             float32        `json:"top_p,omitempty"`
 	N                int            `json:"n,omitempty"`
-	Stream           bool           `json:"stream,omitempty"`
+	Stream           bool           `json:"stream"`
 	StreamOptions    *StreamOptions `json:"stream_options,omitempty"`
 	LogProbs         int            `json:"logprobs,omitempty"`
 	Echo             bool           `json:"echo,omitempty"`

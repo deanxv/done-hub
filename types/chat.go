@@ -46,7 +46,7 @@ type ChatCompletionToolCalls struct {
 
 type ChatCompletionMessage struct {
 	Role             string                           `json:"role"`
-	Content          any                              `json:"content,omitempty"`
+	Content          any                              `json:"content"`
 	Refusal          string                           `json:"refusal,omitempty"`
 	ReasoningContent string                           `json:"reasoning_content,omitempty"`
 	Reasoning        string                           `json:"reasoning,omitempty"`
@@ -191,7 +191,7 @@ type ChatCompletionRequest struct {
 	TopP                *float64                      `json:"top_p,omitempty"`
 	TopK                *float64                      `json:"top_k,omitempty"`
 	N                   *int                          `json:"n,omitempty"`
-	Stream              bool                          `json:"stream,omitempty"`
+	Stream              bool                          `json:"stream"`
 	StreamOptions       *StreamOptions                `json:"stream_options,omitempty"`
 	Stop                any                           `json:"stop,omitempty"`
 	PresencePenalty     *float64                      `json:"presence_penalty,omitempty"`
@@ -300,7 +300,7 @@ type ChatCompletionChoice struct {
 	Index                int                   `json:"index"`
 	Message              ChatCompletionMessage `json:"message"`
 	LogProbs             any                   `json:"logprobs,omitempty"`
-	FinishReason         string                `json:"finish_reason,omitempty"`
+	FinishReason         string                `json:"finish_reason"`
 	ContentFilterResults any                   `json:"content_filter_results,omitempty"`
 	FinishDetails        any                   `json:"finish_details,omitempty"`
 }

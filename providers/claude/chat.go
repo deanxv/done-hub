@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/image"
@@ -15,7 +16,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
 	"github.com/gin-gonic/gin"
 )
 
@@ -78,11 +78,9 @@ func (p *ClaudeProvider) CreateChatCompletionStream(request *types.ChatCompletio
 	chatHandler := &ClaudeStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
-		Prefix:  `data: {"type"`,
+		Prefix:  "data:",
 		Context: p.Context, // 传递 Context
 	}
-
-	eventstream.NewDecoder()
 
 	return requester.RequestStream(p.Requester, resp, chatHandler.HandlerStream)
 }
@@ -453,15 +451,19 @@ func ConvertToChatOpenai(provider base.ProviderInterface, response *ClaudeRespon
 
 // 转换为OpenAI聊天流式请求体
 func (h *ClaudeStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan string, errChan chan error) {
-	// 如果rawLine 前缀不为data:，则直接返回
+	// 如果rawLine 前缀不匹配，则直接返回
 	if !strings.HasPrefix(string(*rawLine), h.Prefix) {
 		*rawLine = nil
 		return
 	}
 
-	if strings.HasPrefix(string(*rawLine), "data: ") {
-		// 去除前缀
-		*rawLine = (*rawLine)[6:]
+	// 去除 "data:" 前缀及可能的空格（Bedrock 使用 {"type" 前缀，无需去除）
+	if (*rawLine)[0] == 'd' {
+		*rawLine = bytes.TrimSpace((*rawLine)[5:])
+		if len(*rawLine) == 0 {
+			*rawLine = nil
+			return
+		}
 	}
 
 	var claudeResponse ClaudeStreamResponse
