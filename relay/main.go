@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"bytes"
 	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
@@ -12,12 +11,12 @@ import (
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func Relay(c *gin.Context) {
@@ -285,22 +284,15 @@ func applyPreMappingBeforeRequest(c *gin.Context) {
 		return
 	}
 
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	// 使用 ReadBodyRaw 读取并缓存请求体，避免与下游 setRequest 重复读 body
+	bodyBytes, err := common.ReadBodyRaw(c)
 	if err != nil {
 		return
 	}
-	c.Request.Body.Close()
 
-	// Use defer to ensure request body is always restored
-	var finalBodyBytes = bodyBytes // default to original body
-	defer func() {
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(finalBodyBytes))
-	}()
-
-	var requestBody struct {
-		Model string `json:"model"`
-	}
-	if err := json.Unmarshal(bodyBytes, &requestBody); err != nil || requestBody.Model == "" {
+	// gjson 提取 model 字段，替代 json.Unmarshal 整个 body
+	modelName := gjson.GetBytes(bodyBytes, "model").String()
+	if modelName == "" {
 		return
 	}
 
@@ -326,7 +318,7 @@ func applyPreMappingBeforeRequest(c *gin.Context) {
 		c.Set("billing_original_model", nil)
 	}()
 
-	provider, _, err := GetProvider(c, requestBody.Model)
+	provider, _, err := GetProvider(c, modelName)
 	if err != nil {
 		return
 	}
@@ -349,8 +341,8 @@ func applyPreMappingBeforeRequest(c *gin.Context) {
 	// Apply custom parameter merging
 	modifiedRequestMap := mergeCustomParamsForPreMapping(requestMap, customParams)
 
-	// Convert back to JSON - if successful, use modified body; otherwise use original
+	// Convert back to JSON - if successful, update cache
 	if modifiedBodyBytes, err := json.Marshal(modifiedRequestMap); err == nil {
-		finalBodyBytes = modifiedBodyBytes
+		c.Set(config.GinRequestBodyKey, modifiedBodyBytes)
 	}
 }

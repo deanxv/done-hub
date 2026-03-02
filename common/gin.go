@@ -15,8 +15,15 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-// readBody 读取请求体并缓存，使用 Content-Length 预分配以减少 growSlice 开销
+// readBody 读取请求体，使用读穿缓存保证全链路只读一次 c.Request.Body
+// 首次调用从 HTTP 流读取并缓存到 GinRequestBodyKey；后续调用直接返回缓存
 func readBody(c *gin.Context) ([]byte, error) {
+	if cached, exists := c.Get(config.GinRequestBodyKey); exists {
+		if data, ok := cached.([]byte); ok && data != nil {
+			return data, nil
+		}
+	}
+
 	size := c.Request.ContentLength
 	if size <= 0 || size > 100<<20 {
 		size = 512
@@ -26,18 +33,16 @@ func readBody(c *gin.Context) ([]byte, error) {
 		return nil, err
 	}
 	c.Request.Body.Close()
-	return buf.Bytes(), nil
+
+	data := buf.Bytes()
+	c.Set(config.GinRequestBodyKey, data)
+	return data, nil
 }
 
 // ReadBodyRaw 只读取请求体原始 bytes 并缓存到 context，不做 JSON 反序列化
 // 适用于大 payload 场景（如含 base64 图片的 Gemini 请求），避免 json.Unmarshal 对所有字符串的内存分配
 func ReadBodyRaw(c *gin.Context) ([]byte, error) {
-	rawBody, err := readBody(c)
-	if err != nil {
-		return nil, err
-	}
-	c.Set(config.GinRequestBodyKey, rawBody)
-	return rawBody, nil
+	return readBody(c)
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
@@ -45,7 +50,6 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	if err != nil {
 		return err
 	}
-	c.Set(config.GinRequestBodyKey, requestBody)
 
 	// JSON 请求：直接从 []byte 反序列化，避免创建中间 bytes.Buffer
 	contentType := c.ContentType()
