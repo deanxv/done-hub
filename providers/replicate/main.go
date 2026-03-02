@@ -21,7 +21,7 @@ func (f ReplicateProviderFactory) Create(channel *model.Channel) base.ProviderIn
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle),
 		},
 		FetchPredictionUrl: "/v1/predictions/%s",
 	}

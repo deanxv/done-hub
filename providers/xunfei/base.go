@@ -23,9 +23,9 @@ func (f XunfeiProviderFactory) Create(channel *model.Channel) base.ProviderInter
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, nil),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), nil),
 		},
-		wsRequester: requester.NewWSRequester(*channel.Proxy),
+		wsRequester: requester.NewWSRequester(channel.GetProxy()),
 	}
 }
 

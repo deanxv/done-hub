@@ -22,7 +22,7 @@ func (f AzureDatabricksProviderFactory) Create(channel *model.Channel) base.Prov
 	return &AzureDatabricksProvider{
 		BaseProvider: base.BaseProvider{
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle),
 		},
 	}
 }

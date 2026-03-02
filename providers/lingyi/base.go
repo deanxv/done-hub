@@ -18,7 +18,7 @@ func (f LingyiProviderFactory) Create(channel *model.Channel) base.ProviderInter
 			BaseProvider: base.BaseProvider{
 				Config:    getConfig(),
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, openai.RequestErrorHandle),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle),
 			},
 		},
 	}

@@ -23,7 +23,7 @@ func (f XAIProviderFactory) Create(channel *model.Channel) base.ProviderInterfac
 			BaseProvider: base.BaseProvider{
 				Config:    getConfig(),
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 			},
 			UsageHandler:        usageHandler,
 			RequestHandleBefore: requestHandler,

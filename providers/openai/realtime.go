@@ -30,7 +30,7 @@ func (p *OpenAIProvider) CreateChatRealtime(modelName string) (*websocket.Conn, 
 	}
 	httpHeaders.Set("OpenAI-Beta", "realtime=v1")
 
-	wsRequester := requester.NewWSRequester(*p.Channel.Proxy)
+	wsRequester := requester.NewWSRequester(p.Channel.GetProxy())
 
 	wsConn, err := wsRequester.NewRequest(fullRequestURL, httpHeaders)
 	if err != nil {

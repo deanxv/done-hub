@@ -50,7 +50,7 @@ func (f GeminiProviderFactory) Create(channel *model.Channel) base.ProviderInter
 			BaseProvider: base.BaseProvider{
 				Config:    getConfig(version),
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle(channel.Key)),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle(channel.Key)),
 			},
 			SupportStreamOptions: true,
 		},

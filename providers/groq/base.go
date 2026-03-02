@@ -17,7 +17,7 @@ func (f GroqProviderFactory) Create(channel *model.Channel) base.ProviderInterfa
 			BaseProvider: base.BaseProvider{
 				Config:    getConfig(),
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, openai.RequestErrorHandle),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle),
 			},
 		},
 	}

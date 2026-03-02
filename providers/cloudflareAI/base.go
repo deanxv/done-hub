@@ -19,7 +19,7 @@ func (f CloudflareAIProviderFactory) Create(channel *model.Channel) base.Provide
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle),
 		},
 	}
 

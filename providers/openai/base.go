@@ -47,7 +47,7 @@ func CreateOpenAIProvider(channel *model.Channel, baseURL string) *OpenAIProvide
 		BaseProvider: base.BaseProvider{
 			Config:          openaiConfig,
 			Channel:         channel,
-			Requester:       requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+			Requester:       requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 			SupportResponse: true,
 		},
 		IsAzure:       false,
@@ -202,13 +202,13 @@ func (p *OpenAIProvider) GetRequestHeaders() (headers map[string]string) {
 func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
 	// 使用 "." 分割路径
 	parts := strings.Split(paramPath, ".")
-	
+
 	// 如果只有一层,直接删除
 	if len(parts) == 1 {
 		delete(requestMap, paramPath)
 		return
 	}
-	
+
 	// 处理嵌套路径
 	current := requestMap
 	for i := 0; i < len(parts)-1; i++ {
@@ -219,7 +219,7 @@ func removeNestedParam(requestMap map[string]interface{}, paramPath string) {
 			return
 		}
 	}
-	
+
 	// 删除最后一级的键
 	delete(current, parts[len(parts)-1])
 }

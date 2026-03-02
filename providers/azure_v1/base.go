@@ -17,7 +17,7 @@ func (f AzureV1ProviderFactory) Create(channel *model.Channel) base.ProviderInte
 			BaseProvider: base.BaseProvider{
 				Config:          config,
 				Channel:         channel,
-				Requester:       requester.NewHTTPRequester(*channel.Proxy, openai.RequestErrorHandle),
+				Requester:       requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle),
 				SupportResponse: true,
 			},
 			IsAzure:              true,

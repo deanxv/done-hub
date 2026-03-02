@@ -249,6 +249,9 @@ func testAllChannels(isNotify bool) error {
 	testAllChannelsLock.Unlock()
 	channels, err := model.GetAllChannels()
 	if err != nil {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = false
+		testAllChannelsLock.Unlock()
 		return err
 	}
 	var disableThreshold = int64(config.ChannelDisableThreshold * 1000)
@@ -256,6 +259,16 @@ func testAllChannels(isNotify bool) error {
 		disableThreshold = 10000000 // a impossible value
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.SysError(fmt.Sprintf("testAllChannels panic: %v\n%s", r, debug.Stack()))
+			}
+			testAllChannelsLock.Lock()
+			testAllChannelsRunning = false
+			testAllChannelsLock.Unlock()
+			debug.FreeOSMemory()
+		}()
+
 		var sb strings.Builder
 		for _, channel := range channels {
 			time.Sleep(config.RequestInterval)
@@ -309,14 +322,9 @@ func testAllChannels(isNotify bool) error {
 			channel.UpdateResponseTime(milliseconds)
 			sb.WriteString(fmt.Sprintf("- 测试完成，耗时 %.2fs\n\n", float64(milliseconds)/1000.0))
 		}
-		testAllChannelsLock.Lock()
-		testAllChannelsRunning = false
-		testAllChannelsLock.Unlock()
 		if isNotify {
 			notify.Send("通道测试完成", sb.String())
 		}
-		// 测试完成后强制释放内存给操作系统
-		debug.FreeOSMemory()
 	}()
 	return nil
 }

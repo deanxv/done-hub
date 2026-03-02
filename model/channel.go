@@ -379,6 +379,13 @@ func (c *Channel) SetProxy() {
 
 }
 
+func (c *Channel) GetProxy() string {
+	if c.Proxy == nil {
+		return ""
+	}
+	return *c.Proxy
+}
+
 func (channel *Channel) GetPriority() int64 {
 	if channel.Priority == nil {
 		return 0

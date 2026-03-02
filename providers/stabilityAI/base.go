@@ -19,7 +19,7 @@ func (f StabilityAIProviderFactory) Create(channel *model.Channel) base.Provider
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle),
 		},
 	}
 }

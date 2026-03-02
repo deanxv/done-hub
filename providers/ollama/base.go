@@ -24,7 +24,7 @@ func (f OllamaProviderFactory) Create(channel *model.Channel) base.ProviderInter
 		BaseProvider: base.BaseProvider{
 			Config:    config,
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 		},
 	}
 }

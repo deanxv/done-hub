@@ -21,7 +21,7 @@ func (f OpenRouterProviderFactory) Create(channel *model.Channel) base.ProviderI
 			BaseProvider: base.BaseProvider{
 				Config:    getConfig(),
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 			},
 
 			ReasoningHandler:     true,

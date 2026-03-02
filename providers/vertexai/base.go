@@ -37,10 +37,7 @@ type VertexAIProviderFactory struct{}
 
 // 创建 VertexAIProvider
 func (f VertexAIProviderFactory) Create(channel *model.Channel) base.ProviderInterface {
-	proxyAddr := ""
-	if channel.Proxy != nil {
-		proxyAddr = *channel.Proxy
-	}
+	proxyAddr := channel.GetProxy()
 
 	vertexAIProvider := &VertexAIProvider{
 		BaseProvider: base.BaseProvider{
@@ -153,10 +150,7 @@ func (p *VertexAIProvider) GetToken() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	proxyAddr := ""
-	if p.Channel.Proxy != nil && *p.Channel.Proxy != "" {
-		proxyAddr = *p.Channel.Proxy
-	}
+	proxyAddr := p.Channel.GetProxy()
 
 	client, err := credentials.NewIamCredentialsClient(ctx, option.WithCredentialsJSON([]byte(p.Channel.Key)), option.WithGRPCDialOption(grpc.WithContextDialer(customDialer(proxyAddr))))
 	if err != nil {

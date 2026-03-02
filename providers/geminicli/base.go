@@ -39,7 +39,7 @@ func (f GeminiCliProviderFactory) Create(channel *model.Channel) base.ProviderIn
 				BaseProvider: base.BaseProvider{
 					Config:    getConfig("https://cloudcode-pa.googleapis.com"),
 					Channel:   channel,
-					Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle("")),
+					Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle("")),
 				},
 				SupportStreamOptions: true,
 			},
@@ -51,7 +51,7 @@ func (f GeminiCliProviderFactory) Create(channel *model.Channel) base.ProviderIn
 
 	// 更新 RequestErrorHandle 使用实际的 token
 	if provider.Credentials != nil {
-		provider.Requester = requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle(provider.Credentials.AccessToken))
+		provider.Requester = requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle(provider.Credentials.AccessToken))
 	}
 
 	return provider
@@ -312,10 +312,7 @@ func (p *GeminiCliProvider) GetToken() (string, error) {
 
 	needsUpdate := false
 	if p.Credentials.IsExpired() && p.Credentials.RefreshToken != "" {
-		proxyURL := ""
-		if p.Channel.Proxy != nil && *p.Channel.Proxy != "" {
-			proxyURL = *p.Channel.Proxy
-		}
+		proxyURL := p.Channel.GetProxy()
 
 		if err := p.Credentials.Refresh(ctx, proxyURL, 3); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to refresh geminicli token: %s", err.Error()))

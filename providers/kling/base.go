@@ -23,7 +23,7 @@ func (f KlingProviderFactory) Create(channel *model.Channel) base.ProviderInterf
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 		},
 		Generations: "/v1/%s/%s",    // POST
 		Fetch:       "/v1/%s/%s/%s", // GET

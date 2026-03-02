@@ -17,7 +17,7 @@ func (f GithubProviderFactory) Create(channel *model.Channel) base.ProviderInter
 			BaseProvider: base.BaseProvider{
 				Config:    config,
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, openai.RequestErrorHandle),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle),
 			},
 			BalanceAction: false,
 		},

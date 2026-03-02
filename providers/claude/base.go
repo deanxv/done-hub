@@ -19,7 +19,7 @@ func (f ClaudeProviderFactory) Create(channel *model.Channel) base.ProviderInter
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 		},
 	}
 }

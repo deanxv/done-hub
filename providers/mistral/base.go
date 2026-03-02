@@ -32,7 +32,7 @@ func CreateMistralProvider(channel *model.Channel, baseURL string) *MistralProvi
 			BaseProvider: base.BaseProvider{
 				Config:    config,
 				Channel:   channel,
-				Requester: requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle),
+				Requester: requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle),
 			},
 			SupportStreamOptions: false,
 		},

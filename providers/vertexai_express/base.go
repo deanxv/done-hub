@@ -27,11 +27,7 @@ func (f VertexAIExpressProviderFactory) Create(channel *model.Channel) base.Prov
 	config.BaseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/publishers/google/models",
 		region, projectID, region)
 
-	// 处理代理
-	proxyAddr := ""
-	if channel.Proxy != nil {
-		proxyAddr = *channel.Proxy
-	}
+	proxyAddr := channel.GetProxy()
 
 	return &VertexAIExpressProvider{
 		GeminiProvider: gemini.GeminiProvider{
@@ -105,4 +101,3 @@ func (p *VertexAIExpressProvider) GetRequestHeaders() (headers map[string]string
 func RequestErrorHandle(resp *http.Response) *types.OpenAIError {
 	return gemini.RequestErrorHandle("")(resp)
 }
-

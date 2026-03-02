@@ -24,7 +24,7 @@ func (f MidjourneyProviderFactory) Create(channel *model.Channel) base.ProviderI
 		BaseProvider: base.BaseProvider{
 			Config:    getConfig(),
 			Channel:   channel,
-			Requester: requester.NewHTTPRequester(*channel.Proxy, nil),
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), nil),
 		},
 	}
 }

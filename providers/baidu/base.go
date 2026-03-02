@@ -57,9 +57,9 @@ func (f BaiduProviderFactory) Create(channel *model.Channel) base.ProviderInterf
 	}
 
 	if useOpenaiAPI {
-		providers.Requester = requester.NewHTTPRequester(*channel.Proxy, openai.RequestErrorHandle)
+		providers.Requester = requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle)
 	} else {
-		providers.Requester = requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle)
+		providers.Requester = requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle)
 	}
 
 	return providers

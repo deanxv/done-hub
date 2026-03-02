@@ -34,7 +34,7 @@ func (f CodexProviderFactory) Create(channel *model.Channel) base.ProviderInterf
 			BaseProvider: base.BaseProvider{
 				Config:          getConfig(),
 				Channel:         channel,
-				Requester:       requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle("")),
+				Requester:       requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle("")),
 				SupportResponse: true,
 			},
 			SupportStreamOptions: true,
@@ -46,7 +46,7 @@ func (f CodexProviderFactory) Create(channel *model.Channel) base.ProviderInterf
 
 	// 更新 RequestErrorHandle 使用实际的 token
 	if provider.Credentials != nil {
-		provider.Requester = requester.NewHTTPRequester(*channel.Proxy, RequestErrorHandle(provider.Credentials.AccessToken))
+		provider.Requester = requester.NewHTTPRequester(channel.GetProxy(), RequestErrorHandle(provider.Credentials.AccessToken))
 	}
 
 	return provider
@@ -277,10 +277,7 @@ func (p *CodexProvider) GetToken() (string, error) {
 
 	needsUpdate := false
 	if p.Credentials.IsExpired() {
-		proxyURL := ""
-		if p.Channel.Proxy != nil && *p.Channel.Proxy != "" {
-			proxyURL = *p.Channel.Proxy
-		}
+		proxyURL := p.Channel.GetProxy()
 
 		if err := p.Credentials.Refresh(ctx, proxyURL, 3); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to refresh codex token: %s", err.Error()))

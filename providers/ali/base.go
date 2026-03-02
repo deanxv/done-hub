@@ -47,7 +47,7 @@ func (f AliProviderFactory) Create(channel *model.Channel) base.ProviderInterfac
 			BaseProvider: base.BaseProvider{
 				Config:  getConfig(useOpenaiAPI),
 				Channel: channel,
-				// Requester: requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle),
+				// Requester: requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle),
 			},
 			StreamEscapeJSON:     true,
 			SupportStreamOptions: true,
@@ -56,9 +56,9 @@ func (f AliProviderFactory) Create(channel *model.Channel) base.ProviderInterfac
 	}
 
 	if useOpenaiAPI {
-		provider.Requester = requester.NewHTTPRequester(*channel.Proxy, openai.RequestErrorHandle)
+		provider.Requester = requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle)
 	} else {
-		provider.Requester = requester.NewHTTPRequester(*channel.Proxy, requestErrorHandle)
+		provider.Requester = requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle)
 	}
 
 	return provider
