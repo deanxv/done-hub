@@ -896,6 +896,37 @@ export default function ChannelTableRow({
                   </Box>
                 </Grid>
               )}
+              {item.remark && (
+                <Grid item xs={12}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '10px',
+                      m: 1,
+                      px: 1,
+                      py: 0.5,
+                      bgcolor: 'background.neutral',
+                      borderRadius: 1,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <Typography
+                      variant="body1"
+                      component="div"
+                      sx={{
+                        fontWeight: 600,
+                        color: 'text.secondary',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Icon icon="mdi:note-text-outline" sx={{ mr: 0.5 }}/> {t('channel_row.remark')}
+                    </Typography>
+                    <Typography variant="body2">{item.remark}</Typography>
+                  </Box>
+                </Grid>
+              )}
               {item.tag && (
                 <Grid item xs={12}>
                   <Box sx={{ m: 1, mt: 2 }}>
@@ -1146,7 +1177,7 @@ export default function ChannelTableRow({
                                             sx={{ p: 0.5, color: 'primary.main' }}
                                             onClick={() => {
                                               setCurrentTestingChannel(channel)
-                                              setEditedChannel({ name: channel.name, key: channel.key })
+                                              setEditedChannel({ name: channel.name, key: channel.key, remark: channel.remark || '' })
                                               simpleChannelEdit.onTrue()
                                             }}
                                           >
@@ -1431,6 +1462,19 @@ export default function ChannelTableRow({
             value={editedChannel.key}
             onChange={(e) => setEditedChannel({ ...editedChannel, key: e.target.value })}
           />
+          <TextField
+            margin="dense"
+            id="sub-channel-remark"
+            label={t('channel_edit.remark')}
+            type="text"
+            fullWidth
+            multiline
+            minRows={2}
+            variant="outlined"
+            value={editedChannel.remark || ''}
+            onChange={(e) => setEditedChannel({ ...editedChannel, remark: e.target.value })}
+            sx={{ mt: 2 }}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={simpleChannelEdit.onFalse}>{t('common.cancel')}</Button>
@@ -1454,7 +1498,8 @@ export default function ChannelTableRow({
               const updateData = {
                 id: channelId,
                 name: editedChannel.name,
-                key: editedChannel.key
+                key: editedChannel.key,
+                remark: editedChannel.remark
               }
 
               // 使用PUT请求更新渠道
@@ -1472,7 +1517,8 @@ export default function ChannelTableRow({
                             ? {
                               ...c,
                               name: editedChannel.name,
-                              key: editedChannel.key
+                              key: editedChannel.key,
+                              remark: editedChannel.remark
                             }
                             : c
                         )
