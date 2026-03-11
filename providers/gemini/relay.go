@@ -116,6 +116,15 @@ func (h *GeminiRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		return
 	}
 
+	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用
+	for _, candidate := range geminiResponse.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" && !part.Thought {
+				h.Usage.TextBuilder.WriteString(part.Text)
+			}
+		}
+	}
+
 	// 检查 UsageMetadata 是否为 nil 或所有字段都是 0（VertexAI 流式响应中间块只有 trafficType）
 	hasValidUsage := false
 	if geminiResponse.UsageMetadata != nil &&

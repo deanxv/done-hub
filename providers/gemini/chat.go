@@ -857,6 +857,12 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 			candidate.FinishReason = nil
 		}
 		choices = append(choices, candidate.ToOpenAIStreamChoice(h.Request))
+		// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" && !part.Thought {
+				h.Usage.TextBuilder.WriteString(part.Text)
+			}
+		}
 	}
 
 	if len(choices) > 0 && (choices[0].Delta.ToolCalls != nil || choices[0].Delta.FunctionCall != nil) {
