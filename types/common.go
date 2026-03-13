@@ -14,6 +14,11 @@ type Usage struct {
 	PromptTokensDetails     PromptTokensDetails     `json:"prompt_tokens_details"`
 	CompletionTokensDetails CompletionTokensDetails `json:"completion_tokens_details"`
 
+	// Anthropic-style top-level cache fields returned by some OpenAI-compatible
+	// gateways when proxying Anthropic models (e.g. cache_creation_input_tokens).
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+
 	ExtraTokens  map[string]int          `json:"-"`
 	ExtraBilling map[string]ExtraBilling `json:"-"`
 	TextBuilder  strings.Builder         `json:"-"`
@@ -34,6 +39,16 @@ func (u *Usage) GetExtraTokens() map[string]int {
 	// 缓存数据
 	if u.PromptTokensDetails.CachedTokens > 0 && u.ExtraTokens[config.UsageExtraCache] == 0 {
 		u.ExtraTokens[config.UsageExtraCache] = u.PromptTokensDetails.CachedTokens
+	}
+
+	// Anthropic-style top-level cache fields (from OpenAI-compatible gateways
+	// proxying Anthropic models). Only used as fallback when the standard
+	// prompt_tokens_details fields are not already populated.
+	if u.CacheCreationInputTokens > 0 && u.PromptTokensDetails.CachedWriteTokens == 0 {
+		u.PromptTokensDetails.CachedWriteTokens = u.CacheCreationInputTokens
+	}
+	if u.CacheReadInputTokens > 0 && u.PromptTokensDetails.CachedReadTokens == 0 {
+		u.PromptTokensDetails.CachedReadTokens = u.CacheReadInputTokens
 	}
 
 	// 输入音频
