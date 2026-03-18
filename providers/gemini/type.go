@@ -734,17 +734,21 @@ func OpenAIToGeminiChatContent(openaiContents []types.ChatCompletionMessage) ([]
 			for _, openaiPart := range openaiMessagePart {
 				// 处理 thinking 和 redacted_thinking 类型
 				if openaiPart.Type == "thinking" || openaiPart.Type == "redacted_thinking" {
-					if openaiPart.ThinkingSignature != "" {
-						var sigField json.RawMessage
-						if sigBytes, err := json.Marshal(openaiPart.ThinkingSignature); err == nil {
-							sigField = sigBytes
-						}
-						content.Parts = append(content.Parts, GeminiPart{
-							Text:             openaiPart.Thinking,
-							Thought:          true,
-							ThoughtSignature: sigField,
-						})
+					sig := openaiPart.ThinkingSignature
+					// 签名缺失或长度不足时注入哨兵值，让 Gemini 跳过签名校验；
+					// 合法的 Gemini 签名（round-trip 回来的）长度 >= 50，原样透传
+					if sig == "" || len(sig) < minThoughtSignatureLength {
+						sig = skipThoughtSignatureValidator
 					}
+					var sigField json.RawMessage
+					if sigBytes, err := json.Marshal(sig); err == nil {
+						sigField = sigBytes
+					}
+					content.Parts = append(content.Parts, GeminiPart{
+						Text:             openaiPart.Thinking,
+						Thought:          true,
+						ThoughtSignature: sigField,
+					})
 					continue
 				}
 
