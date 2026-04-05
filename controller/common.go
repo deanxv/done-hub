@@ -22,6 +22,9 @@ var disableGroup singleflight.Group
 // 正则表达式匹配特定的文件访问权限错误，这类错误不应该禁用渠道
 var fileAccessPermissionRegex = regexp.MustCompile(`You do not have permission to access the File .+ or it may not exist\.`)
 
+// 模型限制为特定客户端使用的错误，这类错误不应该禁用渠道（渠道本身没问题，只是特定模型不可用）
+var modelRestrictedRegex = regexp.MustCompile(`(?i)restricted to .+ clients only`)
+
 func shouldEnableChannel(err error, openAIErr *types.OpenAIErrorWithStatusCode) bool {
 	if !config.AutomaticEnableChannelEnabled {
 		return false
@@ -42,6 +45,11 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 
 	// 检查是否为特定的文件访问权限错误，这类错误不应该禁用渠道
 	if fileAccessPermissionRegex.MatchString(err.OpenAIError.Message) {
+		return false
+	}
+
+	// 检查是否为模型限制为特定客户端的错误，这类错误不应该禁用渠道
+	if modelRestrictedRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
