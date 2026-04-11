@@ -222,13 +222,13 @@ func (p *GeminiProvider) GetFullRequestURL(requestURL string, modelName string) 
 	baseURL := strings.TrimSuffix(p.GetBaseURL(), "/")
 	version := "v1beta"
 
-	if p.Channel.Other != "" {
-		version = p.Channel.Other
-	}
-
 	inputVersion := p.Context.Param("version")
 	if inputVersion != "" {
 		version = inputVersion
+	}
+
+	if p.Channel.Other != "" {
+		version = p.Channel.Other
 	}
 
 	return fmt.Sprintf("%s/%s/models/%s:%s", baseURL, version, modelName, requestURL)
