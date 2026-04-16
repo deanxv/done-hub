@@ -113,8 +113,6 @@ func (e *Stripe) CreatedPay(notifyURL string, gatewayConfig *model.Payment) erro
 		return fmt.Errorf("error listing webhooks: %v", err)
 	}
 	// 如果不存在匹配的 Webhook，则创建新的
-	var wh *stripe.WebhookEndpoint
-
 	if existingWebhook == nil {
 		createParams := &stripe.WebhookEndpointParams{
 			URL: stripe.String(notifyURL),
@@ -127,23 +125,21 @@ func (e *Stripe) CreatedPay(notifyURL string, gatewayConfig *model.Payment) erro
 		if err != nil {
 			return fmt.Errorf("error creating webhook: %v", err)
 		}
-		wh = newWebhook
 		fmt.Printf("Created new webhook: %s\n", newWebhook.ID)
+
+		stripeConfig.WebhookSecret = newWebhook.Secret
+		config, err := json.Marshal(stripeConfig)
+		if err != nil {
+			return fmt.Errorf("error creating webhook: %v", err)
+		}
+
+		gatewayConfig.Config = string(config)
+		err = gatewayConfig.Update(true)
+		if err != nil {
+			return fmt.Errorf("error creating webhook: %v", err)
+		}
 	} else {
 		fmt.Printf("Webhook already exists: %s\n", existingWebhook.ID)
-		wh = existingWebhook
-	}
-
-	stripeConfig.WebhookSecret = wh.Secret
-	config, err := json.Marshal(stripeConfig)
-	if err != nil {
-		return fmt.Errorf("error creating webhook: %v", err)
-	}
-
-	gatewayConfig.Config = string(config)
-	err = gatewayConfig.Update(true)
-	if err != nil {
-		return fmt.Errorf("error creating webhook: %v", err)
 	}
 	return nil
 }
@@ -171,9 +167,10 @@ func (e *Stripe) HandleCallback(c *gin.Context, gatewayConfig string) (*types.Pa
 		return nil, fmt.Errorf("failed to parse gateway config: %v", err)
 	}
 
-	sc := &client.API{}
+	if stripeConfig.WebhookSecret == "" {
+		return nil, fmt.Errorf("webhook secret is not configured, refusing to process")
+	}
 
-	sc.Init(stripeConfig.SecretKey, nil)
 	stripeSignature := c.GetHeader("Stripe-Signature")
 	event, err := webhook.ConstructEvent(body, stripeSignature, stripeConfig.WebhookSecret)
 	if err != nil {
