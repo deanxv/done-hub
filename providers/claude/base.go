@@ -75,6 +75,13 @@ func (p *ClaudeProvider) GetRequestHeaders() (headers map[string]string) {
 	}
 	headers["anthropic-version"] = anthropicVersion
 
+	// 透传客户端的 anthropic-beta（仅在 ModelHeaders 未自定义时生效）
+	if _, exists := headers["anthropic-beta"]; !exists {
+		if anthropicBeta := p.Context.Request.Header.Get("anthropic-beta"); anthropicBeta != "" {
+			headers["anthropic-beta"] = anthropicBeta
+		}
+	}
+
 	return headers
 }
 
