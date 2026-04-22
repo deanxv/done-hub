@@ -457,6 +457,9 @@ type ResponsesTools struct {
 	Headers         any    `json:"headers,omitempty"`
 	RequireApproval any    `json:"require_approval,omitempty"`
 
+	// Namespace
+	Tools []ResponsesTools `json:"tools,omitempty"`
+
 	// Code interpreter
 	Container any `json:"container,omitempty"`
 	// Image generation tool
