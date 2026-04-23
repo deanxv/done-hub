@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/notify"
@@ -129,14 +130,16 @@ func testChannel(channel *model.Channel, testModel string) (openaiErr *types.Ope
 			return nil, errors.New("channel not implemented")
 		}
 
-		testRequest := &types.OpenAIResponsesRequest{
-			Input:  "You just need to output 'hi' next.",
-			Model:  newModelName,
-			Stream: false,
+		response, openAIErrorWithStatusCode = createResponsesForTest(responseProvider, newModelName, false)
+	case "chat":
+		if channel.ShouldUseResponsesForModel(newModelName) {
+			responseProvider, ok := provider.(providers_base.ResponsesInterface)
+			if ok {
+				response, openAIErrorWithStatusCode = createResponsesForTest(responseProvider, newModelName, true)
+				break
+			}
 		}
 
-		response, openAIErrorWithStatusCode = responseProvider.CreateResponses(testRequest)
-	case "chat":
 		chatProvider, ok := provider.(providers_base.ChatInterface)
 		if !ok {
 			return nil, errors.New("channel not implemented")
@@ -186,6 +189,72 @@ func getModelType(modelName string) string {
 	}
 
 	return "chat"
+}
+
+func buildTestResponsesRequest(modelName string) *types.OpenAIResponsesRequest {
+	chatRequest := &types.ChatCompletionRequest{
+		Messages: []types.ChatCompletionMessage{
+			{
+				Role:    "user",
+				Content: "You just need to output 'hi' next.",
+			},
+		},
+		Model:  modelName,
+		Stream: false,
+	}
+
+	responsesRequest := chatRequest.ToResponsesRequest()
+	responsesRequest.Model = modelName
+	responsesRequest.Stream = false
+	return responsesRequest
+}
+
+func createResponsesForTest(responseProvider providers_base.ResponsesInterface, modelName string, convertChat bool) (any, *types.OpenAIErrorWithStatusCode) {
+	streamRequest := buildTestResponsesRequest(modelName)
+	streamRequest.ConvertChat = convertChat
+	streamRequest.Stream = true
+
+	stream, streamErr := responseProvider.CreateResponsesStream(streamRequest)
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	defer stream.Close()
+
+	dataChan, errChan := stream.Recv()
+	timeout := time.NewTimer(15 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case data, ok := <-dataChan:
+			if !ok {
+				return nil, common.StringErrorWrapperLocal("responses stream has no data", "no_response", http.StatusInternalServerError)
+			}
+
+			if strings.TrimSpace(data) == "" {
+				continue
+			}
+
+			return map[string]any{
+				"model":        modelName,
+				"mode":         "responses_stream",
+				"convert_chat": convertChat,
+				"ok":           true,
+			}, nil
+		case readErr, ok := <-errChan:
+			if !ok {
+				continue
+			}
+			if readErr != nil {
+				if strings.Contains(strings.ToLower(readErr.Error()), "eof") {
+					continue
+				}
+				return nil, common.ErrorWrapperLocal(readErr, "stream_read_failed", http.StatusInternalServerError)
+			}
+		case <-timeout.C:
+			return nil, common.StringErrorWrapperLocal("responses stream test timeout", "stream_timeout", http.StatusGatewayTimeout)
+		}
+	}
 }
 
 func TestChannel(c *gin.Context) {
