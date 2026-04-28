@@ -474,6 +474,21 @@ type ResponsesTools struct {
 	Size              string `json:"size,omitempty"`
 }
 
+// MarshalJSON strips function-specific fields (name, description, parameters, strict)
+// from non-function tools. Server-executed tools (web_search, file_search, tool_search, etc.)
+// do not accept these fields and upstream APIs will reject them.
+func (t ResponsesTools) MarshalJSON() ([]byte, error) {
+	type Alias ResponsesTools
+	a := (Alias)(t)
+	if t.Type != "function" {
+		a.Name = ""
+		a.Description = ""
+		a.Parameters = nil
+		a.Strict = nil
+	}
+	return json.Marshal(a)
+}
+
 type ReasoningEffort struct {
 	Effort          *string `json:"effort,omitempty"`
 	GenerateSummary *string `json:"generate_summary,omitempty"` // Deprecated
