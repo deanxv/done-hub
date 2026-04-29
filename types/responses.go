@@ -432,32 +432,36 @@ type SummaryResponses struct {
 
 type ResponsesTools struct {
 	Type string `json:"type"`
-	// Web Search
+	// Web Search (web_search / web_search_preview) / File Search shared
 	UserLocation      any    `json:"user_location,omitempty"`
 	SearchContextSize string `json:"search_context_size,omitempty"`
+	Filters           any    `json:"filters,omitempty"`
 	// File Search
 	VectorStoreIds []string `json:"vector_store_ids,omitempty"`
 	MaxNumResults  uint     `json:"max_num_results,omitempty"`
-	Filters        any      `json:"filters,omitempty"`
 	RankingOptions any      `json:"ranking_options,omitempty"`
 	// Computer Use
 	DisplayWidth  uint   `json:"display_width,omitempty"`
 	DisplayHeight uint   `json:"display_height,omitempty"`
 	Environment   string `json:"environment,omitempty"`
-	// Function
+	// Function / Namespace shared
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
-	Parameters  any    `json:"parameters,omitempty"`
-	Strict      *bool  `json:"strict,omitempty"`
+	// Function / client-executed tool_search
+	Parameters   any    `json:"parameters,omitempty"`
+	Strict       *bool  `json:"strict,omitempty"`
+	DeferLoading *bool  `json:"defer_loading,omitempty"`
+	Execution    string `json:"execution,omitempty"` // tool_search: "client" or empty(server)
 
-	//MCP
-	ServerLabel     string `json:"server_label,omitempty"`
-	ServerURL       string `json:"server_url,omitempty"`
-	AllowedTools    any    `json:"allowed_tools,omitempty"`
-	Headers         any    `json:"headers,omitempty"`
-	RequireApproval any    `json:"require_approval,omitempty"`
+	// MCP
+	ServerLabel       string `json:"server_label,omitempty"`
+	ServerURL         string `json:"server_url,omitempty"`
+	ServerDescription string `json:"server_description,omitempty"`
+	AllowedTools      any    `json:"allowed_tools,omitempty"`
+	Headers           any    `json:"headers,omitempty"`
+	RequireApproval   any    `json:"require_approval,omitempty"`
 
-	// Namespace
+	// Namespace / MCP nested tools
 	Tools []ResponsesTools `json:"tools,omitempty"`
 
 	// Code interpreter
@@ -474,17 +478,27 @@ type ResponsesTools struct {
 	Size              string `json:"size,omitempty"`
 }
 
-// MarshalJSON strips function-specific fields (name, description, parameters, strict)
-// from non-function tools. Server-executed tools (web_search, file_search, tool_search, etc.)
-// do not accept these fields and upstream APIs will reject them.
+// MarshalJSON strips the description field from server-executed tools.
+// Per OpenAI API spec, description is accepted by:
+//   - "function" and "namespace" types (always)
+//   - "tool_search" type ONLY when execution="client"
+//
+// Server-executed tools (web_search, file_search, hosted tool_search, etc.)
+// do not accept description and upstream APIs will reject it.
 func (t ResponsesTools) MarshalJSON() ([]byte, error) {
 	type Alias ResponsesTools
 	a := (Alias)(t)
-	if t.Type != "function" {
-		a.Name = ""
+
+	acceptsDesc := false
+	switch t.Type {
+	case "function", "namespace":
+		acceptsDesc = true
+	case "tool_search":
+		acceptsDesc = t.Execution == "client"
+	}
+
+	if !acceptsDesc {
 		a.Description = ""
-		a.Parameters = nil
-		a.Strict = nil
 	}
 	return json.Marshal(a)
 }

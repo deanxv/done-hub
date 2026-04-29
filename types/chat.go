@@ -296,6 +296,36 @@ type ChatCompletionTool struct {
 	ResponsesTools
 }
 
+// MarshalJSON overrides the promoted ResponsesTools.MarshalJSON to prevent it
+// from swallowing ChatCompletionTool's own Type and Function fields.
+func (t ChatCompletionTool) MarshalJSON() ([]byte, error) {
+	type RTAlias ResponsesTools
+	rt := RTAlias(t.ResponsesTools)
+
+	// Apply the same description clearing logic as ResponsesTools.MarshalJSON
+	acceptsDesc := false
+	switch t.Type {
+	case "function", "namespace":
+		acceptsDesc = true
+	case "tool_search":
+		acceptsDesc = t.Execution == "client"
+	}
+	if !acceptsDesc {
+		rt.Description = ""
+	}
+
+	type alias struct {
+		Type     string                 `json:"type"`
+		Function ChatCompletionFunction `json:"function,omitzero"`
+		RTAlias
+	}
+	return json.Marshal(alias{
+		Type:     t.Type,
+		Function: t.Function,
+		RTAlias:  rt,
+	})
+}
+
 type ChatCompletionChoice struct {
 	Index                int                   `json:"index"`
 	Message              ChatCompletionMessage `json:"message"`
