@@ -146,6 +146,7 @@ func UpdateChannelsTag(tag string, channel *Channel) error {
 		Channel{
 			BaseURL:            channel.BaseURL,
 			Other:              channel.Other,
+			Remark:             channel.Remark,
 			Models:             channel.Models,
 			Group:              channel.Group,
 			Tag:                channel.Tag,
