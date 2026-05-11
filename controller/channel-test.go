@@ -238,22 +238,59 @@ func TestChannel(c *gin.Context) {
 
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning = false
+var testAllChannelsStartTime time.Time
+var testAllChannelsCount int
+var testAllChannelsGen uint64
+
+const testChannelTimeout = 60 * time.Second
+
+// 注意：底层 testChannel 不接受 context，超时后内部 goroutine 仍会等待
+// HTTP 请求自身超时返回。testAllChannels 串行调用本函数，最多一个滞留 goroutine。
+func testChannelWithTimeout(channel *model.Channel, testModel string, timeout time.Duration) (*types.OpenAIErrorWithStatusCode, error) {
+	type result struct {
+		openaiErr *types.OpenAIErrorWithStatusCode
+		err       error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		openaiErr, err := testChannel(channel, testModel)
+		ch <- result{openaiErr, err}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case res := <-ch:
+		return res.openaiErr, res.err
+	case <-timer.C:
+		return nil, fmt.Errorf("渠道测试超时（超过 %s）", timeout)
+	}
+}
 
 func testAllChannels(isNotify bool) error {
-	testAllChannelsLock.Lock()
-	if testAllChannelsRunning {
-		testAllChannelsLock.Unlock()
-		return errors.New("测试已在运行中")
-	}
-	testAllChannelsRunning = true
-	testAllChannelsLock.Unlock()
 	channels, err := model.GetAllChannels()
 	if err != nil {
-		testAllChannelsLock.Lock()
-		testAllChannelsRunning = false
-		testAllChannelsLock.Unlock()
 		return err
 	}
+
+	testAllChannelsLock.Lock()
+	if testAllChannelsRunning {
+		// 动态计算超时：渠道数 × (单次超时 + RequestInterval) + 120s 缓冲
+		maxDuration := time.Duration(testAllChannelsCount)*(testChannelTimeout+config.RequestInterval) + 120*time.Second
+		if time.Since(testAllChannelsStartTime) < maxDuration {
+			testAllChannelsLock.Unlock()
+			return errors.New("测试已在运行中")
+		}
+		// 强制重置：bump generation，让旧 goroutine 的 defer 不再清理状态，
+		// 避免新旧两轮并发时旧 goroutine 把 running 错误地置为 false。
+		testAllChannelsGen++
+		logger.SysError("测试全部渠道超时，强制重置")
+	}
+	testAllChannelsRunning = true
+	testAllChannelsStartTime = time.Now()
+	testAllChannelsCount = len(channels)
+	myGen := testAllChannelsGen
+	testAllChannelsLock.Unlock()
+
 	var disableThreshold = int64(config.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
@@ -264,7 +301,9 @@ func testAllChannels(isNotify bool) error {
 				logger.SysError(fmt.Sprintf("testAllChannels panic: %v\n%s", r, debug.Stack()))
 			}
 			testAllChannelsLock.Lock()
-			testAllChannelsRunning = false
+			if testAllChannelsGen == myGen {
+				testAllChannelsRunning = false
+			}
 			testAllChannelsLock.Unlock()
 			debug.FreeOSMemory()
 		}()
@@ -276,7 +315,7 @@ func testAllChannels(isNotify bool) error {
 			isChannelEnabled := channel.Status == config.ChannelStatusEnabled
 			sb.WriteString(fmt.Sprintf("**通道 %s - #%d - %s** : \n\n", utils.EscapeMarkdownText(channel.Name), channel.Id, channel.StatusToStr()))
 			tik := time.Now()
-			openaiErr, err := testChannel(channel, "")
+			openaiErr, err := testChannelWithTimeout(channel, "", testChannelTimeout)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 			// 通道为禁用状态，并且还是请求错误 或者 响应时间超过阈值 直接跳过，也不需要更新响应时间。
