@@ -73,7 +73,8 @@ const getValidationSchema = (t) =>
     }),
     model_mapping: Yup.array(),
     model_headers: Yup.array(),
-    custom_parameter: Yup.string().nullable()
+    custom_parameter: Yup.string().nullable(),
+    need2response_models: Yup.string().nullable()
   })
 
 const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, modelOptions, prices }) => {
@@ -958,6 +959,10 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
           data.custom_parameter = ''
         }
 
+        if (data.need2response_models === null || data.need2response_models === undefined) {
+          data.need2response_models = ''
+        }
+
         data.base_url = data.base_url ?? ''
         data.is_edit = true
         if (data.plugin === null) {
@@ -1809,6 +1814,34 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     ) : (
                       <FormHelperText id="helper-tex-channel-custom_parameter-label">
                         {customizeT(inputPrompt.custom_parameter)}
+                      </FormHelperText>
+                    )}
+                  </FormControl>
+                )}
+                {inputPrompt.need2response_models && (
+                  <FormControl
+                    fullWidth
+                    error={Boolean(touched.need2response_models && errors.need2response_models)}
+                    sx={{ ...theme.typography.otherInput }}
+                  >
+                    <TextField
+                      multiline
+                      minRows={6}
+                      id="channel-need2response_models-label"
+                      name="need2response_models"
+                      label={customizeT(inputLabel.need2response_models)}
+                      value={values.need2response_models || ''}
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      disabled={hasTag}
+                    />
+                    {touched.need2response_models && errors.need2response_models ? (
+                      <FormHelperText error id="helper-tex-channel-need2response_models-label">
+                        {errors.need2response_models}
+                      </FormHelperText>
+                    ) : (
+                      <FormHelperText id="helper-tex-channel-need2response_models-label">
+                        {customizeT(inputPrompt.need2response_models)}
                       </FormHelperText>
                     )}
                   </FormControl>

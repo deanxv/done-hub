@@ -1103,6 +1103,13 @@
         "subTitle": "用以支持通過飛書進行登錄註冊，",
         "title": "配置飛書授權"
       },
+      "configureNeed2ResponseModels": {
+        "title": "配置 Chat 轉 Responses 模型",
+        "subTitle": "當經由 /v1/chat/completions 請求時，列表中的模型會改走 Responses API。",
+        "label": "Need2ResponseModels",
+        "placeholder": "支援每行一個模型，也支援逗號分隔或 JSON 陣列格式",
+        "saveButton": "保存路由設定"
+      },
       "configureGitHubOAuthApp": {
         "alert1": "Homepage URL 填",
         "alert2": "，Authorization callback URL 填",

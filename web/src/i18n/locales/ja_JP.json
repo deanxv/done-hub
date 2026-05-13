@@ -1093,6 +1093,13 @@
         "subTitle": "飞书を利用したログインおよび登録をサポートするための設定です。",
         "title": "飞书授权の設定"
       },
+      "configureNeed2ResponseModels": {
+        "title": "Chat→Responses モデル設定",
+        "subTitle": "/v1/chat/completions 経由のリクエスト時、この一覧のモデルは Responses API を使用します。",
+        "label": "Need2ResponseModels",
+        "placeholder": "1 行 1 モデル、またはカンマ区切り / JSON 配列形式に対応",
+        "saveButton": "ルーティング設定を保存"
+      },
       "configureGitHubOAuthApp": {
         "alert1": "Homepage URL を入力してください",
         "alert2": "、Authorization callback URL を入力してください",

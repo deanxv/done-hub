@@ -1065,6 +1065,13 @@
         "lowestTrustLevelPlaceholder": "输入需要限制的最低信任等级",
         "saveButton": "保存 LINUX DO OAuth 设置"
       },
+      "configureNeed2ResponseModels": {
+        "title": "配置 Chat 转 Responses 模型",
+        "subTitle": "当通过 /v1/chat/completions 请求时，列表中的模型将改走 Responses API。",
+        "label": "Need2ResponseModels",
+        "placeholder": "支持每行一个模型，也支持逗号分隔或 JSON 数组格式",
+        "saveButton": "保存路由设置"
+      },
       "configureGitHubOAuthApp": {
         "title": "配置 GitHub OAuth 应用",
         "subTitle": "用以支持通过 GitHub 进行登录注册，",
