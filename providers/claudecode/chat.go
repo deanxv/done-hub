@@ -210,14 +210,18 @@ func (p *ClaudeCodeProvider) extractMetadataFromOriginalRequest(claudeRequest *c
 	}
 
 	// 提取 metadata 字段
+	// user_id 可能是字符串（旧格式）或对象（新格式 claude-cli），统一按 RawMessage 保留
 	if metadataInterface, exists := requestMap["metadata"]; exists {
 		if metadataMap, ok := metadataInterface.(map[string]interface{}); ok {
-			// 提取 user_id
-			if userID, ok := metadataMap["user_id"].(string); ok && userID != "" {
-				if claudeRequest.Metadata == nil {
-					claudeRequest.Metadata = &claude.ClaudeMetadata{}
+			if userIDRaw, exists := metadataMap["user_id"]; exists && userIDRaw != nil {
+				// 外层 userIDRaw != nil 已经排除 JSON 字面 null；此处只需过滤空字符串
+				userIDBytes, err := json.Marshal(userIDRaw)
+				if err == nil && len(userIDBytes) > 0 && string(userIDBytes) != `""` {
+					if claudeRequest.Metadata == nil {
+						claudeRequest.Metadata = &claude.ClaudeMetadata{}
+					}
+					claudeRequest.Metadata.UserId = userIDBytes
 				}
-				claudeRequest.Metadata.UserId = userID
 			}
 		}
 	}
@@ -358,13 +362,16 @@ func (p *ClaudeCodeProvider) hasClaudeCodeInstruction(contents []claude.MessageC
 	return false
 }
 
-// ensureMetadataUserId 确保 metadata.user_id 存在
+// ensureMetadataUserId 确保 metadata.user_id 存在。
+// 用 early-return 把生成路径集中到单个分支，避免出现"已存在却仍然计算 UUID"的中间状态。
 func (p *ClaudeCodeProvider) ensureMetadataUserId(claudeRequest *claude.ClaudeRequest) {
-	if claudeRequest.Metadata == nil {
-		claudeRequest.Metadata = &claude.ClaudeMetadata{
-			UserId: generateClaudeCodeUserId(),
-		}
-	} else if claudeRequest.Metadata.UserId == "" {
-		claudeRequest.Metadata.UserId = generateClaudeCodeUserId()
+	if claudeRequest.Metadata != nil && len(claudeRequest.Metadata.UserId) > 0 {
+		return
 	}
+	generated, _ := json.Marshal(generateClaudeCodeUserId())
+	if claudeRequest.Metadata == nil {
+		claudeRequest.Metadata = &claude.ClaudeMetadata{UserId: generated}
+		return
+	}
+	claudeRequest.Metadata.UserId = generated
 }

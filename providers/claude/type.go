@@ -56,8 +56,13 @@ type ClaudeErrorInfo struct {
 	Message string `json:"message"`
 }
 
+// ClaudeMetadata.UserId 用 json.RawMessage 保存，以同时兼容两种 claude-cli 报文格式：
+//  1. 旧格式：字符串 `"user_<hex>_account__session_<uuid>"`
+//  2. 新格式：对象 `{"device_id":"<hex>","account_uuid":"...","session_id":"<uuid>"}`
+//
+// 若仍按 string 反序列化，新格式会让 done-hub 在入口处 400 拒绝整个请求。
 type ClaudeMetadata struct {
-	UserId string `json:"user_id"`
+	UserId json.RawMessage `json:"user_id,omitempty"`
 }
 
 type ResContent struct {
