@@ -12,8 +12,8 @@ import (
 // sessionIDPattern 用于从 metadata.user_id 中提取 session ID 的正则表达式
 var sessionIDPattern = regexp.MustCompile(`session_([a-f0-9-]{36})`)
 
-// ExtractSessionIDFromMetadata 从 metadata.user_id 中提取 session ID
-// 格式: user_{64位字符串}_account__session_{uuid}
+// ExtractSessionIDFromMetadata 从 metadata.user_id 字符串中提取 session ID
+// 仅处理旧字符串格式: user_{64位字符串}_account__session_{uuid}
 func ExtractSessionIDFromMetadata(userID string) string {
 	if userID == "" {
 		return ""
@@ -21,6 +21,22 @@ func ExtractSessionIDFromMetadata(userID string) string {
 	matches := sessionIDPattern.FindStringSubmatch(userID)
 	if len(matches) > 1 {
 		return matches[1]
+	}
+	return ""
+}
+
+// ExtractSessionIDFromMetadataValue 从 metadata.user_id 值中提取 session ID，
+// 同时兼容新旧两种 claude-cli 格式：
+//  1. 旧格式（字符串）：user_{hex}_account__session_{uuid}
+//  2. 新格式（对象）：{"device_id":"...","account_uuid":"...","session_id":"<uuid>"}
+func ExtractSessionIDFromMetadataValue(userID interface{}) string {
+	switch v := userID.(type) {
+	case string:
+		return ExtractSessionIDFromMetadata(v)
+	case map[string]interface{}:
+		if sid, ok := v["session_id"].(string); ok {
+			return strings.TrimSpace(sid)
+		}
 	}
 	return ""
 }

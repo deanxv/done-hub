@@ -397,14 +397,13 @@ func generateClaudeCodeSessionHash(requestMap map[string]interface{}) string {
 		return ""
 	}
 
-	// 1. 最高优先级：使用 metadata.user_id 中的 session ID
+	// 1. 最高优先级：使用 metadata.user_id 中的 session ID。
+	//    user_id 可能是旧字符串格式 user_<hex>_account__session_<uuid>，
+	//    也可能是新对象格式 {"device_id":...,"account_uuid":...,"session_id":"<uuid>"}（claude-cli）。
 	if metadataInterface, exists := requestMap["metadata"]; exists {
 		if metadataMap, ok := metadataInterface.(map[string]interface{}); ok {
-			if userID, ok := metadataMap["user_id"].(string); ok && userID != "" {
-				// 提取 session_xxx 部分
-				sessionID := session.ExtractSessionIDFromMetadata(userID)
-				if sessionID != "" {
-					// 直接返回 session ID（36个字符的 UUID）
+			if userIDRaw, exists := metadataMap["user_id"]; exists {
+				if sessionID := session.ExtractSessionIDFromMetadataValue(userIDRaw); sessionID != "" {
 					return sessionID
 				}
 			}
