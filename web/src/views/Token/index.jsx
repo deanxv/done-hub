@@ -140,10 +140,9 @@ export default function Token() {
   }, [loadUserGroup]);
 
   useEffect(() => {
-    let options = [];
-    Object.values(userGroup).forEach((item) => {
-      options.push({ label: `${item.name} (倍率：${item.ratio})`, value: item.symbol });
-    });
+    const options = Object.values(userGroup)
+      .sort((a, b) => (a.ratio ?? 0) - (b.ratio ?? 0))
+      .map((item) => ({ label: `${item.name} (倍率：${item.ratio})`, value: item.symbol }));
     setUserGroupOptions(options);
   }, [userGroup]);
 

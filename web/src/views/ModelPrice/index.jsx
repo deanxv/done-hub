@@ -113,7 +113,8 @@ export default function ModelPrice() {
       const { success, message, data } = res.data;
       if (success) {
         setUserGroupMap(data);
-        setSelectedGroup(Object.keys(data)[0]);
+        const firstKey = Object.entries(data).sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0))[0]?.[0];
+        setSelectedGroup(firstKey);
       } else {
         showError(message);
       }
@@ -121,6 +122,12 @@ export default function ModelPrice() {
       console.error(error);
     }
   }, []);
+
+  // 按倍率升序排序的用户组列表
+  const sortedUserGroupEntries = useMemo(
+    () => Object.entries(userGroupMap).sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0)),
+    [userGroupMap]
+  );
 
   useEffect(() => {
     fetchAvailableModels();
@@ -222,7 +229,7 @@ export default function ModelPrice() {
           : { input: t('modelpricePage.noneGroup'), output: t('modelpricePage.noneGroup') };
 
         // 计算所有用户组的价格 - 只包含模型实际存在的分组
-        const allGroupPrices = Object.entries(userGroupMap)
+        const allGroupPrices = sortedUserGroupEntries
           .filter(([key]) => model.groups.includes(key))
           .map(([key, grp]) => {
             return {
@@ -257,7 +264,7 @@ export default function ModelPrice() {
         const ownerB = ownedby?.find((item) => item.name === b.provider);
         return (ownerA?.id || 0) - (ownerB?.id || 0);
       });
-  }, [availableModels, selectedOwnedBy, onlyShowAvailable, selectedGroup, searchQuery, modelInfoMap, selectedModality, selectedTag, userGroupMap, ownedby, t, unit]);
+  }, [availableModels, selectedOwnedBy, onlyShowAvailable, selectedGroup, searchQuery, modelInfoMap, selectedModality, selectedTag, userGroupMap, sortedUserGroupEntries, ownedby, t, unit]);
 
   // 分页处理
   const paginatedModels = useMemo(() => {
@@ -929,7 +936,7 @@ export default function ModelPrice() {
               gap: 1
             }}
           >
-            {Object.entries(userGroupMap).map(([key, group]) => {
+            {sortedUserGroupEntries.map(([key, group]) => {
               const isSelected = selectedGroup === key;
               return (
                 <Tooltip

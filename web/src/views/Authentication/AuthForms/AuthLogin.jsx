@@ -232,8 +232,8 @@ const LoginForm = ({ ...others }) => {
                   m: 2,
                   py: 0.5,
                   px: 7,
-                  borderColor: `${theme.palette.grey[100]} !important`,
-                  color: `${theme.palette.grey[900]}!important`,
+                  borderColor: `${theme.palette.divider} !important`,
+                  color: `${theme.palette.text.primary}!important`,
                   fontWeight: 500,
                   borderRadius: `${customization.borderRadius}px`
                 }}

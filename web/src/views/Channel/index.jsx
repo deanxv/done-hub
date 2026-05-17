@@ -373,7 +373,8 @@ export default function ChannelList() {
   const fetchGroups = async() => {
     try {
       let res = await API.get(`/api/group/`)
-      setGroupOptions(res.data.data)
+      const groups = Array.isArray(res.data.data) ? [...res.data.data].sort((a, b) => String(a).localeCompare(String(b))) : []
+      setGroupOptions(groups)
     } catch (error) {
       showError(error.message)
     }
