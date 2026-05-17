@@ -13,30 +13,22 @@ import Breadcrumbs from 'ui-component/extended/Breadcrumbs';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import navigation from 'menu-items';
-import { drawerWidth } from 'store/constant';
+import { drawerWidth, miniDrawerWidth } from 'store/constant';
 import { SET_MENU } from 'store/actions';
 
 // assets
 import { Icon } from '@iconify/react';
 import ProfileDrawer from './ProfileDrawer';
 
+const transitionEasing = 'cubic-bezier(0.4, 0, 0.2, 1)';
+const transitionDuration = '200ms';
+
 // styles
 export const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(({ theme, open }) => ({
   ...theme.typography.mainContent,
   borderRadius: 0,
   backgroundColor: theme.palette.background.default,
-  transition: theme.transitions.create(
-    ['margin', 'width'],
-    open
-      ? {
-          easing: theme.transitions.easing.easeOut,
-          duration: theme.transitions.duration.enteringScreen
-        }
-      : {
-          easing: theme.transitions.easing.sharp,
-          duration: theme.transitions.duration.leavingScreen
-        }
-  ),
+  transition: `padding-left ${transitionDuration} ${transitionEasing}`,
   overflowY: 'auto',
   overflowX: 'hidden',
   height: 'calc(100vh - 64px)',
@@ -56,10 +48,10 @@ export const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open
     background: 'transparent'
   },
   [theme.breakpoints.up('md')]: {
-    marginLeft: open ? 0 : -(drawerWidth - 20),
-    width: open ? `calc(100% - ${drawerWidth}px)` : '100%',
-    paddingLeft: theme.spacing(3),
-    paddingRight: theme.spacing(3)
+    marginLeft: 0,
+    paddingLeft: open ? `calc(${drawerWidth}px + ${theme.spacing(3)})` : `calc(${miniDrawerWidth}px + ${theme.spacing(3)})`,
+    paddingRight: theme.spacing(3),
+    width: '100%'
   },
   [theme.breakpoints.down('md')]: {
     marginLeft: '0',
@@ -83,23 +75,13 @@ export const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open
 const MainLayout = () => {
   const theme = useTheme();
   const matchDownMd = useMediaQuery(theme.breakpoints.down('md'));
-  // Handle left drawer
   const leftDrawerOpened = useSelector((state) => state.customization.opened);
   const dispatch = useDispatch();
   const handleLeftDrawerToggle = () => {
     dispatch({ type: SET_MENU, opened: !leftDrawerOpened });
   };
 
-  // Profile drawer state
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
-
-  const openProfileDrawer = () => {
-    setProfileDrawerOpen(true);
-  };
-
-  const closeProfileDrawer = () => {
-    setProfileDrawerOpen(false);
-  };
 
   return (
     <Box
@@ -113,7 +95,6 @@ const MainLayout = () => {
       }}
     >
       <CssBaseline />
-      {/* header */}
       <AppBar
         enableColorOnDark
         position="fixed"
@@ -123,7 +104,6 @@ const MainLayout = () => {
           bgcolor: theme.palette.background.default,
           boxShadow: 'none',
           borderBottom: 'none',
-          transition: leftDrawerOpened ? theme.transitions.create('width') : 'none',
           zIndex: {
             xs: matchDownMd && leftDrawerOpened ? 0 : theme.zIndex.drawer - 1,
             md: theme.zIndex.drawer + 1
@@ -133,16 +113,13 @@ const MainLayout = () => {
         }}
       >
         <Toolbar sx={{ px: { xs: 1.5, sm: 2, md: 3 }, minHeight: '64px', height: '64px' }}>
-          <Header handleLeftDrawerToggle={handleLeftDrawerToggle} toggleProfileDrawer={openProfileDrawer} />
+          <Header handleLeftDrawerToggle={handleLeftDrawerToggle} toggleProfileDrawer={() => setProfileDrawerOpen(true)} />
         </Toolbar>
       </AppBar>
 
-      {/* drawer */}
       <Sidebar drawerOpen={!matchDownMd ? leftDrawerOpened : !leftDrawerOpened} drawerToggle={handleLeftDrawerToggle} />
 
-      {/* main content */}
       <Main theme={theme} open={leftDrawerOpened}>
-        {/* breadcrumb */}
         <Breadcrumbs separator={<Icon icon="solar:arrow-right-linear" width="16" />} navigation={navigation} icon title rightAlign />
         <AuthGuard>
           <AdminContainer>
@@ -151,8 +128,7 @@ const MainLayout = () => {
         </AuthGuard>
       </Main>
 
-      {/* 用户信息抽屉 */}
-      <ProfileDrawer open={profileDrawerOpen} onClose={closeProfileDrawer} />
+      <ProfileDrawer open={profileDrawerOpen} onClose={() => setProfileDrawerOpen(false)} />
     </Box>
   );
 };

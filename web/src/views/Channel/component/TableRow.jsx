@@ -392,14 +392,7 @@ export default function ChannelTableRow({
               {item.tag}
             </Typography>
           ) : (
-            <Typography
-              variant="subtitle1"
-              sx={{
-                lineHeight: 1.4
-              }}
-            >
-              {item.name}
-            </Typography>
+            item.name
           )}
         </TableCell>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { showError, calculateQuota, thousandsSeparator, printElementAsPDF } from 'utils/common';
+import { showError, calculateQuota, thousandsSeparator } from 'utils/common';
 
 import {
   Box,

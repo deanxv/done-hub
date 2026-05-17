@@ -35,6 +35,7 @@ func InitHttpClient() {
 		// 超时配置
 		TLSHandshakeTimeout:   tlsHandshakeTimeout,
 		ExpectContinueTimeout: 1 * time.Second,
+
 		ResponseHeaderTimeout: responseHeaderTimeout,
 
 		// 连接复用优化

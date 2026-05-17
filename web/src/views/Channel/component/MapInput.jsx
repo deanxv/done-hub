@@ -67,10 +67,6 @@ const MapInput = ({ mapValue, onChange, disabled, error, label }) => {
     setJsonInput('');
   };
 
-  const handleJsonInputChange = (event) => {
-    setJsonInput(event.target.value);
-  };
-
   const handleJsonSubmit = () => {
     try {
       const parsedJson = JSON.parse(jsonInput);

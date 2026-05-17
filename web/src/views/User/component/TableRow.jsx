@@ -27,6 +27,8 @@ function renderRole(t, role) {
   switch (role) {
     case 1:
       return <Label color="default">{t('userPage.cUserRole')}</Label>
+    case 3:
+      return <Label color="primary">{t('userPage.reliableUserRole')}</Label>
     case 10:
       return <Label color="orange">{t('userPage.adminUserRole')}</Label>
     case 100:
@@ -134,7 +136,7 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
                     color={item.wechat_id ? theme.palette.success.dark : theme.palette.grey[400]}/>
             </Tooltip>
             <Tooltip title={item.github_id ? item.github_id : t('profilePage.notBound')} placement="top">
-              <Icon icon="ri:github-fill" color={item.github_id ? theme.palette.grey[900] : theme.palette.grey[400]}/>
+              <Icon icon="ri:github-fill" color={item.github_id ? theme.palette.text.primary : theme.palette.grey[400]}/>
             </Tooltip>
             <Tooltip title={item.linuxdo_username ? item.linuxdo_username : '未绑定'} placement="top">
               <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -146,7 +148,7 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
               </span>
             </Tooltip>
             <Tooltip title={item.email ? item.email : t('profilePage.notBound')} placement="top">
-              <Icon icon="ri:mail-fill" color={item.email ? theme.palette.grey[900] : theme.palette.grey[400]}/>
+              <Icon icon="ri:mail-fill" color={item.email ? theme.palette.text.primary : theme.palette.grey[400]}/>
             </Tooltip>
           </Stack>
         </TableCell>
@@ -174,15 +176,42 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
           sx: { minWidth: 140 }
         }}
       >
-        {item.role !== 100 && (
+        {/* 设置为普通用户 - 只对非普通用户和非超级管理员显示 */}
+        {item.role !== 100 && item.role !== 1 && (
           <MenuItem
             onClick={() => {
               handleCloseMenu()
-              manageUser(item.id, 'role', item.role === 1 ? true : false)
+              manageUser(item.id, 'set_role', 1)
             }}
           >
             <Icon icon="solar:user-bold-duotone" style={{ marginRight: '16px' }}/>
-            {item.role === 1 ? t('userPage.setAdmin') : t('userPage.cancelAdmin')}
+            {t('userPage.setCommonUser')}
+          </MenuItem>
+        )}
+
+        {/* 设置为可信内部员工 - 只对非可信内部员工和非超级管理员显示 */}
+        {item.role !== 100 && item.role !== 3 && (
+          <MenuItem
+            onClick={() => {
+              handleCloseMenu()
+              manageUser(item.id, 'set_role', 3)
+            }}
+          >
+            <Icon icon="solar:verified-check-bold-duotone" style={{ marginRight: '16px' }}/>
+            {t('userPage.setReliable')}
+          </MenuItem>
+        )}
+
+        {/* 设置为管理员 - 只对非管理员和非超级管理员显示 */}
+        {item.role !== 100 && item.role !== 10 && (
+          <MenuItem
+            onClick={() => {
+              handleCloseMenu()
+              manageUser(item.id, 'set_role', 10)
+            }}
+          >
+            <Icon icon="solar:shield-user-bold-duotone" style={{ marginRight: '16px' }}/>
+            {t('userPage.setAdmin')}
           </MenuItem>
         )}
 

@@ -9,11 +9,10 @@ import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 
 // ==============================|| SIDEBAR MENU LIST ||============================== //
-const MenuList = () => {
+const MenuList = ({ isMini = false }) => {
   const userIsAdmin = useIsAdmin();
   const { t } = useTranslation();
   const siteInfo = useSelector((state) => state.siteInfo);
-  // 遍历并修改 children 的 title 字段
   menuItem.items.forEach((group) => {
     group.children.forEach((item) => {
       item.title = t(item.id);
@@ -32,16 +31,14 @@ const MenuList = () => {
         }
 
         const filteredChildren = item.children.filter(
-          (child) => (!child.isAdmin || userIsAdmin) &&
-                     !(siteInfo.UserInvoiceMonth === false && child.id === 'invoice') &&
-                     !(siteInfo.builtin_chat_enabled === false && child.id === 'playground')
+          (child) => (!child.isAdmin || userIsAdmin) && !(siteInfo.UserInvoiceMonth === false && child.id === 'invoice')
         );
 
         if (filteredChildren.length === 0) {
           return null;
         }
 
-        return <NavGroup key={item.id} item={{ ...item, children: filteredChildren }} />;
+        return <NavGroup key={item.id} item={{ ...item, children: filteredChildren }} isMini={isMini} />;
       })}
     </>
   );

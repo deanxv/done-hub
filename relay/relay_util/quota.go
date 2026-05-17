@@ -31,6 +31,7 @@ type Quota struct {
 	userId           int
 	channelId        int
 	tokenId          int
+	unlimitedQuota   bool
 	HandelStatus     bool
 
 	startTime         time.Time
@@ -42,13 +43,14 @@ func NewQuota(c *gin.Context, modelName string, promptTokens int) *Quota {
 	isBackupGroup := c.GetBool("is_backupGroup")
 
 	quota := &Quota{
-		modelName:     modelName,
-		promptTokens:  promptTokens,
-		userId:        c.GetInt("id"),
-		channelId:     c.GetInt("channel_id"),
-		tokenId:       c.GetInt("token_id"),
-		HandelStatus:  false,
-		isBackupGroup: isBackupGroup, // 记录是否使用备用分组
+		modelName:      modelName,
+		promptTokens:   promptTokens,
+		userId:         c.GetInt("id"),
+		channelId:      c.GetInt("channel_id"),
+		tokenId:        c.GetInt("token_id"),
+		unlimitedQuota: c.GetBool("token_unlimited_quota"),
+		HandelStatus:   false,
+		isBackupGroup:  isBackupGroup, // 记录是否使用备用分组
 	}
 
 	quota.price = *model.PricingInstance.GetPrice(quota.modelName)
@@ -151,7 +153,7 @@ func (q *Quota) completedQuotaConsumption(usage *types.Usage, tokenName string, 
 	quotaDelta := quota - q.preConsumedQuota
 	var quotaErr error
 	if quotaDelta != 0 {
-		err := model.PostConsumeTokenQuota(q.tokenId, quotaDelta)
+		err := model.PostConsumeTokenQuotaWithInfo(q.tokenId, q.userId, q.unlimitedQuota, quotaDelta)
 		if err != nil {
 			quotaErr = errors.New("error consuming token remain quota: " + err.Error())
 			logger.LogError(ctx, quotaErr.Error())
@@ -189,11 +191,10 @@ func (q *Quota) completedQuotaConsumption(usage *types.Usage, tokenName string, 
 }
 
 func (q *Quota) Undo(c *gin.Context) {
-	tokenId := c.GetInt("token_id")
 	if q.HandelStatus {
 		go func(ctx context.Context) {
 			// return pre-consumed quota
-			if err := model.PostConsumeTokenQuota(tokenId, -q.preConsumedQuota); err != nil {
+			if err := model.PostConsumeTokenQuotaWithInfo(q.tokenId, q.userId, q.unlimitedQuota, -q.preConsumedQuota); err != nil {
 				logger.LogError(ctx, "error return pre-consumed quota: "+err.Error())
 			}
 			// 刷新缓存配额，保持一致

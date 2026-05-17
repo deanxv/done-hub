@@ -3,11 +3,15 @@
  * @param {JsonObject} theme theme customization object
  */
 
+const primaryFont =
+  '"Public Sans Variable",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"';
+const secondaryFont =
+  '"Barlow",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"';
+
 export default function themeTypography(theme) {
   return {
-    fontFamily:
-      theme?.customization?.fontFamily ||
-      "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    fontFamily: theme?.customization?.fontFamily || primaryFont,
+    fontSecondaryFamily: secondaryFont,
     h1: {
       fontWeight: 600,
       fontSize: '2rem',

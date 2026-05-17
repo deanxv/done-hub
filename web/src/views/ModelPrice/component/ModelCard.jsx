@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { Card, CardContent, Typography, Box, Avatar, Stack, IconButton, Tooltip, Chip, Button } from '@mui/material';
+import { Card, CardContent, Typography, Box, Avatar, Stack, IconButton, Tooltip, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
 import { Icon } from '@iconify/react';

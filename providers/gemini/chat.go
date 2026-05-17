@@ -577,8 +577,8 @@ func ConvertFromChatOpenai(request *types.ChatCompletionRequest) (*GeminiChatReq
 			}
 			hasConfig := false
 
-			// 4. 设置 Budget (仅当 budget 有效时)
-			if budget > 0 {
+			// 4. 设置 Budget (仅当 budget 有效时，0 表示禁用 thinking)
+			if budget >= 0 {
 				thinkingConfig.ThinkingBudget = &budget
 				hasConfig = true
 			}

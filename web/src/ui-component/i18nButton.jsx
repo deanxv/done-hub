@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useTheme } from '@mui/material/styles';
-import { Avatar, Box, ButtonBase, Hidden, Menu, MenuItem, Typography } from '@mui/material';
+import { Avatar, Box, ButtonBase, Menu, MenuItem, Typography } from '@mui/material';
 import i18nList from 'i18n/i18nList';
 import useI18n from 'hooks/useI18n';
 import Flags from 'country-flag-icons/react/3x2';
-import { height } from '@mui/system';
 
 export default function I18nButton() {
   const theme = useTheme();
