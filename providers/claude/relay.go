@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type ClaudeRelayStreamHandler struct {
@@ -182,10 +185,12 @@ func (p *ClaudeProvider) getClaudeNativeRequest(request *ClaudeRequest) (*http.R
 // 仅对 model / max_tokens / thinking 做字段级最小修改，其它一律按字节保留。
 // 返回 (字节, true) 表示透传成功；返回 (nil, false) 表示透传不可用、调用方应回退。
 //
+// 实现：用 sjson 直接在字节层面就地改写指定字段，不做 unmarshal/marshal 往返。
+// 这样可以同时保留：
+//   - 字段【值】的原始字节（未知字段、metadata.user_id 等指纹字段）
+//   - 顶层 key 顺序（Claude Code CLI 发出的固定顺序，部分上游会作为客户端识别依据）
+//
 // 注意事项：
-//   - 字段【值】完全保留原始字节（含未知字段、新格式 metadata.user_id 等）；
-//     但顶层 key 顺序不保证 —— Go 的 json.Marshal 对 map 会按 key 字典序输出。
-//     这是 JSON 语义无关项，relay-code-github 等 JSON 字段级校验不受影响。
 //   - thinking 字段只支持"移除/保留"，不支持 done-hub 主动添加（当前业务无此路径）。
 func (p *ClaudeProvider) patchClaudeRequestBody(request *ClaudeRequest) ([]byte, bool) {
 	if p.Context == nil {
@@ -196,38 +201,43 @@ func (p *ClaudeProvider) patchClaudeRequestBody(request *ClaudeRequest) ([]byte,
 		return nil, false
 	}
 
-	var bodyMap map[string]json.RawMessage
-	if err := json.Unmarshal(rawBody, &bodyMap); err != nil {
-		return nil, false
-	}
 	// 必须看起来像 Claude 原生 /v1/messages 请求（含 messages 字段），
 	// 否则可能是 OpenAI→Claude 转换路径走错了入口，直接放弃透传。
-	if _, ok := bodyMap["messages"]; !ok {
+	if !gjson.GetBytes(rawBody, "messages").Exists() {
 		return nil, false
 	}
 
-	// 1) 模型重写（done-hub 的模型映射会改 request.Model）
-	if mb, err := json.Marshal(request.Model); err == nil {
-		bodyMap["model"] = mb
+	out := rawBody
+
+	// 1) 模型重写（done-hub 的模型映射会改 request.Model）。
+	//    仅在模型名实际发生变化时才写入，避免无意义改动。
+	if request.Model != "" && gjson.GetBytes(out, "model").String() != request.Model {
+		patched, err := sjson.SetBytes(out, "model", request.Model)
+		if err != nil {
+			return nil, false
+		}
+		out = patched
 	}
 
 	// 2) max_tokens 可能被 applyClaudeThinkingConstraints 改写。
-	//    当前业务只会把它调高（不会归零），所以 > 0 即可安全回写。
-	if request.MaxTokens > 0 {
-		if mb, err := json.Marshal(request.MaxTokens); err == nil {
-			bodyMap["max_tokens"] = mb
+	//    当前业务只会把它调高（不会归零），所以 > 0 且实际变化时才回写。
+	if request.MaxTokens > 0 && gjson.GetBytes(out, "max_tokens").Int() != int64(request.MaxTokens) {
+		patched, err := sjson.SetBytes(out, "max_tokens", request.MaxTokens)
+		if err != nil {
+			return nil, false
 		}
+		out = patched
 	}
 
 	// 3) Thinking 约束可能把 thinking 置 nil（tool_choice=any/tool 时禁用）。
 	//    本路径不支持 done-hub 主动【添加】 thinking，只支持移除/保留。
-	if request.Thinking == nil {
-		delete(bodyMap, "thinking")
+	if request.Thinking == nil && gjson.GetBytes(out, "thinking").Exists() {
+		patched, err := sjson.DeleteBytes(out, "thinking")
+		if err != nil {
+			return nil, false
+		}
+		out = patched
 	}
 
-	out, err := json.Marshal(bodyMap)
-	if err != nil {
-		return nil, false
-	}
 	return out, true
 }

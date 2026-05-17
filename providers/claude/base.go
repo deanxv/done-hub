@@ -82,26 +82,60 @@ func (p *ClaudeProvider) GetRequestHeaders() (headers map[string]string) {
 		}
 	}
 
-	// 透传 Claude Code 客户端身份标识头与 SDK 指纹头（仅在已设置时跳过，以让 ModelHeaders 自定义优先）：
-	//   - x-app：relay-code-github 的 claude_code_validate.checkRequiredHeaders 会校验非空
-	//   - x-stainless-*：Anthropic SDK 指纹头，部分上游会作为客户端识别依据
-	// 注意：User-Agent 不在这里透传——由 channel.ModelHeaders 自定义配置，例如：
-	//   { "user-agent": "claude-cli/2.1.140 (external, cli)" }
+	// 透传 Claude Code 客户端指纹头，避免上游把请求识别为非客户端。
+	// 全部对 ModelHeaders 自定义的值让步（通过 hasHeaderCI 做大小写不敏感判断）。
+	//
+	// 透传规则：除了少数由本函数显式管理的头（host / x-api-key / anthropic-version /
+	// anthropic-beta），其它客户端头都透传。这样不需要为每一种新指纹头单独维护白名单：
+	//   - User-Agent：Claude Code CLI 携带 "claude-cli/x.x.x"，上游常用此识别客户端
+	//   - x-app：relay-code-github 等中转会校验非空
+	//   - x-stainless-*：Anthropic SDK 指纹头
+	//   - 任何未来新增的客户端识别头
 	for headerName, values := range p.Context.Request.Header {
 		if len(values) == 0 || values[0] == "" {
 			continue
 		}
-		lower := strings.ToLower(headerName)
-		if lower != "x-app" && !strings.HasPrefix(lower, "x-stainless-") {
+		if isProviderManagedHeader(headerName) {
 			continue
 		}
-		if hasHeaderCI(headers, lower) {
+		if hasHeaderCI(headers, headerName) {
 			continue
 		}
-		headers[lower] = values[0]
+		headers[strings.ToLower(headerName)] = values[0]
 	}
 
 	return headers
+}
+
+// isProviderManagedHeader 判定一个客户端入站头是否禁止原样透传到上游。
+// 包含两类：
+//  1. 由本 Provider 显式管理的协议头（host / x-api-key / anthropic-version / anthropic-beta）
+//  2. 安全敏感或 HTTP 传输层头，原样转发会出问题
+func isProviderManagedHeader(name string) bool {
+	switch strings.ToLower(name) {
+	// Provider 显式管理：必须由本函数控制
+	case "host",
+		"x-api-key",
+		"anthropic-version",
+		"anthropic-beta":
+		return true
+	// 安全敏感：done-hub 用户的认证凭据，禁止泄漏给上游
+	case "authorization",
+		"cookie",
+		"proxy-authorization":
+		return true
+	// HTTP 传输层：由 http.Client 控制，禁止透传客户端原值
+	case "content-length",
+		"connection",
+		"transfer-encoding",
+		"accept-encoding",
+		"upgrade",
+		"keep-alive",
+		"te",
+		"trailer":
+		return true
+	}
+	return false
 }
 
 // hasHeaderCI 对 headers map 做大小写不敏感的存在性检查。
