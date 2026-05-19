@@ -78,6 +78,24 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	return nil
 }
 
+// 已知安全的网络错误短标识：仅追加这些固定短词到客户端可见消息，避免泄露 URL/IP/Key
+var safeNetErrPatterns = []string{
+	"no such host",
+	"connection refused",
+	"connection reset by peer",
+	"context deadline exceeded",
+	"TLS handshake timeout",
+	"handshake failure",
+	"unrecognized name",
+	"tunnel failed",
+	"Bad Gateway",
+	"i/o timeout",
+	"use of closed network connection",
+	"PROTOCOL_ERROR",
+	"internal error",
+	"EOF",
+}
+
 func ErrorWrapper(err error, code string, statusCode int) *types.OpenAIErrorWithStatusCode {
 	errString := "error"
 	if err != nil {
@@ -87,6 +105,12 @@ func ErrorWrapper(err error, code string, statusCode int) *types.OpenAIErrorWith
 	if strings.Contains(errString, "Post") || strings.Contains(errString, "dial") {
 		logger.SysError(fmt.Sprintf("error: %s", errString))
 		errString = "请求上游地址失败"
+		for _, p := range safeNetErrPatterns {
+			if strings.Contains(err.Error(), p) {
+				errString = "请求上游地址失败: " + p
+				break
+			}
+		}
 	}
 
 	return StringErrorWrapper(errString, code, statusCode)

@@ -16,6 +16,17 @@ type CodexResponsesStreamHandler struct {
 	eventType   string
 }
 
+// CreateResponsesCompaction 显式拒绝 compact 请求。
+//
+// CodexProvider 内嵌了 openai.OpenAIProvider，会自动通过方法集提升获得 OpenAIProvider 的 CreateResponsesCompaction，
+// 但 Codex 的上游路径是 /backend-api/codex/responses（非 OpenAI 的 /v1/responses），
+// 继承来的实现会把 URL 拼成 /backend-api/codex/responses/compact，多数情况上游会 404，
+// 且会跳过 Codex 必需的请求适配（prepareCodexRequest / adaptCodexCLI / 强制流式等）。
+// 这里直接覆盖为返回 503，让错误信息明确指向"渠道不支持"而非晦涩的上游错误。
+func (p *CodexProvider) CreateResponsesCompaction(request *types.OpenAIResponsesRequest) (*types.OpenAIResponsesResponses, *types.OpenAIErrorWithStatusCode) {
+	return nil, common.StringErrorWrapperLocal("codex channel does not support /v1/responses/compact", "channel_error", http.StatusServiceUnavailable)
+}
+
 // CreateResponses 创建 Responses 完成（非流式）
 func (p *CodexProvider) CreateResponses(request *types.OpenAIResponsesRequest) (*types.OpenAIResponsesResponses, *types.OpenAIErrorWithStatusCode) {
 	// Codex API 特定参数设置
