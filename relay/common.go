@@ -58,6 +58,8 @@ func Path2Relay(c *gin.Context, path string) RelayBaseInterface {
 		} else {
 			relay = NewRelayGeminiOnly(c)
 		}
+	} else if strings.HasPrefix(path, "/v1/responses/compact") {
+		relay = NewRelayResponsesCompact(c)
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relay = NewRelayResponses(c)
 	}

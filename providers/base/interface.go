@@ -144,3 +144,10 @@ type ResponsesInterface interface {
 	CreateResponses(request *types.OpenAIResponsesRequest) (*types.OpenAIResponsesResponses, *types.OpenAIErrorWithStatusCode)
 	CreateResponsesStream(request *types.OpenAIResponsesRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode)
 }
+
+// ResponsesCompactInterface /v1/responses/compact 端点的能力。
+// compact 永远是非流式响应，因此不需要 stream 版本。
+type ResponsesCompactInterface interface {
+	ProviderInterface
+	CreateResponsesCompaction(request *types.OpenAIResponsesRequest) (*types.OpenAIResponsesResponses, *types.OpenAIErrorWithStatusCode)
+}

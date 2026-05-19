@@ -153,6 +153,77 @@ func (p *OpenAIProvider) patchResponsesRequestBody(request *types.OpenAIResponse
 	return out, true
 }
 
+// CreateResponsesCompaction 处理 POST /v1/responses/compact。
+// compact 端点永远是非流式响应，请求体结构是 /v1/responses 的子集
+// （model + input + instructions + previous_response_id），实现上完全复用字节透传逻辑。
+func (p *OpenAIProvider) CreateResponsesCompaction(request *types.OpenAIResponsesRequest) (*types.OpenAIResponsesResponses, *types.OpenAIErrorWithStatusCode) {
+	// 强制非流式：覆盖客户端可能误传的 stream:true，确保结构体回退路径不会带出 stream 字段；
+	// 字节透传路径由 patchResponsesCompactRequestBody 删除 body 里的 stream。
+	request.Stream = false
+
+	req, errWithCode := p.getResponsesCompactRequest(request)
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
+	defer req.Body.Close()
+
+	response := &types.OpenAIResponsesResponses{}
+	_, errWithCode = p.Requester.SendRequest(req, response, false)
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
+
+	// 与 CreateResponses 同款兜底：上游漏返 usage 或 output_tokens 时，
+	// 用本地预扣的 PromptTokens + 对响应文本做 token 估算补齐，避免计费归零。
+	if response.Usage == nil || response.Usage.OutputTokens == 0 {
+		response.Usage = &types.ResponsesUsage{
+			InputTokens:  p.Usage.PromptTokens,
+			OutputTokens: 0,
+			TotalTokens:  0,
+		}
+		response.Usage.OutputTokens = common.CountTokenText(response.GetContent(), request.Model)
+		response.Usage.TotalTokens = response.Usage.InputTokens + response.Usage.OutputTokens
+	}
+
+	*p.Usage = *response.Usage.ToOpenAIUsage()
+
+	return response, nil
+}
+
+// getResponsesCompactRequest 构造发往上游 /v1/responses/compact 的请求。
+// URL 在 responses URL 末尾追加 /compact；body 优先字节透传，否则回退结构体序列化。
+func (p *OpenAIProvider) getResponsesCompactRequest(request *types.OpenAIResponsesRequest) (*http.Request, *types.OpenAIErrorWithStatusCode) {
+	url, errWithCode := p.GetSupportedAPIUri(config.RelayModeResponses)
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
+	fullRequestURL := p.GetFullRequestURL(url+"/compact", request.Model)
+	headers := p.GetRequestHeaders()
+
+	if patched, ok := p.patchResponsesCompactRequestBody(request); ok {
+		return p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, patched, headers, request.Model)
+	}
+
+	return p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, request, headers, request.Model)
+}
+
+// patchResponsesCompactRequestBody 与 patchResponsesRequestBody 同款逻辑，
+// 额外强制删除 body 里的 stream 字段（compact 端点不支持流式，客户端误传 stream:true 时会让上游回 SSE）。
+// sjson.DeleteBytes 对不存在的字段是 no-op，无需先用 gjson 探测。
+func (p *OpenAIProvider) patchResponsesCompactRequestBody(request *types.OpenAIResponsesRequest) ([]byte, bool) {
+	out, ok := p.patchResponsesRequestBody(request)
+	if !ok {
+		return nil, false
+	}
+
+	patched, err := sjson.DeleteBytes(out, "stream")
+	if err != nil {
+		return nil, false
+	}
+
+	return patched, true
+}
+
 func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, dataChan chan string, errChan chan error) {
 	rawStr := string(*rawLine)
 
