@@ -74,11 +74,16 @@ func getConfig(version string) base.ProviderConfig {
 	}
 }
 
-// 正则表达式匹配 "Please retry in Xs" 格式的重试时间
-var retryInRegex = regexp.MustCompile(`Please retry in ([0-9.]+)s`)
+// 正则表达式匹配 "Please retry in <Go duration>" 格式（支持 30s、30.5s、5m30s、11h4m11.239163367s 等）
+var retryInRegex = regexp.MustCompile(`Please retry in ([\dhm.]+s)`)
 
-// 正则表达式匹配每日配额限制（Quota exceeded + per_day + limit: 0）
-var perDayQuotaRegex = regexp.MustCompile(`Quota exceeded for metric:.*per_day.*limit: 0`)
+// rateLimitResetBufferSeconds 在上游声明的恢复时间上额外冗余的秒数，
+// 用于抵消上下游时钟漂移以及上游实际恢复时间滞后于声明值的情况。
+// 与 per_day 路径使用太平洋时间 0:05 (冗余 5 分钟) 保持一致。
+const rateLimitResetBufferSeconds int64 = 5 * 60
+
+// 正则表达式匹配每日配额限制（Quota exceeded + per_day），不限制 limit 具体数值
+var perDayQuotaRegex = regexp.MustCompile(`Quota exceeded for metric:.*per_day`)
 
 // 请求错误处理
 func RequestErrorHandle(key string) requester.HttpErrorHandler {
@@ -120,14 +125,14 @@ func RequestErrorHandle(key string) requester.HttpErrorHandler {
 
 // parseRateLimitResetTime 从错误消息中解析冻结时间
 func parseRateLimitResetTime(openAIError *types.OpenAIError, errorInfo *GeminiError) {
-	// 方式1: 匹配 "Please retry in Xs" 格式
+	// 方式1: 匹配 "Please retry in <Go duration>" 格式
 	if matches := retryInRegex.FindStringSubmatch(errorInfo.Message); len(matches) == 2 {
-		if duration, err := time.ParseDuration(matches[1] + "s"); err == nil {
-			// 向上取整，确保冻结时间足够
-			resetTimestamp := time.Now().Unix() + int64(math.Ceil(duration.Seconds()))
+		if duration, err := time.ParseDuration(matches[1]); err == nil {
+			// 向上取整 + 额外冗余 buffer，避免时钟漂移导致渠道一恢复就再次撞上限流
+			resetTimestamp := time.Now().Unix() + int64(math.Ceil(duration.Seconds())) + rateLimitResetBufferSeconds
 			openAIError.RateLimitResetAt = resetTimestamp
-			logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected, retry in: %ss, reset at: %s",
-				matches[1], time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
+			logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected, retry in: %s (+%ds buffer), reset at: %s",
+				matches[1], rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
 			return
 		}
 	}
@@ -136,6 +141,9 @@ func parseRateLimitResetTime(openAIError *types.OpenAIError, errorInfo *GeminiEr
 	if perDayQuotaRegex.MatchString(errorInfo.Message) {
 		pst, err := time.LoadLocation("America/Los_Angeles")
 		if err != nil {
+			// tzdata 缺失（如最小化容器镜像）会让 per_day 兜底完全失效，
+			// 显式打日志便于排查，避免静默吞错。
+			logger.SysError(fmt.Sprintf("[Gemini] LoadLocation(America/Los_Angeles) failed, per_day cooldown unavailable: %v", err))
 			return
 		}
 		now := time.Now().In(pst)

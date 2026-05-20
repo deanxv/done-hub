@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -40,6 +41,14 @@ func shouldEnableChannel(err error, openAIErr *types.OpenAIErrorWithStatusCode) 
 
 func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode) bool {
 	if !config.AutomaticDisableChannelEnabled || err == nil || err.LocalError {
+		return false
+	}
+
+	// 上游通过 Retry-After / RetryInfo 等机制给出了精确的恢复时间 →
+	// 视为 transient failure，交由渠道+模型粒度的冷却处理，不做永久禁用。
+	// 参考 RFC 6585 §4 / RFC 7231 §7.1.3。
+	// 这一层让位关键词匹配等启发式判定，避免日配额/分钟限流等可自愈错误被永久禁用并发邮件。
+	if err.RateLimitResetAt > time.Now().Unix() {
 		return false
 	}
 
