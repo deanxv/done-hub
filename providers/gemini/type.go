@@ -534,6 +534,8 @@ type GeminiUsageMetadata struct {
 
 	PromptTokensDetails     []GeminiUsageMetadataDetails `json:"promptTokensDetails,omitempty"`
 	CandidatesTokensDetails []GeminiUsageMetadataDetails `json:"candidatesTokensDetails,omitempty"`
+
+	TrafficType string `json:"trafficType,omitempty"`
 }
 
 type GeminiUsageMetadataDetails struct {
