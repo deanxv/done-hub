@@ -23,14 +23,20 @@ func InitHttpClient() {
 	// TLS 证书验证配置，默认 false，设为 true 可跳过证书验证（用于 IP 直连等场景）
 	tlsInsecureSkipVerify := utils.GetOrDefault("tls_insecure_skip_verify", false)
 
+	// 连接池容量：MaxConnsPerHost 是会阻塞而非报错的硬上限，多租户 / 多渠道共享同一上游
+	// host 时极易撞顶。设 0 表示不限。
+	maxConnsPerHost := utils.GetOrDefault("max_conns_per_host", 0)
+	maxIdleConnsPerHost := utils.GetOrDefault("max_idle_conns_per_host", 200)
+	maxIdleConns := utils.GetOrDefault("max_idle_conns", 1000)
+
 	trans := &http.Transport{
 		DialContext: utils.Socks5ProxyFunc,
 		Proxy:       utils.ProxyFunc,
 
-		MaxIdleConns:        200,
-		MaxIdleConnsPerHost: 50,
-		MaxConnsPerHost:     100,
-		IdleConnTimeout:     60 * time.Second,
+		MaxIdleConns:        maxIdleConns,
+		MaxIdleConnsPerHost: maxIdleConnsPerHost,
+		MaxConnsPerHost:     maxConnsPerHost,
+		IdleConnTimeout:     90 * time.Second,
 
 		// 超时配置
 		TLSHandshakeTimeout:   tlsHandshakeTimeout,
@@ -65,6 +71,6 @@ func InitHttpClient() {
 		relayRequestTimeout = time.Duration(requestTimeout) * time.Second
 	}
 
-	logger.SysLog(fmt.Sprintf("HTTP Client: relay_timeout=%ds, response_header_timeout=%ds, relay_request_timeout=%ds, tls_handshake_timeout=%ds, tls_insecure_skip_verify=%v",
-		relayTimeout, responseHeaderSeconds, requestTimeout, tlsHandshakeSeconds, tlsInsecureSkipVerify))
+	logger.SysLog(fmt.Sprintf("HTTP Client: relay_timeout=%ds, response_header_timeout=%ds, relay_request_timeout=%ds, tls_handshake_timeout=%ds, tls_insecure_skip_verify=%v, max_conns_per_host=%d, max_idle_conns_per_host=%d, max_idle_conns=%d",
+		relayTimeout, responseHeaderSeconds, requestTimeout, tlsHandshakeSeconds, tlsInsecureSkipVerify, maxConnsPerHost, maxIdleConnsPerHost, maxIdleConns))
 }
