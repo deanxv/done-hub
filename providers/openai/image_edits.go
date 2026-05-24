@@ -20,6 +20,12 @@ func (p *OpenAIProvider) CreateImageEdits(request *types.ImageEditRequest) (*typ
 	response := &OpenAIProviderImageResponse{}
 	// 发送请求
 	_, errWithCode = p.Requester.SendRequest(req, response, false)
+
+	// 即便后续判错也先落 usage：覆盖"HTTP 200 + body 带 error 字段 + 仍含 usage"这种聚合上游场景。
+	if response.Usage != nil && response.Usage.TotalTokens > 0 {
+		*p.Usage = *response.Usage.ToOpenAIUsage()
+	}
+
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
@@ -33,13 +39,9 @@ func (p *OpenAIProvider) CreateImageEdits(request *types.ImageEditRequest) (*typ
 		return nil, errWithCode
 	}
 
-	if response.Usage != nil && response.Usage.TotalTokens > 0 {
-		*p.Usage = *response.Usage.ToOpenAIUsage()
-	} else {
-		// 如果没有返回usage信息，计算图像编辑的CompletionTokens
+	if p.Usage.TotalTokens == 0 {
+		// 上游未返回 usage，按生成图像数量兜底，避免空回复计费
 		imageCount := len(response.Data)
-		// PromptTokens保持之前根据prompt内容计算的值
-		// CompletionTokens根据生成的图像数量计算，避免空回复计费问题
 		p.Usage.CompletionTokens = imageCount * 258
 		p.Usage.TotalTokens = p.Usage.PromptTokens + p.Usage.CompletionTokens
 	}

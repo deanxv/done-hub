@@ -214,7 +214,9 @@ func RelayHandler(relay RelayBaseInterface) (err *types.OpenAIErrorWithStatusCod
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 
-	// 即使出错，只要有实际输出就记录计费，避免上游已计费但本地未记录
+	// 即使出错，只要有实际输出就记录计费，避免上游已计费但本地无记录。
+	// CompletionTokens 来自上游返回的 usage（image_*.go 在 ErrorHandle 前也会落 usage），
+	// 是"上游真的处理了请求"的可靠信号；PromptTokens 不行，它在 send 之前就被本地 tokenize 填了。
 	if err != nil {
 		if usage.CompletionTokens > 0 {
 			quota.SetFirstResponseTime(relay.GetFirstResponseTime())

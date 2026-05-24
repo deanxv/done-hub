@@ -108,7 +108,13 @@ func (r *HTTPRequester) SendRequest(req *http.Request, response any, outputResp 
 		// 将响应体重新写入 resp.Body
 		resp.Body = io.NopCloser(&buf)
 	} else {
-		err = json.NewDecoder(resp.Body).Decode(response)
+		// ReadAll → Unmarshal：Decode 解到完整值就返回，会吞掉 body 末端的传输错误；ReadAll 强制读到 EOF 才能稳定捕获。
+		var bodyBytes []byte
+		bodyBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, common.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+		}
+		err = json.Unmarshal(bodyBytes, response)
 	}
 
 	if err != nil {
