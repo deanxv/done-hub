@@ -35,6 +35,11 @@ func SetupDB() {
 		config.BatchUpdateInterval = utils.GetOrDefault("batch_update_interval", 5)
 		logger.SysLog("batch update enabled with interval " + strconv.Itoa(config.BatchUpdateInterval) + "s")
 		InitBatchUpdater()
+	} else {
+		// 同步化的 Quota.Consume 在 batch=false 时每请求多走 4 次真 DB 写，
+		// 非流式 handler TTLB 增加 ~10-20ms。建议生产环境开启 batch_update_enabled=true
+		// 把扣费 / 日志 / 统计走 in-memory 批量。
+		logger.SysLog("batch_update_enabled=false: each request will sync-write 4 DB rows on Consume; set batch_update_enabled=true for lower TTLB")
 	}
 }
 

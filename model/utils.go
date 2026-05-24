@@ -25,6 +25,13 @@ var batchUpdateLocks []sync.Mutex
 var batchLogStore []*Log
 var batchLogLock sync.Mutex
 
+// batchUpdaterStop / batchUpdaterDone 由 InitBatchUpdater 初始化，
+// 仅在 BatchUpdateEnabled=true 时有效；用于 graceful shutdown 时停掉后台 ticker。
+var (
+	batchUpdaterStop chan struct{}
+	batchUpdaterDone chan struct{}
+)
+
 func init() {
 	for i := 0; i < BatchUpdateTypeCount; i++ {
 		batchUpdateStores = append(batchUpdateStores, make(map[int]int))
@@ -33,13 +40,42 @@ func init() {
 }
 
 func InitBatchUpdater() {
+	batchUpdaterStop = make(chan struct{})
+	batchUpdaterDone = make(chan struct{})
 	go func() {
+		defer close(batchUpdaterDone)
+		ticker := time.NewTicker(time.Duration(config.BatchUpdateInterval) * time.Second)
+		defer ticker.Stop()
 		for {
-			time.Sleep(time.Duration(config.BatchUpdateInterval) * time.Second)
-			batchUpdate()
-			flushBatchLogs()
+			select {
+			case <-batchUpdaterStop:
+				return
+			case <-ticker.C:
+				batchUpdate()
+				flushBatchLogs()
+			}
 		}
 	}()
+}
+
+// StopBatchUpdater 停止后台 ticker 并等待其退出（保证不会再有新的 batchUpdate 启动）。
+// 必须在 FlushAllBatches 之前调用，避免 ticker 已 swap map 但未写完 DB 时主线程
+// 拿到空 map 就返回，导致那批数据丢失。
+// 若 BatchUpdateEnabled=false（未调用过 InitBatchUpdater），则 noop。
+func StopBatchUpdater() {
+	if batchUpdaterStop == nil {
+		return
+	}
+	close(batchUpdaterStop)
+	<-batchUpdaterDone
+}
+
+// FlushAllBatches 同步清空所有 batch 队列（quota updates + consume logs），用于进程优雅退出
+// 必须在 server.Shutdown 与所有 tracked goroutine 完成之后调用，
+// 避免 flush 期间仍有新请求往队列里塞数据
+func FlushAllBatches() {
+	batchUpdate()
+	flushBatchLogs()
 }
 
 func AddLogToBatch(log *Log) {

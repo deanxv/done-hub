@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"done-hub/cli"
 	"done-hub/common"
 	"done-hub/common/cache"
@@ -21,10 +22,13 @@ import (
 	"done-hub/router"
 	"done-hub/safty"
 	"embed"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -161,9 +165,73 @@ func initHttpServer() {
 	router.SetRouter(server, buildFS, indexPage)
 	port := viper.GetString("port")
 
-	err := server.Run(":" + port)
-	if err != nil {
-		logger.FatalLog("failed to start HTTP server: " + err.Error())
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: server,
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+		close(serverErr)
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			logger.FatalLog("failed to start HTTP server: " + err.Error())
+		}
+	case sig := <-quit:
+		logger.SysLog(fmt.Sprintf("received signal %s, shutting down...", sig))
+		// 注意：srv.Shutdown 不会等已 hijack 的 WebSocket 连接（net/http 不 track），
+		// 长流式 / WS 会话由后面的 WaitTrackedGoroutines 通过 timeout 兜底
+		// 默认 30s 以容纳长流式响应（LLM 流式补全单次常 30-120s）
+		// 部署侧需配套 docker-compose stop_grace_period >= shutdown_timeout + flush 余量
+		shutdownTimeout := viper.GetInt("shutdown_timeout")
+		if shutdownTimeout <= 0 {
+			shutdownTimeout = 30
+		}
+		deadline := time.Now().Add(time.Duration(shutdownTimeout) * time.Second)
+
+		// 1) 停止接受新请求并等待 in-flight HTTP 请求完成
+		ctx, cancel := context.WithDeadline(context.Background(), deadline)
+		if err := srv.Shutdown(ctx); err != nil {
+			logger.SysError("HTTP server shutdown error: " + err.Error())
+		}
+		cancel()
+
+		// 2) 等待 handler 派生的 tracked goroutine（realtime / task 的 Consume）跑完，
+		//    否则它们的 RecordConsumeLog 会塞进 batch 队列后无人 flush
+		remaining := time.Until(deadline)
+		// 即使 srv.Shutdown 把预算耗光，也至少给 tracked goroutine 1s 收尾，
+		// 否则刚跑完 Shutdown 就立即超时退出，必丢这部分数据。
+		// 极端情况（shutdown_timeout=1）下，真实等待会比配置多 ~1s
+		if remaining < time.Second {
+			remaining = time.Second
+		}
+		if !common.WaitTrackedGoroutines(remaining) {
+			logger.SysError(fmt.Sprintf("tracked goroutines did not finish within %s, data may be lost", remaining))
+		}
+
+		// 3) 停 batch updater 后台 ticker，避免它和主线程同时 batchUpdate
+		//    引发"swap 后未写完"窗口数据丢失
+		// 4) flush batch 队列：必须在前三步完成之后，确保没有新数据再进队列
+		//    注意：StopBatchUpdater + FlushAllBatches 内部是同步 DB 调用，不受
+		//    shutdown_timeout 约束；DB 慢时这一步可能超出总退出时长，由 docker
+		//    stop_grace_period 兜底
+		if config.BatchUpdateEnabled {
+			logger.SysLog("stopping batch updater before flush")
+			model.StopBatchUpdater()
+			logger.SysLog("flushing batch updates before exit")
+			model.FlushAllBatches()
+		}
+		logger.SysLog("shutdown complete")
 	}
 }
 

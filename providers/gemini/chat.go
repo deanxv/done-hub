@@ -799,7 +799,24 @@ func ConvertToChatOpenai(provider base.ProviderInterface, response *GeminiChatRe
 	}
 
 	usage := provider.GetUsage()
-	*usage = ConvertOpenAIUsageWithFallback(response.UsageMetadata, response)
+	// 与 providers/gemini/relay.go:CreateGeminiChat 的兜底对齐：
+	// 上游 promptTokenCount<=0 时保留 RelayHandler 在 send 前填的本地预估值，
+	// 避免整对象赋值导致消费日志记成 "0 in / N out"。
+	upstreamUsage := ConvertOpenAIUsageWithFallback(response.UsageMetadata, response)
+	if upstreamUsage.PromptTokens <= 0 && usage.PromptTokens > 0 {
+		upstreamUsage.PromptTokens = usage.PromptTokens
+	}
+	// total 兜底（max 逻辑，与流式 HandlerStream 对齐）：保证 total >= prompt + completion。
+	// 覆盖两种中转商裁字段模式：
+	//   - 只裁 prompt 留 total：upstream total 仍含真实 prompt，>= expected，不动
+	//   - prompt 和 total 一起裁：upstream total=0 或偏小，提升到 expected
+	if upstreamUsage.PromptTokens > 0 {
+		expected := upstreamUsage.PromptTokens + upstreamUsage.CompletionTokens
+		if upstreamUsage.TotalTokens < expected {
+			upstreamUsage.TotalTokens = expected
+		}
+	}
+	*usage = upstreamUsage
 	openaiResponse.Usage = usage
 
 	return
@@ -893,10 +910,14 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 	}
 
 	// 和ExecutableCode的tokens共用，所以跳过
-	// 检查是否有有效的 UsageMetadata
+	// 检查是否有有效的 UsageMetadata。Prompt/Total 可能被中转商裁掉，
+	// 需要把 Candidates/Thoughts 也纳入判断，避免漏算 CompletionTokens
 	hasValidUsage := false
 	if geminiResponse.UsageMetadata != nil &&
-		(geminiResponse.UsageMetadata.TotalTokenCount > 0 || geminiResponse.UsageMetadata.PromptTokenCount > 0) {
+		(geminiResponse.UsageMetadata.TotalTokenCount > 0 ||
+			geminiResponse.UsageMetadata.PromptTokenCount > 0 ||
+			geminiResponse.UsageMetadata.CandidatesTokenCount > 0 ||
+			geminiResponse.UsageMetadata.ThoughtsTokenCount > 0) {
 		hasValidUsage = true
 	}
 
@@ -912,7 +933,11 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 		return
 	}
 
-	h.Usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
+	// 与 providers/gemini/relay.go:HandlerStream 的兜底对齐：上游 PromptTokenCount
+	// 可能为 0（中转商裁字段、cache 命中等），保留本地预估值，否则消费日志记成 "0 in / N out"。
+	if geminiResponse.UsageMetadata.PromptTokenCount > 0 {
+		h.Usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
+	}
 
 	// 计算 completion tokens，确保不为负数
 	completionTokens := geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
@@ -922,10 +947,18 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 	h.Usage.CompletionTokens = completionTokens
 	h.Usage.CompletionTokensDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 
-	// 如果 TotalTokenCount 为 0 但有 PromptTokenCount，则计算总数
+	// total 兜底：保证 total >= prompt + completion（OpenAI 协议契约）。
+	// 允许 upstream total 比它大（reasoning 模型 thoughts 已计入 completion 不会偏大；
+	// 真大说明 upstream 有额外计费维度如 cache 包含在 prompt 里，信任 upstream 值不去动）。
+	// 这条同时覆盖了两种中转商裁字段模式：
+	//   - 只裁 prompt 留 total（total 仍含真实 prompt，>= expected，不改）
+	//   - prompt 和 total 一起裁（total=0 或偏小，提升到 expected）
 	totalTokens := geminiResponse.UsageMetadata.TotalTokenCount
-	if totalTokens == 0 && geminiResponse.UsageMetadata.PromptTokenCount > 0 {
-		totalTokens = geminiResponse.UsageMetadata.PromptTokenCount + completionTokens
+	if h.Usage.PromptTokens > 0 {
+		expected := h.Usage.PromptTokens + completionTokens
+		if totalTokens < expected {
+			totalTokens = expected
+		}
 	}
 	h.Usage.TotalTokens = totalTokens
 }
@@ -1016,9 +1049,13 @@ func ConvertOpenAIUsage(geminiUsage *GeminiUsageMetadata) types.Usage {
 
 // ConvertOpenAIUsageWithFallback 转换 UsageMetadata，如果没有有效的 token 统计则使用图片统计兜底
 func ConvertOpenAIUsageWithFallback(geminiUsage *GeminiUsageMetadata, response *GeminiChatResponse) types.Usage {
-	// 检查是否有有效的 UsageMetadata
+	// 与流式路径 (relay.go hasValidUsage / chat.go HandlerStream) 对齐：
+	// Prompt/Total 可能被中转商裁掉，需要把 Candidates/Thoughts 也纳入判断
 	hasValidUsage := geminiUsage != nil &&
-		(geminiUsage.TotalTokenCount > 0 || geminiUsage.PromptTokenCount > 0)
+		(geminiUsage.TotalTokenCount > 0 ||
+			geminiUsage.PromptTokenCount > 0 ||
+			geminiUsage.CandidatesTokenCount > 0 ||
+			geminiUsage.ThoughtsTokenCount > 0)
 
 	if hasValidUsage {
 		return ConvertOpenAIUsage(geminiUsage)

@@ -4,13 +4,17 @@ import (
 	"context"
 	"done-hub/common"
 	"done-hub/common/config"
+	"done-hub/common/logger"
 	"done-hub/common/redis"
 	"done-hub/common/utils"
+	"errors"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 func isLoopbackIP(remoteIP string) bool {
@@ -21,6 +25,36 @@ func isLoopbackIP(remoteIP string) bool {
 var timeFormat = "2006-01-02T15:04:05.000Z"
 
 var inMemoryRateLimiter common.InMemoryRateLimiter
+
+// rate-limit 的 Redis 操作超时跟随 redis_read_timeout 配置，但热路径上每请求调一次
+// viper.GetInt 走 RWMutex.RLock+reflect 不划算，init-once 缓存（与 redis.go 的
+// stickySessionOpTimeout 同思路）。
+var (
+	rateLimitTimeout     time.Duration
+	rateLimitTimeoutOnce sync.Once
+)
+
+func getRateLimitTimeout() time.Duration {
+	rateLimitTimeoutOnce.Do(func() {
+		rateLimitTimeout = time.Duration(viper.GetInt("redis_read_timeout")) * time.Second
+		if rateLimitTimeout <= 0 {
+			rateLimitTimeout = 2 * time.Second
+		}
+	})
+	return rateLimitTimeout
+}
+
+// degradeAllow 把 rate-limit 路径上的 Redis 错误降级为放行，并过滤 context.Canceled 不打日志。
+// 限流只是辅助，鉴权/配额在后续 middleware；把瞬时 Redis 故障翻译成 500 会让上游（newapi 等）
+// 误以为模型挂了并触发重试，反而放大问题。
+// context.Canceled 是客户端中途断开（父 ctx 取消），不是 Redis 故障，过滤掉避免误告警；
+// context.DeadlineExceeded 保留为真 Redis 慢的信号。
+func degradeAllow(where string, err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	logger.SysError("rate limit degraded, allowing request (" + where + "): " + err.Error())
+}
 
 // All duration's unit is seconds
 // Shouldn't larger then RateLimitKeyExpirationDuration
@@ -42,31 +76,33 @@ var (
 )
 
 func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), getRateLimitTimeout())
+	defer cancel()
 	rdb := redis.RDB
 	key := "rateLimit:" + mark + c.ClientIP()
 	listLength, err := rdb.LLen(ctx, key).Result()
 	if err != nil {
-		c.Status(http.StatusInternalServerError)
-		c.Abort()
+		degradeAllow("LLen", err)
 		return
 	}
 	if listLength < int64(maxRequestNum) {
 		rdb.LPush(ctx, key, time.Now().Format(timeFormat))
 		rdb.Expire(ctx, key, config.RateLimitKeyExpirationDuration)
 	} else {
-		oldTimeStr, _ := rdb.LIndex(ctx, key, -1).Result()
+		oldTimeStr, err := rdb.LIndex(ctx, key, -1).Result()
+		if err != nil {
+			degradeAllow("LIndex", err)
+			return
+		}
 		oldTime, err := time.Parse(timeFormat, oldTimeStr)
 		if err != nil {
-			c.Status(http.StatusInternalServerError)
-			c.Abort()
+			degradeAllow("parse old", err)
 			return
 		}
 		nowTimeStr := time.Now().Format(timeFormat)
 		nowTime, err := time.Parse(timeFormat, nowTimeStr)
 		if err != nil {
-			c.Status(http.StatusInternalServerError)
-			c.Abort()
+			degradeAllow("parse now", err)
 			return
 		}
 		// time.Since will return negative number!

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -191,34 +192,75 @@ func (q *Quota) completedQuotaConsumption(usage *types.Usage, tokenName string, 
 }
 
 func (q *Quota) Undo(c *gin.Context) {
-	if q.HandelStatus {
-		go func(ctx context.Context) {
-			// return pre-consumed quota
-			if err := model.PostConsumeTokenQuotaWithInfo(q.tokenId, q.userId, q.unlimitedQuota, -q.preConsumedQuota); err != nil {
-				logger.LogError(ctx, "error return pre-consumed quota: "+err.Error())
-			}
-			// 刷新缓存配额，保持一致
-			_ = model.CacheUpdateUserQuota(q.userId)
-		}(c.Request.Context())
+	if !q.HandelStatus {
+		return
 	}
+	// Undo 所有调用方都在 gin handler 同步路径上，panic 由 gin.Recovery 兜底（带 stack）。
+	// 不再加本地 recover：之前的"defense-in-depth"在已有 gin.Recovery 时是 anti-pattern：
+	// 截胡 panic 让上层拿不到信号、日志失去堆栈、可调试性反而下降。
+	ctx := c.Request.Context()
+	if err := model.PostConsumeTokenQuotaWithInfo(q.tokenId, q.userId, q.unlimitedQuota, -q.preConsumedQuota); err != nil {
+		logger.LogError(ctx, "error return pre-consumed quota: "+err.Error())
+	}
+	_ = model.CacheUpdateUserQuota(q.userId)
 }
 
 func (q *Quota) Consume(c *gin.Context, usage *types.Usage, isStream bool) {
-	tokenName := c.GetString("token_name")
-	sourceIp := c.ClientIP() // 在 goroutine 外提取，避免 Gin Context 回收后数据竞争
-	q.startTime = c.GetTime("requestStartTime")
-	// 如果没有报错，则消费配额
-	go func(ctx context.Context) {
-		defer func() {
-			if r := recover(); r != nil {
-				logger.LogError(ctx, fmt.Sprintf("panic in completedQuotaConsumption: %v", r))
-			}
-		}()
-		err := q.completedQuotaConsumption(usage, tokenName, isStream, sourceIp, ctx)
-		if err != nil {
-			logger.LogError(ctx, err.Error())
+	// 同步调用方（handler 主流程）走这里：c 在调用栈上活着，直接当场 snapshot 即可。
+	// 异步调用方（TrackedGoroutine 路径）应直接调 ConsumeWithSnapshot，
+	// 在 spawn goroutine 之前先 NewConsumeSnapshot(c)，闭包持有快照值而非 c 指针，
+	// 彻底避免 handler return 后 c 被 gin pool 复用造成的数据竞争。
+	q.ConsumeWithSnapshot(NewConsumeSnapshot(c), usage, isStream)
+}
+
+// ConsumeSnapshot 是 Quota.Consume 需要的 gin.Context 字段的不可变快照。
+// 用于把 handler 派生 goroutine 上的 c 访问全部前置到 handler 还活着的时刻，
+// 闭包只持有值，杜绝 c-pool 复用窗口。
+type ConsumeSnapshot struct {
+	TokenName string
+	SourceIP  string
+	StartTime time.Time
+	Ctx       context.Context
+}
+
+// NewConsumeSnapshot 立即从 c 抓取计费所需字段，构造不再持有 c 指针的快照。
+// 必须在 handler 还在调用栈上（c 仍归本请求所有）时调用。
+func NewConsumeSnapshot(c *gin.Context) ConsumeSnapshot {
+	return ConsumeSnapshot{
+		TokenName: c.GetString("token_name"),
+		SourceIP:  c.ClientIP(),
+		StartTime: c.GetTime("requestStartTime"),
+		Ctx:       c.Request.Context(),
+	}
+}
+
+// ConsumeWithSnapshot 用预先抓取好的快照执行同步扣费 + 写消费日志。
+// 同 Consume：DB/Cache 调用刻意不传 ctx，防客户端断连取消计费。
+//
+// recover 保留的理由：本函数被 realtime / task 的 TrackedGoroutine 异步路径调用，
+// 虽然外层 TrackedGoroutine 自带 stack-aware recover 兜底，但本地 recover 能给 panic
+// 加上 "Quota.ConsumeWithSnapshot" 的上下文标签 + 完整堆栈，定位 quota 步骤更直接。
+// 同步路径（Consume wrapper）下本地 recover 会截胡 gin.Recovery，但权衡后保留这层
+// 是因为异步路径 panic 没有 gin.Recovery 接，需要 quota 这层就抓住堆栈。
+//
+// 延迟成本（同步化的已知代价）：
+//   - BatchUpdateEnabled=true（推荐生产配置）：扣费/日志/统计全部走 in-memory append，
+//     同步路径上唯一真 IO 是 CacheUpdateUserQuota 一次 Redis 调用，~几 ms。
+//   - BatchUpdateEnabled=false：5 个调用里 4 个走真 DB UPDATE/INSERT，TTLB 增加 ~10-20ms。
+//
+// 这是反压换一致性的有意取舍：异步会让 handler 早返 200 但扣费 goroutine 在 DB 池满时堆积，
+// 正是"上游已计费、本地未记账"的真凶。
+func (q *Quota) ConsumeWithSnapshot(snap ConsumeSnapshot, usage *types.Usage, isStream bool) {
+	q.startTime = snap.StartTime
+	ctx := snap.Ctx
+	defer func() {
+		if r := recover(); r != nil {
+			logger.LogError(ctx, fmt.Sprintf("panic in Quota.ConsumeWithSnapshot: %v, stack: %s", r, string(debug.Stack())))
 		}
-	}(c.Request.Context())
+	}()
+	if err := q.completedQuotaConsumption(usage, snap.TokenName, isStream, snap.SourceIP, ctx); err != nil {
+		logger.LogError(ctx, err.Error())
+	}
 }
 
 func (q *Quota) GetInputRatio() float64 {

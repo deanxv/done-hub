@@ -1,6 +1,7 @@
 package task
 
 import (
+	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/utils"
@@ -62,7 +63,7 @@ func RelayTaskSubmit(c *gin.Context) {
 
 	taskErr = taskAdaptor.Relay()
 	if taskErr == nil {
-		CompletedTask(quotaInstance, taskAdaptor, c)
+		CompletedTask(quotaInstance, taskAdaptor, relay_util.NewConsumeSnapshot(c))
 		// 返回结果
 		taskAdaptor.GinResponse()
 		metrics.RecordProvider(c, 200)
@@ -140,7 +141,11 @@ func RelayTaskSubmit(c *gin.Context) {
 			// 重试成功
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("retry_success model=%s channel_id=%d attempt=%d/%d total_channels=%d",
 				modelName, channel.Id, attemptCount, actualRetryTimes, c.GetInt("total_channels_at_start")))
-			go CompletedTask(quotaInstance, taskAdaptor, c)
+			// 在 spawn TrackedGoroutine 之前先 snapshot，闭包持有值，避免 c-pool 复用竞态
+			snap := relay_util.NewConsumeSnapshot(c)
+			common.TrackedGoroutine(func() {
+				CompletedTask(quotaInstance, taskAdaptor, snap)
+			})
 			return
 		}
 
@@ -168,8 +173,8 @@ func RelayTaskSubmit(c *gin.Context) {
 
 }
 
-func CompletedTask(quotaInstance *relay_util.Quota, taskAdaptor base.TaskInterface, c *gin.Context) {
-	quotaInstance.Consume(c, &types.Usage{CompletionTokens: 0, PromptTokens: 1, TotalTokens: 1}, false)
+func CompletedTask(quotaInstance *relay_util.Quota, taskAdaptor base.TaskInterface, snap relay_util.ConsumeSnapshot) {
+	quotaInstance.ConsumeWithSnapshot(snap, &types.Usage{CompletionTokens: 0, PromptTokens: 1, TotalTokens: 1}, false)
 
 	task := taskAdaptor.GetTask()
 	task.Quota = int(quotaInstance.GetInputRatio() * 1000)

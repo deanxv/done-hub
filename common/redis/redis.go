@@ -4,6 +4,7 @@ import (
 	"context"
 	"done-hub/common/config"
 	"done-hub/common/logger"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -34,6 +35,19 @@ func InitRedisClient() (err error) {
 	}
 
 	opt.DB = viper.GetInt("redis_db")
+	// 显式设置池/超时,避免默认 PoolSize=10*GOMAXPROCS 在小容器里只有 20-40 撑不住
+	// ReadTimeout 是关键:让卡住的命令在 2s 后被 cancel,连接能回池,不会一直占着拖垮池
+	opt.PoolSize = viper.GetInt("redis_pool_size")
+	opt.MinIdleConns = viper.GetInt("redis_min_idle_conns")
+	opt.PoolTimeout = time.Duration(viper.GetInt("redis_pool_timeout")) * time.Second
+	opt.ReadTimeout = time.Duration(viper.GetInt("redis_read_timeout")) * time.Second
+	opt.WriteTimeout = time.Duration(viper.GetInt("redis_write_timeout")) * time.Second
+	// sticky session 操作超时跟随 ReadTimeout，避免运维改配置后 sticky 路径仍卡在旧值。
+	// 加 > 0 守卫：go-redis 把 0 当 default(3s)、-1 当"无超时"，但 context.WithTimeout(ctx, 0|负数)
+	// 是立即超时——直接照搬会让 sticky session 全部秒挂，回退随机路由。
+	if opt.ReadTimeout > 0 {
+		stickySessionOpTimeout = opt.ReadTimeout
+	}
 	RDB = redis.NewClient(opt)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -47,6 +61,10 @@ func InitRedisClient() (err error) {
 		// for compatibility with old versions
 		config.MemoryCacheEnabled = true
 	}
+
+	// 打出生效配置，方便排查"配 0 被回退成 2"这种隐式改写
+	logger.SysLog(fmt.Sprintf("Redis client: pool_size=%d, min_idle=%d, pool_timeout=%s, read_timeout=%s, write_timeout=%s, sticky_op_timeout=%s",
+		opt.PoolSize, opt.MinIdleConns, opt.PoolTimeout, opt.ReadTimeout, opt.WriteTimeout, stickySessionOpTimeout))
 
 	return err
 }
@@ -118,6 +136,19 @@ const (
 	DefaultStickySessionTTL = 1 * time.Hour
 )
 
+// stickySessionOpTimeout 单次 sticky session Redis 操作的上限。
+// 由 InitRedisClient 在读完 opt.ReadTimeout 后赋值，跟随 redis_read_timeout 配置；
+// 未初始化前的默认值仅为防御，正常路径下都会被 InitRedisClient 覆盖。
+//
+// redis_read_timeout 取值约定（避免踩 go-redis vs context.WithTimeout 语义差）：
+//   - > 0（推荐）：秒级超时，sticky 跟随
+//   - 0：go-redis 视为 default(3s)，但 context.WithTimeout(ctx,0) deadline=now、
+//     下次 ctx 检查即返回 DeadlineExceeded，所以 InitRedisClient 的 > 0 守卫
+//     会让 sticky 保留 2s 兜底
+//   - -1：用户用来表达"无超时"，但乘以 time.Second 后 go-redis 会把 -1e9ns 视为 <=0
+//     走默认 3s——这里达不到真正的"无超时"，需要直接改 Options 而不是 viper 配置
+var stickySessionOpTimeout = 2 * time.Second
+
 // GetStickySessionKeyPrefix 根据渠道类型获取对应的 Redis key 前缀
 // 不同渠道类型使用不同的前缀，避免 session hash 冲突
 func GetStickySessionKeyPrefix(channelType int) string {
@@ -151,7 +182,8 @@ func SetStickySessionMapping(sessionHash string, channelID int, channelType int,
 		ttl = DefaultStickySessionTTL
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), stickySessionOpTimeout)
+	defer cancel()
 	keyPrefix := GetStickySessionKeyPrefix(channelType)
 	key := keyPrefix + sessionHash
 	return RDB.Set(ctx, key, channelID, ttl).Err()
@@ -170,7 +202,8 @@ func GetStickySessionMapping(sessionHash string, channelType int) (int, error) {
 		return 0, nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), stickySessionOpTimeout)
+	defer cancel()
 	keyPrefix := GetStickySessionKeyPrefix(channelType)
 	key := keyPrefix + sessionHash
 	result, err := RDB.Get(ctx, key).Int()
@@ -195,7 +228,8 @@ func DeleteStickySessionMapping(sessionHash string, channelType int) error {
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), stickySessionOpTimeout)
+	defer cancel()
 	keyPrefix := GetStickySessionKeyPrefix(channelType)
 	key := keyPrefix + sessionHash
 	return RDB.Del(ctx, key).Err()
@@ -225,7 +259,8 @@ func ExtendStickySessionMappingTTL(sessionHash string, channelType int, fullTTL 
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), stickySessionOpTimeout)
+	defer cancel()
 	keyPrefix := GetStickySessionKeyPrefix(channelType)
 	key := keyPrefix + sessionHash
 

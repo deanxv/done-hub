@@ -68,7 +68,11 @@ func ChatRealtime(c *gin.Context) {
 
 	wsProxy.Start()
 
-	go func() {
+	// 在 spawn TrackedGoroutine 之前完成 snapshot：handler 在 wsProxy.Wait() 返回后
+	// 就会 return，gin 会把 *gin.Context 归还 pool 并可能被新请求 Reset。闭包持有值不持指针，
+	// 彻底消除 c-pool 复用的数据竞争窗口。
+	snap := relay_util.NewConsumeSnapshot(relay.c)
+	common.TrackedGoroutine(func() {
 		var closedBy string
 		select {
 		case <-wsProxy.UserClosed():
@@ -77,11 +81,10 @@ func ChatRealtime(c *gin.Context) {
 			closedBy = "provider"
 		}
 
-		logger.LogInfo(relay.c.Request.Context(), fmt.Sprintf("连接由%s关闭", closedBy))
+		logger.LogInfo(snap.Ctx, fmt.Sprintf("连接由%s关闭", closedBy))
 		wsProxy.Close()
-		relay.quota.Consume(relay.c, relay.usage.ToChatUsage(), false)
-
-	}()
+		relay.quota.ConsumeWithSnapshot(snap, relay.usage.ToChatUsage(), false)
+	})
 
 	wsProxy.Wait()
 }
