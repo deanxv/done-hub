@@ -14,6 +14,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -77,10 +78,14 @@ func getConfig(version string) base.ProviderConfig {
 // 正则表达式匹配 "Please retry in <Go duration>" 格式（支持 30s、30.5s、5m30s、11h4m11.239163367s 等）
 var retryInRegex = regexp.MustCompile(`Please retry in ([\dhm.]+s)`)
 
-// rateLimitResetBufferSeconds 在上游声明的恢复时间上额外冗余的秒数，
-// 用于抵消上下游时钟漂移以及上游实际恢复时间滞后于声明值的情况。
-// 与 per_day 路径使用太平洋时间 0:05 (冗余 5 分钟) 保持一致。
-const rateLimitResetBufferSeconds int64 = 5 * 60
+// 兜底：上游有时会在数字段插入字符（如 "46.4xxxxx9107644s"），精确正则失配时退化为只抓整数秒
+var retryInFallbackRegex = regexp.MustCompile(`Please retry in (\d+)`)
+
+// rateLimitResetBufferSeconds 在秒级恢复时间上额外冗余的秒数，仅用于吸收时钟漂移。
+// per_day 路径有自己的 5 分钟冗余（次日 0:05 太平洋时间硬编码），不走这里。
+// 取舍：5s 偏激进，若上游实际恢复滞后于声明值会导致渠道二次撞墙再冻结一轮；
+// 现阶段优先快恢复，若线上出现抖动再调到 15~30s。
+const rateLimitResetBufferSeconds int64 = 5
 
 // 正则表达式匹配每日配额限制（Quota exceeded + per_day），不限制 limit 具体数值
 var perDayQuotaRegex = regexp.MustCompile(`Quota exceeded for metric:.*per_day`)
@@ -133,6 +138,17 @@ func parseRateLimitResetTime(openAIError *types.OpenAIError, errorInfo *GeminiEr
 			openAIError.RateLimitResetAt = resetTimestamp
 			logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected, retry in: %s (+%ds buffer), reset at: %s",
 				matches[1], rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
+			return
+		}
+	}
+
+	// 方式1兜底: 数字段被脱敏（如 "46.4xxxxx9107644s"），精确正则失配时只抓整数秒作为下界
+	if matches := retryInFallbackRegex.FindStringSubmatch(errorInfo.Message); len(matches) == 2 {
+		if seconds, err := strconv.Atoi(matches[1]); err == nil {
+			resetTimestamp := time.Now().Unix() + int64(seconds) + rateLimitResetBufferSeconds
+			openAIError.RateLimitResetAt = resetTimestamp
+			logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected (fallback, %ds + %ds buffer), reset at: %s",
+				seconds, rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
 			return
 		}
 	}

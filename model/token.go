@@ -100,6 +100,30 @@ func GetUserTokensList(userId int, params *GenericParams) (*DataResult[Token], e
 	return PaginateAndOrder(db, &params.PaginationParams, &tokens, allowedTokenOrderFields)
 }
 
+func GetUserTokenGroupSymbols(userId int) ([]string, error) {
+	var tokens []Token
+	err := DB.Where("user_id = ?", userId).Select("group", "backup_group").Find(&tokens).Error
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{})
+	for _, t := range tokens {
+		if t.Group != "" {
+			seen[t.Group] = struct{}{}
+		}
+		if t.BackupGroup != "" {
+			seen[t.BackupGroup] = struct{}{}
+		}
+	}
+
+	symbols := make([]string, 0, len(seen))
+	for s := range seen {
+		symbols = append(symbols, s)
+	}
+	return symbols, nil
+}
+
 // AdminSearchTokensParams 管理员搜索令牌的参数
 type AdminSearchTokensParams struct {
 	GenericParams

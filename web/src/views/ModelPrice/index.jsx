@@ -113,7 +113,9 @@ export default function ModelPrice() {
       const { success, message, data } = res.data;
       if (success) {
         setUserGroupMap(data);
-        const firstKey = Object.entries(data).sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0))[0]?.[0];
+        const firstKey = Object.entries(data)
+          .filter(([, g]) => !g.inaccessible)
+          .sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0))[0]?.[0];
         setSelectedGroup(firstKey);
       } else {
         showError(message);
@@ -125,7 +127,10 @@ export default function ModelPrice() {
 
   // 按倍率升序排序的用户组列表
   const sortedUserGroupEntries = useMemo(
-    () => Object.entries(userGroupMap).sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0)),
+    () =>
+      Object.entries(userGroupMap)
+        .filter(([, group]) => !group.inaccessible)
+        .sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0)),
     [userGroupMap]
   );
 

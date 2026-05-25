@@ -141,6 +141,7 @@ export default function Token() {
 
   useEffect(() => {
     const options = Object.values(userGroup)
+      .filter((item) => !item.inaccessible)
       .sort((a, b) => (a.ratio ?? 0) - (b.ratio ?? 0))
       .map((item) => ({ label: `${item.name} (倍率：${item.ratio})`, value: item.symbol }));
     setUserGroupOptions(options);

@@ -186,7 +186,11 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
           ) : item.group === '' ? (
             <Label color="default">跟随用户</Label>
           ) : userGroup[item.group] ? (
-            <Label color={userGroup[item.group].color}>{userGroup[item.group].name}</Label>
+            userGroup[item.group].inaccessible ? (
+              <Label color="error">{userGroup[item.group].name} (不可用)</Label>
+            ) : (
+              <Label color={userGroup[item.group].color}>{userGroup[item.group].name}</Label>
+            )
           ) : (
             <Label color="error">{item.group} (不存在)</Label>
           )}

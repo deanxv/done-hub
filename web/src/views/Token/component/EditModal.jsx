@@ -3,6 +3,7 @@ import * as Yup from 'yup';
 import { Formik } from 'formik'; // 1. 导入 useFormikContext
 import { useTheme } from '@mui/material/styles';
 import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import ModelLimitSelector from './ModelLimitSelector';
 import {
@@ -90,7 +91,18 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
   const { t } = useTranslation();
   const theme = useTheme();
   const userIsReliable = useIsReliable();
+  const { userGroup } = useSelector((state) => state.account);
   const [inputs, setInputs] = useState(originInputs);
+
+  // 当前值是已不可用的分组时，临时插入一个 disabled 兜底项用于回填显示，避免 MUI Select value 失配显示空白
+  const optionsWithFallback = (currentValue) => {
+    if (!currentValue || userGroupOptions.some((o) => o.value === currentValue)) {
+      return userGroupOptions;
+    }
+    const g = userGroup?.[currentValue];
+    const label = g ? `${g.name} (倍率：${g.ratio}) (不可用)` : `${currentValue} (不可用)`;
+    return [...userGroupOptions, { label, value: currentValue, disabled: true }];
+  };
   const [modelOptions, setModelOptions] = useState([]);
   const [ownedByIcons, setOwnedByIcons] = useState({});
   const fetchOwnedByIcons = async () => {
@@ -423,8 +435,8 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                       variant={'outlined'}
                     >
                       <MenuItem value="-1">跟随用户分组</MenuItem>
-                      {userGroupOptions.map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
+                      {optionsWithFallback(values.group).map((option) => (
+                        <MenuItem key={option.value} value={option.value} disabled={option.disabled}>
                           {option.label}
                         </MenuItem>
                       ))}
@@ -445,8 +457,12 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                       variant={'outlined'}
                     >
                       <MenuItem value="-1">无备用分组</MenuItem>
-                      {userGroupOptions.map((option) => (
-                        <MenuItem key={option.value} value={option.value} disabled={values.group === option.value && values.group !== ''}>
+                      {optionsWithFallback(values.backup_group).map((option) => (
+                        <MenuItem
+                          key={option.value}
+                          value={option.value}
+                          disabled={option.disabled || (values.group === option.value && values.group !== '')}
+                        >
                           {option.label}
                         </MenuItem>
                       ))}
@@ -545,8 +561,8 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                           variant={'outlined'}
                         >
                           <MenuItem value="">-</MenuItem>
-                          {userGroupOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
+                          {optionsWithFallback(values?.setting?.billing_tag).map((option) => (
+                            <MenuItem key={option.value} value={option.value} disabled={option.disabled}>
                               {option.label}
                             </MenuItem>
                           ))}
