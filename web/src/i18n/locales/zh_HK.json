@@ -439,6 +439,7 @@
     "exporting": "導出中...",
     "exportSuccess": "導出成功",
     "exportError": "導出失敗",
+    "totalCost": "總消費",
     "searchLogsInfo": "充值記錄以及邀請記錄請在日誌中查詢。充值記錄請在日誌中選擇類型【充值】查詢；邀請記錄請在日誌中選擇【系統】查詢",
     "timeLabel": "時間",
     "title": "日誌",

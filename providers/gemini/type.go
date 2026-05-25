@@ -488,10 +488,11 @@ type GeminiError struct {
 }
 
 type GeminiErrorDetails struct {
-	Type     string                 `json:"@type,omitempty"`
-	Reason   string                 `json:"reason,omitempty"`
-	Domain   string                 `json:"domain,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Type       string                 `json:"@type,omitempty"`
+	Reason     string                 `json:"reason,omitempty"`
+	Domain     string                 `json:"domain,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	RetryDelay string                 `json:"retryDelay,omitempty"`
 }
 
 func (e *GeminiError) Error() string {

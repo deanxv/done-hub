@@ -424,6 +424,7 @@
     "exporting": "导出中...",
     "exportSuccess": "导出成功",
     "exportError": "导出失败",
+    "totalCost": "总消费",
     "columnSettings": "列设置",
     "selectColumns": "选择列",
     "columnSelectAll": "全选",

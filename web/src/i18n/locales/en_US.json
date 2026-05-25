@@ -494,6 +494,7 @@
     "exporting": "Exporting...",
     "exportSuccess": "Export successful",
     "exportError": "Export failed",
+    "totalCost": "Total cost",
     "searchLogsInfo": "Please check the recharge records and invitation records in the logs. For recharge records, select the type [Recharge] in the log; for invitation records, select [System] in the log.",
     "timeLabel": "Time",
     "title": "Logs",

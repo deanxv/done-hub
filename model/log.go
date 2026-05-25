@@ -380,26 +380,31 @@ func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
 	return logs, err
 }
 
-func SumUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int) (quota int) {
+func SumUsedQuota(params *LogsListParams) (quota int) {
 	tx := DB.Table("logs").Select(assembleSumSelectStr("quota"))
-	if username != "" {
-		tx = tx.Where("username = ?", username)
+	if params.Username != "" {
+		tx = tx.Where("username = ?", params.Username)
 	}
-	if tokenName != "" {
-		tx = tx.Where("token_name = ?", tokenName)
+	if params.TokenName != "" {
+		tx = tx.Where("token_name = ?", params.TokenName)
 	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
+	if params.StartTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", params.StartTimestamp)
 	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
+	if params.EndTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", params.EndTimestamp)
 	}
-	if modelName != "" {
-		tx = tx.Where("model_name = ?", modelName)
+	if params.ModelName != "" {
+		tx = tx.Where("model_name = ?", params.ModelName)
 	}
-	if channel != 0 {
-		tx = tx.Where("channel_id = ?", channel)
+	if params.ChannelId != 0 {
+		tx = tx.Where("channel_id = ?", params.ChannelId)
 	}
+	if params.SourceIp != "" {
+		tx = tx.Where("source_ip = ?", params.SourceIp)
+	}
+	// 「总消费」按定义只统计 LogTypeConsume，调用方传入的 params.LogType 在此被有意忽略。
+	// 即便 Tab 切到「全部」（log_type=0）也只汇总消费类型，避免把充值/管理/系统日志的 quota 混进总消费。
 	tx.Where("type = ?", LogTypeConsume).Scan(&quota)
 	return quota
 }

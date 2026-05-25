@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { showError, showSuccess, trims, useIsAdmin } from 'utils/common'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { renderQuota, showError, showSuccess, trims, useIsAdmin } from 'utils/common'
 
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -20,6 +20,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Skeleton,
   Stack,
   Tab,
   Tabs,
@@ -37,6 +38,9 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import { useSelector } from 'react-redux'
 import { useLogType } from './type/LogType'
+
+// 「全部」和「消费」两个 Tab 才显示总消费汇总
+const isCostLogType = (v) => v === '0' || v === '2'
 
 export default function Log() {
   const { t } = useTranslation()
@@ -67,7 +71,14 @@ export default function Log() {
   const matchUpMd = useMediaQuery(theme.breakpoints.up('sm'))
 
   const [logs, setLogs] = useState([])
+  // null = 未加载 / 加载中（渲染为 '—'）；数字 = 已加载汇总值
+  const [totalQuota, setTotalQuota] = useState(null)
+  const statReqIdRef = useRef(0)
   const userIsAdmin = useIsAdmin()
+
+  // 取自 searchKeyword 而非 toolBarValue：与实际触发查询的数据源对齐，
+  // 避免未来如果工具栏改 log_type 不立即触发搜索时显示与列表脱节
+  const showTotalCost = isCostLogType(searchKeyword.log_type)
 
   // 添加列显示设置相关状态
   const [columnVisibility, setColumnVisibility] = useState({
@@ -205,6 +216,42 @@ export default function Log() {
     [userIsAdmin]
   )
 
+  const fetchStat = useCallback(
+    async(keyword) => {
+      const cleaned = trims(keyword)
+      if (cleaned._timestamp) delete cleaned._timestamp
+      if (!isCostLogType(cleaned.log_type)) {
+        setTotalQuota(null)
+        return
+      }
+      if (!userIsAdmin) {
+        delete cleaned.username
+        delete cleaned.channel_id
+      }
+
+      // 请求前清零（避免显示旧值），同时用 reqId 防 race：
+      // 快速切 Tab / 连点搜索时，仅最后一次发出的请求结果会被采纳
+      const reqId = ++statReqIdRef.current
+      setTotalQuota(null)
+      try {
+        const url = userIsAdmin ? '/api/log/stat' : '/api/log/self/stat'
+        const res = await API.get(url, { params: cleaned })
+        if (reqId !== statReqIdRef.current) return
+        if (res.data?.success) {
+          setTotalQuota(res.data.data?.quota || 0)
+        } else {
+          // 业务失败也要终结 Skeleton，避免用户面对永久骨架
+          setTotalQuota(0)
+        }
+      } catch (error) {
+        if (reqId !== statReqIdRef.current) return
+        setTotalQuota(0)
+        console.error(error)
+      }
+    },
+    [userIsAdmin]
+  )
+
   // 处理刷新
   const handleRefresh = async() => {
     setOrderBy('created_at')
@@ -293,6 +340,10 @@ export default function Log() {
   useEffect(() => {
     fetchData(page, rowsPerPage, searchKeyword, order, orderBy)
   }, [page, rowsPerPage, searchKeyword, order, orderBy, fetchData, refreshFlag])
+
+  useEffect(() => {
+    fetchStat(searchKeyword)
+  }, [searchKeyword, refreshFlag, fetchStat])
 
   return (
     <>
@@ -636,17 +687,75 @@ export default function Log() {
             </Table>
           </TableContainer>
         </PerfectScrollbar>
-        <TablePagination
-          page={page}
-          component="div"
-          count={listCount}
-          rowsPerPage={rowsPerPage}
-          onPageChange={handleChangePage}
-          rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          showFirstButton
-          showLastButton
-        />
+        <Box
+          sx={(theme) => ({
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'center' },
+            rowGap: 1,
+            minHeight: { xs: 'auto', sm: 56 },
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1, sm: 0 },
+            bgcolor: theme.headBackgroundColor,
+            borderTop: `1px dashed ${theme.tableBorderBottom}`
+          })}
+        >
+          {showTotalCost && (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.75}
+              sx={{ width: { xs: '100%', sm: 'auto' }, flexShrink: 0 }}
+            >
+              <Icon
+                icon="solar:dollar-minimalistic-bold-duotone"
+                width={16}
+                color={theme.palette.primary.main}
+              />
+              <Typography variant="body2" color="text.secondary">
+                {t('logPage.totalCost')}
+              </Typography>
+              <Box sx={{ flexGrow: { xs: 1, sm: 0 } }}/>
+              <Box
+                sx={{
+                  minWidth: 80,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: { xs: 'flex-end', sm: 'flex-start' }
+                }}
+              >
+                {totalQuota === null ? (
+                  <Skeleton variant="text" width="100%" sx={{ fontSize: '0.875rem' }}/>
+                ) : (
+                  <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 700 }}>
+                    {renderQuota(totalQuota, 2)}
+                  </Typography>
+                )}
+              </Box>
+            </Stack>
+          )}
+          <TablePagination
+            sx={{
+              '&.MuiTablePagination-root': {
+                ml: { xs: 0, sm: 'auto' },
+                width: { xs: '100%', sm: 'auto' },
+                minHeight: 'auto',
+                bgcolor: 'transparent',
+                borderTop: 0,
+                padding: 0
+              }
+            }}
+            page={page}
+            component="div"
+            count={listCount}
+            rowsPerPage={rowsPerPage}
+            onPageChange={handleChangePage}
+            rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            showFirstButton
+            showLastButton
+          />
+        </Box>
       </Card>
     </>
   )

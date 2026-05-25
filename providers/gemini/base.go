@@ -78,8 +78,25 @@ func getConfig(version string) base.ProviderConfig {
 // 正则表达式匹配 "Please retry in <Go duration>" 格式（支持 30s、30.5s、5m30s、11h4m11.239163367s 等）
 var retryInRegex = regexp.MustCompile(`Please retry in ([\dhm.]+s)`)
 
-// 兜底：上游有时会在数字段插入字符（如 "46.4xxxxx9107644s"），精确正则失配时退化为只抓整数秒
-var retryInFallbackRegex = regexp.MustCompile(`Please retry in (\d+)`)
+// 兜底：精确正则 retryInRegex 失配时（"in " 后出现非 [\dhm.] 字符）退化为允许 "in " 与
+// 首个数字之间出现至多 10 个非数字字符，只抓整数秒作为下界。
+//
+// 设计动机是防御性的——即便当前热路径已经把 parseRateLimitResetTime 放在 cleaningError 之前调用、
+// 不会再让本地脱敏污染 message，仍然可能在以下场景遇到 "xxxxx" 类噪声夹在 duration 字符中：
+//   - 上游或中间层 proxy 自身做了脱敏后转发
+//   - 未来重构万一调换调用顺序
+//   - 重放历史日志做诊断
+//
+// 上限 10 字符的取舍：cleaningError 替换串 "xxxxx" 是 5 字符（base.go cleaningError 实现），
+// 留余量到 10 足以覆盖；同时拒绝 "Please retry in N/A, error code 503" 这类 16 字符前缀的
+// 异常 message，避免 503 被误当冻结秒数（参见 TestParseRateLimitResetTime_RejectsLongPrefix）。
+var retryInFallbackRegex = regexp.MustCompile(`Please retry in [^\d]{0,10}(\d+)`)
+
+// Google RPC RetryInfo 的 @type 标识，详见 https://cloud.google.com/apis/design/errors#retry_info
+const googleRPCRetryInfoType = "type.googleapis.com/google.rpc.RetryInfo"
+
+// Google API 通常用 lowerCamelCase，但部分 SDK 序列化为 snake_case，两手准备
+var retryDelayMetadataKeys = []string{"retryDelay", "retry_delay"}
 
 // rateLimitResetBufferSeconds 在秒级恢复时间上额外冗余的秒数，仅用于吸收时钟漂移。
 // per_day 路径有自己的 5 分钟冗余（次日 0:05 太平洋时间硬编码），不走这里。
@@ -101,73 +118,129 @@ func RequestErrorHandle(key string) requester.HttpErrorHandler {
 
 		geminiError := &GeminiErrorResponse{}
 		if err := json.NewDecoder(resp.Body).Decode(geminiError); err == nil {
-			openAIError := errorHandle(geminiError, key)
-
-			// 解析 429 错误的冻结时间
-			if openAIError != nil && geminiError.ErrorInfo != nil && geminiError.ErrorInfo.Code == http.StatusTooManyRequests {
-				parseRateLimitResetTime(openAIError, geminiError.ErrorInfo)
-			}
-
-			return openAIError
-		} else {
-			geminiErrors := &GeminiErrors{}
-			if err := json.Unmarshal(bodyBytes, geminiErrors); err == nil {
-				geminiError := geminiErrors.Error()
-				openAIError := errorHandle(geminiError, key)
-
-				// 解析 429 错误的冻结时间
-				if openAIError != nil && geminiError.ErrorInfo.Code == http.StatusTooManyRequests {
-					parseRateLimitResetTime(openAIError, geminiError.ErrorInfo)
-				}
-
-				return openAIError
-			}
+			return buildOpenAIErrorFromGemini(geminiError, key)
+		}
+		geminiErrors := &GeminiErrors{}
+		// 长度判空：GeminiErrors.Error() 内部直接 (*e)[0]，空切片会 panic
+		if err := json.Unmarshal(bodyBytes, geminiErrors); err == nil && len(*geminiErrors) > 0 {
+			return buildOpenAIErrorFromGemini(geminiErrors.Error(), key)
 		}
 
 		return nil
 	}
 }
 
-// parseRateLimitResetTime 从错误消息中解析冻结时间
-func parseRateLimitResetTime(openAIError *types.OpenAIError, errorInfo *GeminiError) {
-	// 方式1: 匹配 "Please retry in <Go duration>" 格式
+// buildOpenAIErrorFromGemini 把 Gemini 错误响应转成统一的 OpenAIError。
+// 必须先调用 parseRateLimitResetTime（读未脱敏的 message / 结构化 Details），
+// 再走 errorHandle（内部 cleaningError 会把 message 中的 key 替换为 "xxxxx"）。
+// 顺序反了会让 429 限流被误判为永久错误。
+func buildOpenAIErrorFromGemini(geminiError *GeminiErrorResponse, key string) *types.OpenAIError {
+	var resetAt int64
+	if geminiError.ErrorInfo != nil && geminiError.ErrorInfo.Code == http.StatusTooManyRequests {
+		if v, ok := parseRateLimitResetTime(geminiError.ErrorInfo); ok {
+			resetAt = v
+		}
+	}
+	openAIError := errorHandle(geminiError, key)
+	if openAIError != nil && resetAt > 0 {
+		openAIError.RateLimitResetAt = resetAt
+	}
+	return openAIError
+}
+
+// parseRateLimitResetTime 从 Gemini 错误中解析冻结结束的 Unix 时间戳。
+//
+// 必须在 cleaningError 之前调用，否则 message 中的 API key 会被替换成 "xxxxx"，
+// 导致 "Please retry in <duration>" 文本被破坏（key 子串可能跨越 duration 字符），
+// 使后续两条 message 正则全部失配，渠道被误判为永久错误。
+//
+// 优先级：结构化 Details (RetryInfo) > message 精确正则 > message 兜底正则 > per_day 启发式。
+// 返回 (0, false) 表示无法判定，调用方应回退到默认冷却策略而非永久禁用。
+func parseRateLimitResetTime(errorInfo *GeminiError) (int64, bool) {
+	// 方式1（最稳）: 从 Google RPC RetryInfo 结构化字段抽 retryDelay
+	// 这条不依赖 message 文本，因此不受 cleaningError 影响。
+	if delay := extractRetryDelayFromDetails(errorInfo.Details); delay > 0 {
+		resetTimestamp := time.Now().Unix() + int64(math.Ceil(delay.Seconds())) + rateLimitResetBufferSeconds
+		logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected via RetryInfo, retry in: %s (+%ds buffer), reset at: %s",
+			delay, rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
+		return resetTimestamp, true
+	}
+
+	// 方式2: 精确正则匹配 "Please retry in <Go duration>"
 	if matches := retryInRegex.FindStringSubmatch(errorInfo.Message); len(matches) == 2 {
 		if duration, err := time.ParseDuration(matches[1]); err == nil {
-			// 向上取整 + 额外冗余 buffer，避免时钟漂移导致渠道一恢复就再次撞上限流
 			resetTimestamp := time.Now().Unix() + int64(math.Ceil(duration.Seconds())) + rateLimitResetBufferSeconds
-			openAIError.RateLimitResetAt = resetTimestamp
 			logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected, retry in: %s (+%ds buffer), reset at: %s",
 				matches[1], rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
-			return
+			return resetTimestamp, true
 		}
 	}
 
-	// 方式1兜底: 数字段被脱敏（如 "46.4xxxxx9107644s"），精确正则失配时只抓整数秒作为下界
+	// 方式2兜底: 数字段被脱敏（如 "xxxxx1.604730737s" / "46.4xxxxx9107644s"），只抓整数秒作为下界
 	if matches := retryInFallbackRegex.FindStringSubmatch(errorInfo.Message); len(matches) == 2 {
 		if seconds, err := strconv.Atoi(matches[1]); err == nil {
 			resetTimestamp := time.Now().Unix() + int64(seconds) + rateLimitResetBufferSeconds
-			openAIError.RateLimitResetAt = resetTimestamp
 			logger.SysLog(fmt.Sprintf("[Gemini] Rate limit detected (fallback, %ds + %ds buffer), reset at: %s",
 				seconds, rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
-			return
+			return resetTimestamp, true
 		}
 	}
 
-	// 方式2: 每日配额限制，冻结到太平洋时间次日 0:05（冗余5分钟）
+	// 方式3: 每日配额限制，冻结到太平洋时间次日 0:05（冗余5分钟）
 	if perDayQuotaRegex.MatchString(errorInfo.Message) {
 		pst, err := time.LoadLocation("America/Los_Angeles")
 		if err != nil {
 			// tzdata 缺失（如最小化容器镜像）会让 per_day 兜底完全失效，
 			// 显式打日志便于排查，避免静默吞错。
 			logger.SysError(fmt.Sprintf("[Gemini] LoadLocation(America/Los_Angeles) failed, per_day cooldown unavailable: %v", err))
-			return
+			return 0, false
 		}
 		now := time.Now().In(pst)
 		nextReset := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 5, 0, 0, pst)
-		openAIError.RateLimitResetAt = nextReset.Unix()
 		logger.SysLog(fmt.Sprintf("[Gemini] Daily quota exceeded, reset at: %s (Pacific Time)",
 			nextReset.Format(time.RFC3339)))
+		return nextReset.Unix(), true
 	}
+
+	return 0, false
+}
+
+// extractRetryDelayFromDetails 在 details 数组里找 RetryInfo 项并解析 retryDelay。
+// Google 返回的 retryDelay 既可能在顶层（少见，但 SDK 反序列化时常见），也可能在 metadata 里，
+// 因此两处都试。返回 0 表示没找到或解析失败。
+func extractRetryDelayFromDetails(details []GeminiErrorDetails) time.Duration {
+	for i := range details {
+		if details[i].Type != googleRPCRetryInfoType {
+			continue
+		}
+		if details[i].RetryDelay != "" {
+			if d, err := parseRetryDelayString(details[i].RetryDelay); err == nil && d > 0 {
+				return d
+			}
+		}
+		for _, key := range retryDelayMetadataKeys {
+			if v, ok := details[i].Metadata[key]; ok {
+				if s, ok := v.(string); ok {
+					if d, err := parseRetryDelayString(s); err == nil && d > 0 {
+						return d
+					}
+				}
+			}
+		}
+	}
+	return 0
+}
+
+// parseRetryDelayString 接受 Go duration 字符串（"1.6s"）或纯秒数字符串（"1.6"），
+// 后者来自部分 Google API 响应里 retryDelay 不带单位的情况。
+func parseRetryDelayString(s string) (time.Duration, error) {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d, nil
+	}
+	if secs, err := strconv.ParseFloat(s, 64); err == nil {
+		return time.Duration(secs * float64(time.Second)), nil
+	}
+	return 0, fmt.Errorf("unrecognized retryDelay format: %q", s)
 }
 
 // 错误处理
