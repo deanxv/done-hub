@@ -737,15 +737,19 @@ func OpenAIToGeminiChatContent(openaiContents []types.ChatCompletionMessage) ([]
 			for _, openaiPart := range openaiMessagePart {
 				// 处理 thinking 和 redacted_thinking 类型
 				if openaiPart.Type == "thinking" || openaiPart.Type == "redacted_thinking" {
+					// 仅当客户端给出"看起来像 round-trip 回来的 Gemini thoughtSignature"
+					// （>= minThoughtSignatureLength）才透传。
+					// 历史代码会在签名缺失/过短时填入 "skip_thought_signature_validator" 哨兵，
+					// 该哨兵只对 Antigravity 网关有效，官方 Gemini / Vertex 会以 400
+					// "Function call is missing a thought_signature" 拒绝请求；
+					// Antigravity 自有 providers/antigravity/chat.go 的 applyThinkingSignatureSentinel
+					// 路径在 OpenAI 转换之后再注入，无需在此兜底。
 					sig := openaiPart.ThinkingSignature
-					// 签名缺失或长度不足时注入哨兵值，让 Gemini 跳过签名校验；
-					// 合法的 Gemini 签名（round-trip 回来的）长度 >= 50，原样透传
-					if sig == "" || len(sig) < minThoughtSignatureLength {
-						sig = skipThoughtSignatureValidator
-					}
 					var sigField json.RawMessage
-					if sigBytes, err := json.Marshal(sig); err == nil {
-						sigField = sigBytes
+					if len(sig) >= minThoughtSignatureLength {
+						if sigBytes, err := json.Marshal(sig); err == nil {
+							sigField = sigBytes
+						}
 					}
 					content.Parts = append(content.Parts, GeminiPart{
 						Text:             openaiPart.Thinking,

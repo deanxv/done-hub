@@ -223,26 +223,12 @@ func CleanGeminiRequestMap(data map[string]interface{}, isVertexAI bool) {
 								}
 							}
 
-							// 为 model 角色的 thought/functionCall part 注入 thoughtSignature 哨兵值
-							if role, _ := contentMap["role"].(string); role == "model" {
-								needsSig := false
-								if thought, _ := partMap["thought"].(bool); thought {
-									needsSig = true
-								}
-								if _, has := partMap["functionCall"]; has {
-									needsSig = true
-								}
-								if _, has := partMap["function_call"]; has {
-									needsSig = true
-								}
-
-								if needsSig {
-									existingSig, _ := partMap["thoughtSignature"].(string)
-									if existingSig == "" || len(existingSig) < minThoughtSignatureLength {
-										partMap["thoughtSignature"] = skipThoughtSignatureValidator
-									}
-								}
-							}
+							// 历史曾在此为 model 角色的 thought/functionCall part 注入哨兵
+							// "skip_thought_signature_validator"——目的是绕过 Antigravity 网关签名校验，
+							// 但官方 Gemini / Vertex 不识别此哨兵会以 400 "Function call is missing a
+							// thought_signature" 拒绝请求。Antigravity 路径自有
+							// providers/antigravity/chat.go 的 applyThinkingSignatureSentinel 注入，
+							// 无需在此重复；合法签名的透传由 OpenAIToGeminiChatContent (type.go) 负责。
 						}
 					}
 				}
