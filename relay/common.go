@@ -540,9 +540,20 @@ func shouldRetryBadRequest(channelType int, apiErr *types.OpenAIErrorWithStatusC
 	case config.ChannelTypeBedrock:
 		return strings.Contains(apiErr.OpenAIError.Message, "Operation not allowed")
 	default:
-		// gemini
-		if apiErr.OpenAIError.Param == "INVALID_ARGUMENT" && strings.Contains(apiErr.OpenAIError.Message, "API key not valid") {
-			return true
+		// gemini: 单渠道密钥失效属于"该渠道的问题"，应继续重试其他渠道而不是终止整条链。
+		// 上游已知的 message 变体（大小写不统一，故全部 ToLower 后匹配）：
+		//   - "API key not valid. Please pass a valid API key."
+		//   - "API Key not found. Please pass a valid API key."
+		//   - "API key expired. Please renew the API key."
+		// 注意：reason=API_KEY_INVALID 来自 errorInfo.Details[].Reason，不会进 Message，
+		// 因此这里只匹配 Message 文案，不要尝试匹配 reason 字符串。
+		if apiErr.OpenAIError.Param == "INVALID_ARGUMENT" {
+			msg := strings.ToLower(apiErr.OpenAIError.Message)
+			if strings.Contains(msg, "api key not valid") ||
+				strings.Contains(msg, "api key not found") ||
+				strings.Contains(msg, "api key expired") {
+				return true
+			}
 		}
 		return false
 	}

@@ -102,6 +102,16 @@ func Relay(c *gin.Context) {
 		c.Set("first_non_auth_error", apiErr)
 	}
 
+	// breakReason 区分循环退出原因，避免最终日志一律打成 retry_exhausted 而产生误导。
+	// 默认值 "exhausted" 表示循环自然跑完（真的把可用渠道用完了）。
+	// 注意：done==true 或 shouldRetry==false 触发的早跳过路径上方会把 retryTimes 置 0，
+	// 导致 actualRetryTimes=0，循环根本不进入；此时若不预置 "skipped"，最终会落到
+	// "retry_exhausted reason=exhausted actual_max_retries=0" 的自相矛盾日志。
+	breakReason := "exhausted"
+	if actualRetryTimes == 0 {
+		breakReason = "skipped"
+	}
+
 	for i := actualRetryTimes; i > 0; i-- {
 		// 冻结通道并记录是否应用了冷却
 		cooldownApplied := shouldCooldowns(c, channel, apiErr)
@@ -110,12 +120,14 @@ func Relay(c *gin.Context) {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("retry_timeout model=%s channel_id=%d elapsed_time=%.2fs timeout=%.2fs",
 				modelName, channel.Id, time.Since(startTime).Seconds(), timeout.Seconds()))
 			apiErr = common.StringErrorWrapperLocal("重试超时，上游负载已饱和，请稍后再试", "system_error", http.StatusTooManyRequests)
+			breakReason = "timeout"
 			break
 		}
 
 		if err := relay.setProvider(relay.getOriginalModel()); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("retry_provider_error model=%s channel_id=%d error=\"%s\"",
 				modelName, channel.Id, err.Error()))
+			breakReason = "provider_error"
 			break
 		}
 
@@ -161,15 +173,20 @@ func Relay(c *gin.Context) {
 		if done || !shouldRetry(c, apiErr, channel.Type) {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("retry_stop_condition model=%s channel_id=%d attempt=%d/%d done=%t should_retry=%t",
 				modelName, channel.Id, attemptCount, actualRetryTimes, done, shouldRetry(c, apiErr, channel.Type)))
+			breakReason = "stop_condition"
 			break
 		}
 	}
 
-	// 记录最终失败
+	// 记录最终失败：循环自然跑完用 retry_exhausted，中途 break 用 retry_aborted + reason
 	finalAttempt := c.GetInt("attempt_count")
 	actualRetryTimes = c.GetInt("actual_retry_times")
-	logger.LogError(c.Request.Context(), fmt.Sprintf("retry_exhausted model=%s channel_id=%d total_attempts=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d error=\"%s\"",
-		modelName, channel.Id, finalAttempt, c.GetInt("total_channels_at_start"), retryTimes, actualRetryTimes, apiErr.StatusCode, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
+	finalLogTag := "retry_exhausted"
+	if breakReason != "exhausted" {
+		finalLogTag = "retry_aborted"
+	}
+	logger.LogError(c.Request.Context(), fmt.Sprintf("%s reason=%s model=%s channel_id=%d total_attempts=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d error=\"%s\"",
+		finalLogTag, breakReason, modelName, channel.Id, finalAttempt, c.GetInt("total_channels_at_start"), retryTimes, actualRetryTimes, apiErr.StatusCode, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
 	if apiErr != nil {
 		// 确保 channel_type 存在，用于 FilterOpenAIErr 正确过滤错误

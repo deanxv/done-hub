@@ -30,6 +30,8 @@ You exceeded your current quota
 Permission denied
 Quota exceeded for quota metric
 API key not valid
+API Key not found
+API key expired
 The security token included in the request is invalid
 Operation not allowed
 Your account is not authorized
