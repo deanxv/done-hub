@@ -92,6 +92,13 @@ func RedisDel(key string) error {
 	return RDB.Del(ctx, key).Err()
 }
 
+// RedisSetNX 尝试设置一个带过期时间的 key，仅当 key 不存在时成功。
+// 返回 true 表示当前调用者抢到，false 表示已被别的节点占住，可用于跨节点单次操作去重。
+func RedisSetNX(key, value string, expiration time.Duration) (bool, error) {
+	ctx := context.Background()
+	return RDB.SetNX(ctx, key, value, expiration).Result()
+}
+
 func RedisDecrease(key string, value int64) error {
 	ctx := context.Background()
 	return RDB.DecrBy(ctx, key, value).Err()

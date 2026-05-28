@@ -5,6 +5,7 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/notify"
+	"done-hub/common/redis"
 	"done-hub/model"
 	"done-hub/types"
 	"fmt"
@@ -17,6 +18,28 @@ import (
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
+
+// disableNotifyDedupTTL 控制"渠道自动禁用通知"在跨节点之间的去重窗口。
+// 一次禁用动作在各节点上的并发抖动通常在秒级，5 分钟足够覆盖，
+// 又不会长到让人为重新禁用的二次通知被吞掉。
+const disableNotifyDedupTTL = 5 * time.Minute
+
+// shouldSendChannelDisableNotify 跨节点对"渠道自动禁用"通知去重：
+// 第一个 SETNX 成功的节点发邮件，其余节点静默。
+// Redis 未启用时跳过去重（同节点重复触发由 disableGroup singleflight 兜底）。
+// SETNX 抖动失败时宁可多发也不静默丢。
+func shouldSendChannelDisableNotify(channelId int) bool {
+	if !config.RedisEnabled {
+		return true
+	}
+	key := fmt.Sprintf("notify_lock:channel_disable:%d", channelId)
+	ok, err := redis.RedisSetNX(key, "1", disableNotifyDedupTTL)
+	if err != nil {
+		logger.SysError(fmt.Sprintf("notify dedup SETNX failed (channel=%d): %v", channelId, err))
+		return true
+	}
+	return ok
+}
 
 var disableGroup singleflight.Group
 
@@ -119,8 +142,8 @@ func DisableChannel(channelId int, channelName string, reason string, sendNotify
 		// 执行禁用操作
 		model.UpdateChannelStatusById(channelId, config.ChannelStatusAutoDisabled)
 
-		// 发送通知
-		if sendNotify {
+		// 发送通知：受全局开关控制，并通过 SETNX 在多节点间去重。
+		if sendNotify && config.AutomaticDisableChannelNotifyEnabled && shouldSendChannelDisableNotify(channelId) {
 			subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelName, channelId)
 			content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelName, channelId, reason)
 			notify.Send(subject, content)

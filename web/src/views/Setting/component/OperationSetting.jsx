@@ -48,6 +48,7 @@ const OperationSetting = () => {
     QuotaPerUnit: 0,
     AutomaticDisableChannelEnabled: 'false',
     AutomaticEnableChannelEnabled: 'false',
+    AutomaticDisableChannelNotifyEnabled: 'true',
     ChannelDisableThreshold: 0,
     LogConsumeEnabled: 'true',
     DisplayInCurrencyEnabled: 'false',
@@ -869,6 +870,17 @@ const OperationSetting = () => {
                 checked={dataLoaded ? inputs.AutomaticEnableChannelEnabled === 'true' : false}
                 onChange={handleInputChange}
                 name="AutomaticEnableChannelEnabled"
+                disabled={!dataLoaded || loading}
+              />
+            }
+          />
+          <FormControlLabel
+            label={t('setting_index.operationSettings.monitoringSettings.automaticDisableChannelNotify')}
+            control={
+              <Checkbox
+                checked={dataLoaded ? inputs.AutomaticDisableChannelNotifyEnabled === 'true' : false}
+                onChange={handleInputChange}
+                name="AutomaticDisableChannelNotifyEnabled"
                 disabled={!dataLoaded || loading}
               />
             }

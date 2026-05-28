@@ -914,6 +914,7 @@
         },
         "automaticDisableChannel": "失败时自动禁用通道",
         "automaticEnableChannel": "成功时自动启用通道",
+        "automaticDisableChannelNotify": "自动禁用通道时发送通知",
         "saveMonitoringSettings": "保存监控设置"
       },
       "quotaSettings": {

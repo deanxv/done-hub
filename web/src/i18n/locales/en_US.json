@@ -974,6 +974,7 @@
       "monitoringSettings": {
         "automaticDisableChannel": "Automatically Disable Channel on Failure",
         "automaticEnableChannel": "Automatically Enable Channel on Success",
+        "automaticDisableChannelNotify": "Send Notification on Automatic Channel Disable",
         "channelDisableThreshold": {
           "label": "Maximum Response Time",
           "placeholder": "In seconds, if all running channels exceed this time, the channel will be automatically disabled"

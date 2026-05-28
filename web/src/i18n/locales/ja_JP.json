@@ -913,6 +913,7 @@
       "monitoringSettings": {
         "automaticDisableChannel": "失敗時にチャネルを自動無効化",
         "automaticEnableChannel": "成功時にチャネルを自動有効化",
+        "automaticDisableChannelNotify": "チャネル自動無効化時に通知を送信",
         "channelDisableThreshold": {
           "label": "最大応答時間",
           "placeholder": "秒単位、全ての実行チャネルがこの時間を超えると、チャネルは自動的に無効になります"

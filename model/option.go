@@ -41,6 +41,7 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterBool("RegisterEnabled", &config.RegisterEnabled)
 	config.GlobalOption.RegisterBool("AutomaticDisableChannelEnabled", &config.AutomaticDisableChannelEnabled)
 	config.GlobalOption.RegisterBool("AutomaticEnableChannelEnabled", &config.AutomaticEnableChannelEnabled)
+	config.GlobalOption.RegisterBool("AutomaticDisableChannelNotifyEnabled", &config.AutomaticDisableChannelNotifyEnabled)
 	config.GlobalOption.RegisterBool("ApproximateTokenEnabled", &config.ApproximateTokenEnabled)
 	config.GlobalOption.RegisterBool("LogConsumeEnabled", &config.LogConsumeEnabled)
 	config.GlobalOption.RegisterBool("EmptyResponseBillingEnabled", &config.EmptyResponseBillingEnabled)
