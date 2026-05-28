@@ -4,6 +4,9 @@ import (
 	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
+	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -102,6 +105,36 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterFloat("QuotaPerUnit", &config.QuotaPerUnit)
 	config.GlobalOption.RegisterInt("RetryTimes", &config.RetryTimes)
 	config.GlobalOption.RegisterInt("RetryCooldownSeconds", &config.RetryCooldownSeconds)
+	config.GlobalOption.RegisterCustom("RetryCooldownPerStatus", func() string {
+		return config.RetryCooldownPerStatus
+	}, func(value string) error {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			config.RetryCooldownPerStatus = ""
+			config.SetRetryCooldownPerStatusMap(map[int]int{})
+			return nil
+		}
+		// Accept both `{"503":120}` and `{"503":"120"}` forms; reject anything else.
+		raw := map[string]json.Number{}
+		if err := json.Unmarshal([]byte(trimmed), &raw); err != nil {
+			return fmt.Errorf("RetryCooldownPerStatus must be a JSON object of status->seconds: %w", err)
+		}
+		parsed := make(map[int]int, len(raw))
+		for k, v := range raw {
+			code, err := strconv.Atoi(strings.TrimSpace(k))
+			if err != nil || code < 100 || code > 599 {
+				return fmt.Errorf("invalid status code %q (must be 100-599)", k)
+			}
+			secs, err := v.Int64()
+			if err != nil || secs < 0 {
+				return fmt.Errorf("invalid cooldown for status %s: %q (must be non-negative integer)", k, v.String())
+			}
+			parsed[code] = int(secs)
+		}
+		config.RetryCooldownPerStatus = trimmed
+		config.SetRetryCooldownPerStatusMap(parsed)
+		return nil
+	}, "")
 
 	config.GlobalOption.RegisterBool("MjNotifyEnabled", &config.MjNotifyEnabled)
 	config.GlobalOption.RegisterBool("BuiltinChatEnabled", &config.BuiltinChatEnabled)

@@ -254,34 +254,53 @@ func RelayHandler(relay RelayBaseInterface) (err *types.OpenAIErrorWithStatusCod
 func shouldCooldowns(c *gin.Context, channel *model.Channel, apiErr *types.OpenAIErrorWithStatusCode) bool {
 	modelName := c.GetString("new_model")
 	channelId := channel.Id
-	cooldownApplied := false
+	statusCode := apiErr.StatusCode
 
-	// 如果是频率限制，冻结通道
-	if apiErr.StatusCode == http.StatusTooManyRequests {
-		// 检查是否有响应头中的冻结时间（如 ClaudeCode 的 anthropic-ratelimit-unified-reset）
-		if apiErr.RateLimitResetAt > 0 {
-			// 使用响应头中的冻结时间
-			nowTime := time.Now().Unix()
-			durationSeconds := apiErr.RateLimitResetAt - nowTime
-			if durationSeconds > 0 {
-				model.ChannelGroup.SetCooldownsWithDuration(channelId, modelName, durationSeconds)
-				cooldownApplied = true
-				logger.LogWarn(c.Request.Context(), fmt.Sprintf("channel_cooldown channel_id=%d model=\"%s\" duration=%ds reason=\"rate_limit\" reset_at=%s",
-					channelId, modelName, durationSeconds, time.Unix(apiErr.RateLimitResetAt, 0).Format(time.RFC3339)))
-			} else {
-				// 冻结时间已过，使用默认冻结时间
-				model.ChannelGroup.SetCooldowns(channelId, modelName)
-				cooldownApplied = true
-				logger.LogWarn(c.Request.Context(), fmt.Sprintf("channel_cooldown channel_id=%d model=\"%s\" duration=%ds reason=\"rate_limit\"",
-					channelId, modelName, config.RetryCooldownSeconds))
-			}
+	// 决定冻结时长（秒）。优先级：
+	//   1. 上游返回的精确恢复时间（RateLimitResetAt，如 Gemini retryDelay / anthropic-ratelimit-unified-reset）
+	//   2. 管理员配置的按状态码冻结时长（RetryCooldownPerStatus）
+	//   3. 全局兜底 RetryCooldownSeconds，仅对 429 启用以保持向后兼容
+	//
+	// 任何一步算出 duration <= 0 都视为"不冻结"，直接跳过 channel 而不冻它。
+	//
+	// 注意：RateLimitResetAt 是对任何状态码生效的——provider 只应在拿到上游精确的
+	// Retry-After 信号时设置此字段，详见 types/common.go 上的字段注释。
+	var duration int64
+	var reason string
+
+	if apiErr.RateLimitResetAt > 0 {
+		nowTime := time.Now().Unix()
+		duration = apiErr.RateLimitResetAt - nowTime
+		if duration > 0 {
+			reason = "upstream_retry_after"
 		} else {
-			// 没有响应头中的冻结时间，使用配置中的默认冻结时间
-			model.ChannelGroup.SetCooldowns(channelId, modelName)
-			cooldownApplied = true
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("channel_cooldown channel_id=%d model=\"%s\" duration=%ds reason=\"rate_limit\"",
-				channelId, modelName, config.RetryCooldownSeconds))
+			// 上游告诉的时间已过，落到下一级配置
+			duration = 0
 		}
+	}
+
+	if duration <= 0 {
+		if secs, ok := config.GetRetryCooldownForStatus(statusCode); ok {
+			duration = int64(secs)
+			reason = fmt.Sprintf("per_status_%d", statusCode)
+		} else if statusCode == http.StatusTooManyRequests {
+			duration = int64(config.RetryCooldownSeconds)
+			reason = "rate_limit"
+		}
+	}
+
+	if duration > 0 {
+		model.ChannelGroup.SetCooldownsWithDuration(channelId, modelName, duration)
+		extra := ""
+		if apiErr.RateLimitResetAt > 0 && reason == "upstream_retry_after" {
+			extra = fmt.Sprintf(" reset_at=%s", time.Unix(apiErr.RateLimitResetAt, 0).Format(time.RFC3339))
+		}
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("channel_cooldown channel_id=%d model=\"%s\" status_code=%d duration=%ds reason=\"%s\"%s",
+			channelId, modelName, statusCode, duration, reason, extra))
+	} else if reason != "" {
+		// 配置命中（如 per-status=0）但显式不冻结。打日志方便线上排查"为什么没冷却"。
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("channel_cooldown_skipped channel_id=%d model=\"%s\" status_code=%d reason=\"%s\"",
+			channelId, modelName, statusCode, reason))
 	}
 
 	skipChannelIds, ok := utils.GetGinValue[[]int](c, "skip_channel_ids")
@@ -292,7 +311,7 @@ func shouldCooldowns(c *gin.Context, channel *model.Channel, apiErr *types.OpenA
 	skipChannelIds = append(skipChannelIds, channelId)
 	c.Set("skip_channel_ids", skipChannelIds)
 
-	return cooldownApplied
+	return duration > 0
 }
 
 // applies pre-mapping before setRequest to ensure modifications take effect

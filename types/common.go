@@ -154,7 +154,12 @@ type OpenAIError struct {
 	InnerError any    `json:"innererror,omitempty"`
 
 	// RateLimitResetAt 限流重置时间（Unix 时间戳，秒）
-	// 用于存储从响应头中解析的冻结时间（如 anthropic-ratelimit-unified-reset）
+	// 用于存储从响应头/响应体中解析的冻结时间（如 anthropic-ratelimit-unified-reset、Gemini retryDelay）。
+	//
+	// 约定：provider **仅在拿到上游精确的 Retry-After 信号时**才应设置此字段，不要凭状态码或
+	// 经验值伪造。relay/main.go:shouldCooldowns 把它作为"上游已明确告诉何时再来"的信号，
+	// 优先级高于管理员配置的 RetryCooldownPerStatus 和全局 RetryCooldownSeconds。
+	// 任何状态码都会读取该字段——若 provider 误填，会导致非 429 路径也基于错的时间冷却。
 	RateLimitResetAt int64 `json:"-"`
 }
 

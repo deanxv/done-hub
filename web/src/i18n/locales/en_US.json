@@ -942,6 +942,20 @@
           "label": "Retry Cooldown (seconds)",
           "placeholder": "Retry cooldown (seconds)"
         },
+        "retryCooldownPerStatus": {
+          "title": "Per-Status Cooldown",
+          "description": "Freeze granularity: channel + model. Priority: upstream retryDelay > per-status > retry cooldown (429 only).",
+          "openTooltip": "Configure per-status cooldown",
+          "customHelper": "Seconds = 0 means do not freeze, just skip for the current request",
+          "statusCodeLabel": "Status Code",
+          "secondsLabel": "Cooldown (s)",
+          "delete": "Delete",
+          "addRule": "+ Add Rule",
+          "close": "Close",
+          "invalidStatusCode": "Status code \"{{code}}\" must be an integer between 100 and 599",
+          "invalidSeconds": "Cooldown seconds for status {{code}} must be a non-negative integer",
+          "duplicateStatusCode": "Status code {{code}} is duplicated; each status code can only be configured once"
+        },
         "retryTimes": {
           "label": "Retry Times",
           "placeholder": "Number of retries"

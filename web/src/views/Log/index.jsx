@@ -74,6 +74,10 @@ export default function Log() {
   // null = 未加载 / 加载中（渲染为 '—'）；数字 = 已加载汇总值
   const [totalQuota, setTotalQuota] = useState(null)
   const statReqIdRef = useRef(0)
+  // dataReqIdRef: fetchData 的"最新请求 id"，同 statReqIdRef 模式防 race。
+  // 之前 searchLogs 删了 if (searching) return 守卫，回车连按或点击连按会发起多个并行 fetchData，
+  // 旧响应到达晚于新响应时会用过时数据覆盖 listCount/logs。
+  const dataReqIdRef = useRef(0)
   const userIsAdmin = useIsAdmin()
 
   // 取自 searchKeyword 而非 toolBarValue：与实际触发查询的数据源对齐，
@@ -147,12 +151,7 @@ export default function Log() {
     savePageSize('log', newRowsPerPage)
   }
 
-  const searchLogs = async() => {
-    // 如果正在搜索中，防止重复提交
-    if (searching) {
-      return
-    }
-
+  const searchLogs = () => {
     setPage(0)
     // 使用时间戳来确保即使搜索条件相同也能触发重新搜索
     const searchPayload = {
@@ -175,6 +174,7 @@ export default function Log() {
 
   const fetchData = useCallback(
     async(page, rowsPerPage, keyword, order, orderBy) => {
+      const reqId = ++dataReqIdRef.current
       setSearching(true)
       keyword = trims(keyword)
 
@@ -201,6 +201,8 @@ export default function Log() {
             ...keyword
           }
         })
+        // 过期响应直接丢弃，不污染 list / searching state
+        if (reqId !== dataReqIdRef.current) return
         const { success, message, data } = res.data
         if (success) {
           setListCount(data.total_count)
@@ -209,9 +211,15 @@ export default function Log() {
           showError(message)
         }
       } catch (error) {
+        if (reqId !== dataReqIdRef.current) return
         console.error(error)
+      } finally {
+        // 仅当当前请求仍是最新请求时才清掉 searching；
+        // 否则后到的旧响应会把刚刚因新请求设的 searching=true 错误地清零。
+        if (reqId === dataReqIdRef.current) {
+          setSearching(false)
+        }
       }
-      setSearching(false)
     },
     [userIsAdmin]
   )

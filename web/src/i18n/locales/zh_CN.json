@@ -856,6 +856,20 @@
           "label": "重试间隔(秒)",
           "placeholder": "重试间隔(秒)"
         },
+        "retryCooldownPerStatus": {
+          "title": "按状态码自定义冻结时间",
+          "description": "按渠道+模型粒度冻结。优先级：上游 retryDelay > 按状态码 > 重试间隔（仅 429）。",
+          "openTooltip": "按状态码自定义",
+          "customHelper": "秒数填 0 = 不冻结，仅跳过当前请求",
+          "statusCodeLabel": "状态码",
+          "secondsLabel": "冻结秒数",
+          "delete": "删除",
+          "addRule": "+ 添加规则",
+          "close": "关闭",
+          "invalidStatusCode": "状态码 \"{{code}}\" 必须是 100-599 之间的整数",
+          "invalidSeconds": "状态码 {{code}} 的冻结秒数必须是非负整数",
+          "duplicateStatusCode": "状态码 {{code}} 重复，每个状态码只能配置一次"
+        },
         "retryTimeOut": {
           "label": "重试超时时间(秒)",
           "placeholder": "重试超时时间(秒)"

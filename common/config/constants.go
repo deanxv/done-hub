@@ -1,6 +1,7 @@
 package config
 
 import (
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -211,6 +212,34 @@ var ModelNameCaseInsensitiveEnabled = false
 
 var DefaultChannelWeight = uint(1)
 var RetryCooldownSeconds = 5
+
+// RetryCooldownPerStatus stores the JSON source of per-status cooldown overrides,
+// e.g. {"503":120,"502":60}. The parsed map is held in retryCooldownPerStatusMap
+// and accessed via GetRetryCooldownForStatus.
+var RetryCooldownPerStatus = ""
+
+var (
+	retryCooldownPerStatusMap  = map[int]int{}
+	retryCooldownPerStatusLock sync.RWMutex
+)
+
+// SetRetryCooldownPerStatusMap replaces the in-memory map. Called by the option
+// setter after parsing the JSON payload.
+func SetRetryCooldownPerStatusMap(m map[int]int) {
+	retryCooldownPerStatusLock.Lock()
+	defer retryCooldownPerStatusLock.Unlock()
+	retryCooldownPerStatusMap = m
+}
+
+// GetRetryCooldownForStatus returns (seconds, configured). configured=false means
+// the caller should fall through to RetryCooldownSeconds (or skip cooldown entirely
+// depending on the caller's policy).
+func GetRetryCooldownForStatus(statusCode int) (int, bool) {
+	retryCooldownPerStatusLock.RLock()
+	defer retryCooldownPerStatusLock.RUnlock()
+	v, ok := retryCooldownPerStatusMap[statusCode]
+	return v, ok
+}
 
 var CFWorkerImageUrl = ""
 var CFWorkerImageKey = ""

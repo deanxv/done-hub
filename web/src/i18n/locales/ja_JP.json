@@ -885,6 +885,20 @@
           "label": "リトライ間隔（秒）",
           "placeholder": "リトライ間隔（秒）"
         },
+        "retryCooldownPerStatus": {
+          "title": "ステータスコード別の凍結時間",
+          "description": "チャネル+モデル単位で凍結。優先順位：上流 retryDelay > ステータスコード別 > リトライ間隔（429 のみ）。",
+          "openTooltip": "ステータスコード別を設定",
+          "customHelper": "秒数 0 = 凍結しない（現リクエストのみスキップ）",
+          "statusCodeLabel": "ステータスコード",
+          "secondsLabel": "凍結秒数",
+          "delete": "削除",
+          "addRule": "+ ルールを追加",
+          "close": "閉じる",
+          "invalidStatusCode": "ステータスコード \"{{code}}\" は 100〜599 の整数である必要があります",
+          "invalidSeconds": "ステータス {{code}} の凍結秒数は 0 以上の整数である必要があります",
+          "duplicateStatusCode": "ステータスコード {{code}} が重複しています。各コードは 1 つだけ設定できます"
+        },
         "retryTimes": {
           "label": "リトライ回数",
           "placeholder": "リトライ回数"

@@ -893,6 +893,20 @@
           "label": "重試間隔(秒)",
           "placeholder": "重試間隔(秒)"
         },
+        "retryCooldownPerStatus": {
+          "title": "按狀態碼自訂凍結時間",
+          "description": "按渠道+模型粒度凍結。優先級：上游 retryDelay > 按狀態碼 > 重試間隔（僅 429）。",
+          "openTooltip": "按狀態碼自訂",
+          "customHelper": "秒數填 0 = 不凍結，僅跳過當前請求",
+          "statusCodeLabel": "狀態碼",
+          "secondsLabel": "凍結秒數",
+          "delete": "刪除",
+          "addRule": "+ 新增規則",
+          "close": "關閉",
+          "invalidStatusCode": "狀態碼 \"{{code}}\" 必須是 100-599 之間的整數",
+          "invalidSeconds": "狀態碼 {{code}} 的凍結秒數必須是非負整數",
+          "duplicateStatusCode": "狀態碼 {{code}} 重複，每個狀態碼只能配置一次"
+        },
         "retryTimes": {
           "label": "重試次數",
           "placeholder": "重試次數"
