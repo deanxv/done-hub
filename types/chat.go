@@ -653,3 +653,34 @@ func (c *ChatCompletionRequest) ToResponsesRequest() *OpenAIResponsesRequest {
 
 	return res
 }
+
+// ToImageRequest 把 chat completions 请求降级成 image generations 请求。
+// 仅在客户端把图像生成模型当 chat 模型用时调用——这种用法本身偏离 OpenAI 协议，
+// 我们按 messages 最后一条非空 user message 的文本作 prompt，丢弃 system/tool/multi-part 等
+// chat 协议独有的语义，与 new-api 在渠道层降级时的行为一致。
+//
+// 回退到上一条 user message：覆盖多轮 chat 客户端把最后一条 user 消息作占位（empty content）
+// 推 turn 流转的常见模式；若上游协议希望"空 prompt 直接 400"，此处会改在 compatibleSendImage
+// 入口判 Prompt=="" 返回 invalid_request_error。
+//
+// 不设 Model：调用方负责用映射后模型名喂上游，让本函数只承担"chat → image 协议形态转换"。
+// N 硬编码 1：chat 的 n（completions 数）与 image 的 n（图像数）语义不同，从 chat 入口走降级
+// 路径的客户端也无法表达"要多张图"，强制 1 是最安全的默认。
+func (c *ChatCompletionRequest) ToImageRequest() *ImageRequest {
+	req := &ImageRequest{
+		N:    1,
+		User: c.User,
+	}
+
+	for i := len(c.Messages) - 1; i >= 0; i-- {
+		if c.Messages[i].Role != ChatMessageRoleUser {
+			continue
+		}
+		req.Prompt = c.Messages[i].StringContent()
+		if req.Prompt != "" {
+			break
+		}
+	}
+
+	return req
+}

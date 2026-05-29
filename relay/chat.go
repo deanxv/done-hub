@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -90,6 +91,20 @@ var need2Response = map[string]bool{
 }
 
 func (r *relayChat) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
+	// 图像生成模型走 chat 入口是非标用法，按 chat 协议处理会把上游 base64 当文本反算成百万级 token、
+	// 计费爆炸；对齐 new-api 渠道降级行为，在 chat 入口分流到 image generations 协议。
+	// 同时查映射后名与原始名，避免渠道做了模型重命名时漏判。
+	if types.IsImageGenerationModel(r.modelName) || types.IsImageGenerationModel(r.getOriginalModel()) {
+		if imgProvider, ok := r.provider.(providersBase.ImageGenerationsInterface); ok {
+			return r.compatibleSendImage(imgProvider)
+		}
+		err = common.StringErrorWrapperLocal(
+			"channel does not support image generations for image model",
+			"channel_error", http.StatusServiceUnavailable)
+		done = true
+		return
+	}
+
 	if need2Response[r.modelName] {
 		resProvider, ok := r.provider.(providersBase.ResponsesInterface)
 		if ok {
@@ -179,6 +194,166 @@ func (r *relayChat) getUsageResponse() string {
 	}
 
 	return ""
+}
+
+// compatibleSendImage 把 chat completions 请求降级到 image generations 协议调上游，
+// 并把上游返回的 image response 包装回 chat completions 响应（或 SSE）发给客户端。
+// 对齐 new-api 在渠道层降级后由 image_handler 路径处理的形态——upstream usage 是真实的
+// input/output image tokens，prompt 也按 image 协议口径算，不再走 chat 文本 tokenize。
+func (r *relayChat) compatibleSendImage(provider providersBase.ImageGenerationsInterface) (err *types.OpenAIErrorWithStatusCode, done bool) {
+	imgReq := r.chatRequest.ToImageRequest()
+	imgReq.Model = r.modelName
+
+	if imgReq.Prompt == "" {
+		err = common.StringErrorWrapperLocal(
+			"no user message with text content found; image generation requires a prompt",
+			"invalid_request_error", http.StatusBadRequest)
+		done = true
+		return
+	}
+
+	// 协议降级后真正的 prompt 只是最后一条 user 文本，不是整个 messages。在 provider 调上游前
+	// 显式用 image 协议口径覆盖 PromptTokens，避免 provider 不覆写 usage 时按 CountTokenMessages
+	// 算出来的 chat 风格 token 被持续误算到客户。OpenAI 系 provider 会再用上游 usage 整段覆盖，
+	// 此处对它无副作用；对其它不覆写 PromptTokens 的 provider 起防御作用。
+	r.provider.GetUsage().PromptTokens = common.CountTokenText(imgReq.Prompt, r.modelName)
+
+	response, err := provider.CreateImageGenerations(imgReq)
+	if err != nil {
+		return
+	}
+
+	if r.heartbeat != nil {
+		r.heartbeat.Stop()
+	}
+
+	r.SetFirstResponseTime(time.Now())
+
+	images := chatImagesFromImageResponse(response)
+
+	if r.chatRequest.Stream {
+		writeImageChatStream(r.c, r.modelName, images, r.getUsageResponse())
+	} else {
+		err = responseJsonClient(r.c, buildImageChatResponse(r.modelName, images, r.provider.GetUsage()))
+	}
+
+	if err != nil {
+		done = true
+	}
+	return
+}
+
+func chatImagesFromImageResponse(resp *types.ImageResponse) []types.ChatMessagePart {
+	if resp == nil {
+		return nil
+	}
+	images := make([]types.ChatMessagePart, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		url := d.URL
+		if url == "" && d.B64JSON != "" {
+			url = "data:" + sniffImageMIME(d.B64JSON) + ";base64," + d.B64JSON
+		}
+		if url == "" {
+			continue
+		}
+		images = append(images, types.ChatMessagePart{
+			Type:     types.ContentTypeImageURL,
+			ImageURL: &types.ChatMessageImageURL{URL: url},
+		})
+	}
+	return images
+}
+
+// sniffImageMIME 读 base64 数据头几字节嗅图像 MIME；嗅不出回退 image/png。
+// gpt-image-1 支持 png/jpeg/webp 输出，硬标 png 会让严格客户端拒绝。
+func sniffImageMIME(b64 string) string {
+	// PNG / JPEG 头在 base64 编码后有稳定的固定前缀（base64 字符表对前几个字节稳定）。
+	// PNG bytes: 89 50 4E 47 → base64 前缀 "iVBORw"
+	// JPEG bytes: FF D8 FF → base64 前缀 "/9j/"
+	// WebP bytes: 52 49 46 46 ... 57 45 42 50 → base64 前缀 "UklGR"
+	switch {
+	case strings.HasPrefix(b64, "iVBORw"):
+		return "image/png"
+	case strings.HasPrefix(b64, "/9j/"):
+		return "image/jpeg"
+	case strings.HasPrefix(b64, "UklGR"):
+		return "image/webp"
+	default:
+		return "image/png"
+	}
+}
+
+func buildImageChatResponse(model string, images []types.ChatMessagePart, usage *types.Usage) *types.ChatCompletionResponse {
+	resp := &types.ChatCompletionResponse{
+		ID:      fmt.Sprintf("chatcmpl-%s", utils.GetUUID()),
+		Object:  "chat.completion",
+		Created: utils.GetTimestamp(),
+		Model:   model,
+		Choices: []types.ChatCompletionChoice{{
+			Index: 0,
+			Message: types.ChatCompletionMessage{
+				Role:   types.ChatMessageRoleAssistant,
+				Images: images,
+			},
+			FinishReason: types.FinishReasonStop,
+		}},
+	}
+	if usage != nil {
+		resp.Usage = usage
+	}
+	return resp
+}
+
+// writeImageChatStream 输出两帧 chat completions SSE + [DONE]：
+//   - 内容帧：含 role + images
+//   - finish 帧：finish_reason=stop（对齐 OpenAI 流式惯例，严格 SDK 把 finish_reason 当作终止信号）
+//
+// 中间帧写失败不抛错，行为对齐 responseStreamClient 的 tryWrite 静默路径——SSE 连接已建立时再返回错误也无意义。
+func writeImageChatStream(c *gin.Context, model string, images []types.ChatMessagePart, usageChunk string) {
+	id := fmt.Sprintf("chatcmpl-%s", utils.GetUUID())
+	created := utils.GetTimestamp()
+
+	contentChunk := types.ChatCompletionStreamResponse{
+		ID:      id,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []types.ChatCompletionStreamChoice{{
+			Index: 0,
+			Delta: types.ChatCompletionStreamChoiceDelta{
+				Role:   types.ChatMessageRoleAssistant,
+				Images: images,
+			},
+		}},
+	}
+	finishChunk := types.ChatCompletionStreamResponse{
+		ID:      id,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []types.ChatCompletionStreamChoice{{
+			Index:        0,
+			Delta:        types.ChatCompletionStreamChoiceDelta{},
+			FinishReason: types.FinishReasonStop,
+		}},
+	}
+
+	requester.SetEventStreamHeaders(c)
+	writeChatStreamFrame(c, contentChunk)
+	writeChatStreamFrame(c, finishChunk)
+	if usageChunk != "" {
+		fmt.Fprintf(c.Writer, "data: %s\n\n", usageChunk)
+	}
+	fmt.Fprint(c.Writer, "data: [DONE]\n\n")
+	c.Writer.Flush()
+}
+
+func writeChatStreamFrame(c *gin.Context, chunk types.ChatCompletionStreamResponse) {
+	body, err := json.Marshal(chunk)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(c.Writer, "data: %s\n\n", body)
 }
 
 func (r *relayChat) compatibleSend(resProvider providersBase.ResponsesInterface) (err *types.OpenAIErrorWithStatusCode, done bool) {
