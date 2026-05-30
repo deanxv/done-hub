@@ -365,7 +365,15 @@
     "noDataAvailable": "No data available",
     "pageSize": "Number of items per page",
     "search": "Search",
-    "total": "Total"
+    "total": "Total",
+    "quotaInput": {
+      "equivalentTokens": "≈ {{tokens}} tokens",
+      "equivalentMoney": "≈ {{amount}}",
+      "precisionHint": "Will round to {{tokens}} tokens",
+      "toggleToCurrency": "Input as USD",
+      "toggleToToken": "Input as tokens",
+      "overDeductLimit": "⚠ Exceeds deduction limit ({{max}})"
+    }
   },
   "dashboard": "Dashboard",
   "dashboard_index": {
@@ -1516,8 +1524,8 @@
     "usernameRequired": "Username is required",
     "users": "Users",
     "changeQuota": "Change quota",
-    "changeQuotaHelperText": "Here is an increase or decrease, not a direct change to the user's balance. Enter dollars, you can deduct up to {{quota}} at most.",
-    "changeQuotaNotEmpty": "Please fill in the change amount.",
+    "changeQuotaHelperText": "This is an increase or decrease, not a direct change to the user's balance. You can deduct up to {{tokens}} tokens (≈ {{money}}) at most.",
+    "changeQuotaNotEmpty": "Change amount cannot be 0.",
     "changeQuotaNotEnough": "Cannot deduct an amount exceeding the user's balance.",
     "quotaRemark": "Remark"
   },

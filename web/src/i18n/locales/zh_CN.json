@@ -625,8 +625,8 @@
     "uUserRole": "未知身份",
     "setReliable": "设为可信内部员工",
     "changeQuota": "增减额度",
-    "changeQuotaHelperText": "这里是增减，不是直接更改用户余额，输入美元，你最多可以减扣 {{quota}}",
-    "changeQuotaNotEmpty": "请填写变更额度",
+    "changeQuotaHelperText": "这里是增减，不是直接更改用户余额，最多可减扣 {{tokens}} tokens (≈ {{money}})",
+    "changeQuotaNotEmpty": "变更额度不能为 0",
     "changeQuotaNotEnough": "不能扣除超过用户余额的额度",
     "quotaRemark": "备注"
   },
@@ -1344,7 +1344,15 @@
     "actions": "操作",
     "total": "总数",
     "noDataAvailable": "没有数据可用",
-    "loading": "加载中..."
+    "loading": "加载中...",
+    "quotaInput": {
+      "equivalentTokens": "≈ {{tokens}} tokens",
+      "equivalentMoney": "≈ {{amount}}",
+      "precisionHint": "将四舍五入为 {{tokens}} tokens",
+      "toggleToCurrency": "按美元输入",
+      "toggleToToken": "按 token 数输入",
+      "overDeductLimit": "⚠ 超出可减扣上限（{{max}}）"
+    }
   },
   "channel_row": {
     "priorityTip": "优先级不能小于 0",

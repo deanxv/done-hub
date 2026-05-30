@@ -17,7 +17,6 @@ import {
   FormControl,
   InputLabel,
   OutlinedInput,
-  InputAdornment,
   Switch,
   FormControlLabel,
   FormHelperText,
@@ -31,9 +30,10 @@ import {
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import { renderQuotaWithPrompt, showSuccess, showError, useIsReliable } from 'utils/common';
+import { showSuccess, showError, useIsReliable } from 'utils/common';
 import { API } from 'utils/api';
 import UnknownType from 'assets/images/icons/unknown_type.svg';
+import QuotaInput from 'ui-component/QuotaInput';
 import { useTranslation } from 'react-i18next';
 import 'dayjs/locale/zh-cn';
 
@@ -349,27 +349,18 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                   label={t('token_index.unlimitedQuota')}
                 />
               </FormControl>
-              <FormControl fullWidth error={Boolean(touched.remain_quota && errors.remain_quota)} sx={{ ...theme.typography.otherInput }}>
-                <InputLabel htmlFor="channel-remain_quota-label">{t('token_index.quota')}</InputLabel>
-                <OutlinedInput
-                  id="channel-remain_quota-label"
-                  label={t('token_index.quota')}
-                  type="number"
-                  value={values.remain_quota}
-                  name="remain_quota"
-                  endAdornment={<InputAdornment position="end">{renderQuotaWithPrompt(values.remain_quota)}</InputAdornment>}
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  aria-describedby="helper-text-channel-remain_quota-label"
-                  disabled={values.unlimited_quota}
-                />
-
-                {touched.remain_quota && errors.remain_quota && (
-                  <FormHelperText error id="helper-tex-channel-remain_quota-label">
-                    {errors.remain_quota}
-                  </FormHelperText>
-                )}
-              </FormControl>
+              <QuotaInput
+                id="channel-remain_quota-label"
+                name="remain_quota"
+                label={t('token_index.quota')}
+                value={values.remain_quota}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                disabled={values.unlimited_quota}
+                error={Boolean(touched.remain_quota && errors.remain_quota)}
+                helperText={touched.remain_quota && errors.remain_quota ? errors.remain_quota : ''}
+                sx={{ ...theme.typography.otherInput }}
+              />
               <Alert severity="info">{t('token_index.quotaNote')}</Alert>
               <Divider sx={{ margin: '16px 0px' }} />
               <Typography variant="h4">{t('token_index.heartbeat')}</Typography>

@@ -306,7 +306,15 @@
     "noDataAvailable": "データがありません。",
     "pageSize": "ページごとのアイテム数",
     "search": "検索",
-    "total": "総数"
+    "total": "総数",
+    "quotaInput": {
+      "equivalentTokens": "≈ {{tokens}} tokens",
+      "equivalentMoney": "≈ {{amount}}",
+      "precisionHint": "{{tokens}} tokens に丸められます",
+      "toggleToCurrency": "USD で入力",
+      "toggleToToken": "トークン数で入力",
+      "overDeductLimit": "⚠ 控除上限を超えています（{{max}}）"
+    }
   },
   "dashboard": "ダッシュボード",
   "dashboard_index": {
@@ -1456,8 +1464,8 @@
     "usernameRequired": "ユーザー名は必須です",
     "users": "ユーザー",
     "changeQuota": "増減枠",
-    "changeQuotaHelperText": "こちらは増減です。ユーザーの残高を直接変更するものではありません。ドルを入力し、最大で {{quota}} を差し引くことができます。",
-    "changeQuotaNotEmpty": "変更枠を記入してください",
+    "changeQuotaHelperText": "こちらは増減です。ユーザーの残高を直接変更するものではありません。最大で {{tokens}} tokens (≈ {{money}}) を差し引くことができます。",
+    "changeQuotaNotEmpty": "変更額は 0 にできません",
     "changeQuotaNotEnough": "ユーザーの残高を超える金額を差し引くことはできません。",
     "quotaRemark": "コメント"
   },

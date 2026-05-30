@@ -13,13 +13,13 @@ import {
   FormControl,
   InputLabel,
   OutlinedInput,
-  InputAdornment,
   FormHelperText
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
-import { renderQuotaWithPrompt, showSuccess, showError, downloadTextAsFile, trims } from 'utils/common';
+import { showSuccess, showError, downloadTextAsFile, trims } from 'utils/common';
 import { API } from 'utils/api';
+import QuotaInput from 'ui-component/QuotaInput';
 
 const getValidationSchema = (t) =>
   Yup.object().shape({
@@ -135,27 +135,17 @@ const EditModal = ({ open, redemptiondId, onCancel, onOk }) => {
                 )}
               </FormControl>
 
-              <FormControl fullWidth error={Boolean(touched.quota && errors.quota)} sx={{ ...theme.typography.otherInput }}>
-                <InputLabel htmlFor="channel-quota-label">{t('redemptionPage.headLabels.quota')}</InputLabel>
-                <OutlinedInput
-                  id="channel-quota-label"
-                  label={t('redemptionPage.headLabels.quota')}
-                  type="number"
-                  value={values.quota}
-                  name="quota"
-                  endAdornment={<InputAdornment position="end">{renderQuotaWithPrompt(values.quota)}</InputAdornment>}
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  aria-describedby="helper-text-channel-quota-label"
-                  disabled={values.unlimited_quota}
-                />
-
-                {touched.quota && errors.quota && (
-                  <FormHelperText error id="helper-tex-channel-quota-label">
-                    {errors.quota}
-                  </FormHelperText>
-                )}
-              </FormControl>
+              <QuotaInput
+                id="channel-quota-label"
+                name="quota"
+                label={t('redemptionPage.headLabels.quota')}
+                value={values.quota}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={Boolean(touched.quota && errors.quota)}
+                helperText={touched.quota && errors.quota ? errors.quota : ''}
+                sx={{ ...theme.typography.otherInput }}
+              />
 
               {!values.is_edit && (
                 <FormControl fullWidth error={Boolean(touched.count && errors.count)} sx={{ ...theme.typography.otherInput }}>

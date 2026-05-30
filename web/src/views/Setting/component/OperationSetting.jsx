@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import SubCard from 'ui-component/cards/SubCard';
+import QuotaInput from 'ui-component/QuotaInput';
 import {
   Alert,
   Badge,
@@ -13,6 +14,7 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  Grid,
   IconButton,
   InputAdornment,
   InputLabel,
@@ -226,7 +228,10 @@ const OperationSetting = () => {
         showError(error.message || '设置失败');
       }
     } else {
-      setInputs((inputs) => ({ ...inputs, [name]: value }));
+      // origin 是 string、QuotaInput 回传 number；归一避免 submit diff 误判触发冗余 PUT
+      // 目前仅 QuotaInput 会回传 number，未来接 Slider 等组件需重新审视
+      const normalized = typeof value === 'number' ? String(value) : value;
+      setInputs((inputs) => ({ ...inputs, [name]: normalized }));
     }
   };
 
@@ -262,7 +267,16 @@ const OperationSetting = () => {
             await updateOption('BuiltinChatEnabled', inputs.BuiltinChatEnabled);
           }
           break;
-        case 'quota':
+        case 'quota': {
+          // QuotaInput 允许显示为空（清空保留 / 加载前置态）；仅拦截"本次变更且为空"的字段，避免别处空状态阻断当前编辑
+          const quotaKeys = ['QuotaForNewUser', 'PreConsumedQuota', 'QuotaForInviter', 'QuotaForInvitee', 'InviterRewardValue'];
+          const emptyKey = quotaKeys.find(
+            (k) => originInputs[k] !== inputs[k] && (inputs[k] === '' || inputs[k] == null)
+          );
+          if (emptyKey) {
+            showError('额度配置不能为空，请检查');
+            return;
+          }
           // 验证充值返利值的范围
           if (originInputs['InviterRewardValue'] !== inputs.InviterRewardValue) {
             const rewardValue = parseInt(inputs.InviterRewardValue);
@@ -305,10 +319,17 @@ const OperationSetting = () => {
             await updateOption('PreConsumedQuota', inputs.PreConsumedQuota);
           }
           break;
+        }
         case 'general': {
           // 所有同步校验先做完，确保任何一项失败都不会让前面的 updateOption 已经落库。
           // case 'general' 整体用 block 包起来满足 ESLint no-case-declarations，便于声明 const。
-          if (inputs.QuotaPerUnit < 0 || inputs.RetryTimes < 0 || inputs.RetryCooldownSeconds < 0 || inputs.RetryTimeOut < 0) {
+          // handleInputChange 已把 number 归一为 string，显式 Number() 避免未来 refactor 加 typeof === 'number' 校验时误判
+          if (
+            Number(inputs.QuotaPerUnit) < 0 ||
+            Number(inputs.RetryTimes) < 0 ||
+            Number(inputs.RetryCooldownSeconds) < 0 ||
+            Number(inputs.RetryTimeOut) < 0
+          ) {
             showError('单位额度、重试次数、冷却时间、重试超时时间不能为负数');
             return;
           }
@@ -979,110 +1000,101 @@ const OperationSetting = () => {
       </SubCard>
       <SubCard title={t('setting_index.operationSettings.quotaSettings.title')}>
         <Stack justifyContent="flex-start" alignItems="flex-start" spacing={2}>
-          <Stack direction={{ sm: 'column', md: 'row' }} spacing={{ xs: 3, sm: 2, md: 4 }}>
-            <FormControl fullWidth>
-              <InputLabel htmlFor="QuotaForNewUser">{t('setting_index.operationSettings.quotaSettings.quotaForNewUser.label')}</InputLabel>
-              <OutlinedInput
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4}>
+              <QuotaInput
                 id="QuotaForNewUser"
                 name="QuotaForNewUser"
-                type="number"
-                inputProps={{ step: 1, min: 0 }}
-                value={inputs.QuotaForNewUser}
-                onChange={handleInputChange}
                 label={t('setting_index.operationSettings.quotaSettings.quotaForNewUser.label')}
                 placeholder={t('setting_index.operationSettings.quotaSettings.quotaForNewUser.placeholder')}
+                value={inputs.QuotaForNewUser}
+                onChange={handleInputChange}
                 disabled={loading}
               />
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel htmlFor="PreConsumedQuota">
-                {t('setting_index.operationSettings.quotaSettings.preConsumedQuota.label')}
-              </InputLabel>
-              <OutlinedInput
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <QuotaInput
                 id="PreConsumedQuota"
                 name="PreConsumedQuota"
-                type="number"
-                inputProps={{ step: 1, min: 0 }}
-                value={inputs.PreConsumedQuota}
-                onChange={handleInputChange}
                 label={t('setting_index.operationSettings.quotaSettings.preConsumedQuota.label')}
                 placeholder={t('setting_index.operationSettings.quotaSettings.preConsumedQuota.placeholder')}
+                value={inputs.PreConsumedQuota}
+                onChange={handleInputChange}
                 disabled={loading}
               />
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel htmlFor="QuotaForInviter">{t('setting_index.operationSettings.quotaSettings.quotaForInviter.label')}</InputLabel>
-              <OutlinedInput
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <QuotaInput
                 id="QuotaForInviter"
                 name="QuotaForInviter"
-                type="number"
-                inputProps={{ step: 1, min: 0 }}
                 label={t('setting_index.operationSettings.quotaSettings.quotaForInviter.label')}
+                placeholder={t('setting_index.operationSettings.quotaSettings.quotaForInviter.placeholder')}
                 value={inputs.QuotaForInviter}
                 onChange={handleInputChange}
-                autoComplete="new-password"
-                placeholder={t('setting_index.operationSettings.quotaSettings.quotaForInviter.placeholder')}
                 disabled={loading}
+                inputProps={{ autoComplete: 'new-password' }}
               />
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel>{t('setting_index.operationSettings.quotaSettings.rechargeRewardType.label')}</InputLabel>
-              <Select
-                value={inputs.InviterRewardType}
-                name="InviterRewardType"
-                onChange={handleInputChange}
-                label={t('setting_index.operationSettings.quotaSettings.rechargeRewardType.label')}
-                disabled={loading}
-              >
-                <MenuItem value="fixed">{t('setting_index.operationSettings.quotaSettings.rechargeRewardType.fixed')}</MenuItem>
-                <MenuItem value="percentage">{t('setting_index.operationSettings.quotaSettings.rechargeRewardType.percentage')}</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel htmlFor="InviterRewardValue">
-                {t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.label')}
-                {inputs.InviterRewardType === 'percentage' ? ' (%)' : ''}
-              </InputLabel>
-              <OutlinedInput
-                id="InviterRewardValue"
-                name="InviterRewardValue"
-                type="number"
-                value={inputs.InviterRewardValue}
-                onChange={handleInputChange}
-                label={
-                  t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.label') +
-                  (inputs.InviterRewardType === 'percentage' ? ' (%)' : '')
-                }
-                placeholder={
-                  inputs.InviterRewardType === 'percentage'
-                    ? t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.percentagePlaceholder')
-                    : t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.fixedPlaceholder')
-                }
-                inputProps={{
-                  min: 0,
-                  max: inputs.InviterRewardType === 'percentage' ? 100 : undefined,
-                  step: 1
-                }}
-                disabled={loading}
-                endAdornment={inputs.InviterRewardType === 'percentage' ? <InputAdornment position="end">%</InputAdornment> : null}
-              />
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel htmlFor="QuotaForInvitee">{t('setting_index.operationSettings.quotaSettings.quotaForInvitee.label')}</InputLabel>
-              <OutlinedInput
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>{t('setting_index.operationSettings.quotaSettings.rechargeRewardType.label')}</InputLabel>
+                <Select
+                  value={inputs.InviterRewardType}
+                  name="InviterRewardType"
+                  onChange={handleInputChange}
+                  label={t('setting_index.operationSettings.quotaSettings.rechargeRewardType.label')}
+                  disabled={loading}
+                >
+                  <MenuItem value="fixed">{t('setting_index.operationSettings.quotaSettings.rechargeRewardType.fixed')}</MenuItem>
+                  <MenuItem value="percentage">{t('setting_index.operationSettings.quotaSettings.rechargeRewardType.percentage')}</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              {/* percentage 是 0-100 的百分比，无 currency/token 语义，不走 QuotaInput。未来若 QuotaInput 加 mode="percentage" 应一并收编 */}
+              {inputs.InviterRewardType === 'percentage' ? (
+                <FormControl fullWidth>
+                  <InputLabel htmlFor="InviterRewardValue">
+                    {t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.label')} (%)
+                  </InputLabel>
+                  <OutlinedInput
+                    id="InviterRewardValue"
+                    name="InviterRewardValue"
+                    type="number"
+                    value={inputs.InviterRewardValue}
+                    onChange={handleInputChange}
+                    label={t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.label') + ' (%)'}
+                    placeholder={t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.percentagePlaceholder')}
+                    inputProps={{ min: 0, max: 100, step: 1 }}
+                    disabled={loading}
+                    endAdornment={<InputAdornment position="end">%</InputAdornment>}
+                  />
+                </FormControl>
+              ) : (
+                <QuotaInput
+                  id="InviterRewardValue"
+                  name="InviterRewardValue"
+                  label={t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.label')}
+                  placeholder={t('setting_index.operationSettings.quotaSettings.rechargeRewardValue.fixedPlaceholder')}
+                  value={inputs.InviterRewardValue}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                />
+              )}
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <QuotaInput
                 id="QuotaForInvitee"
                 name="QuotaForInvitee"
-                type="number"
-                inputProps={{ step: 1, min: 0 }}
                 label={t('setting_index.operationSettings.quotaSettings.quotaForInvitee.label')}
+                placeholder={t('setting_index.operationSettings.quotaSettings.quotaForInvitee.placeholder')}
                 value={inputs.QuotaForInvitee}
                 onChange={handleInputChange}
-                autoComplete="new-password"
-                placeholder={t('setting_index.operationSettings.quotaSettings.quotaForInvitee.placeholder')}
                 disabled={loading}
+                inputProps={{ autoComplete: 'new-password' }}
               />
-            </FormControl>
-          </Stack>
+            </Grid>
+          </Grid>
           <Button
             variant="contained"
             onClick={() => {

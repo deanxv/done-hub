@@ -540,16 +540,6 @@ export function renderQuota(quota, digits = 2) {
   return renderNumber(quota);
 }
 
-export function renderQuotaByMoney(money) {
-  money = Number(money);
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
-
-  const result = new Decimal(money).mul(quotaPerUnit);
-
-  return result.toFixed(0);
-}
-
 export const verifyJSON = (str) => {
   try {
     JSON.parse(str);
@@ -574,15 +564,6 @@ export function renderNumber(num) {
 // 数字千位分隔符
 export function thousandsSeparator(num) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-export function renderQuotaWithPrompt(quota, digits) {
-  let displayInCurrency = localStorage.getItem('display_in_currency');
-  displayInCurrency = displayInCurrency === 'true';
-  if (displayInCurrency) {
-    return `（等价金额：${renderQuota(quota, digits)}）`;
-  }
-  return '';
 }
 
 export function downloadTextAsFile(text, filename) {
@@ -722,7 +703,6 @@ export function replaceChatPlaceholders(text, key, server) {
     .replace('{key}', key)
     .replace('{server}', server);
 }
-
 
 export function ValueFormatter(value, onlyUsd = false, unitMillion = false) {
   if (value == null) {

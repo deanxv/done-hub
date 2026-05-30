@@ -4,7 +4,6 @@ import { useState } from 'react'
 import {
   Button,
   IconButton,
-  InputAdornment,
   MenuItem,
   Popover,
   Stack,
@@ -16,7 +15,8 @@ import {
 
 import Label from 'ui-component/Label'
 import TableSwitch from 'ui-component/Switch'
-import { renderNumber, renderQuota, renderQuotaByMoney, showError, timestamp2string } from 'utils/common'
+import QuotaInput, { QUOTA_UNIT_CURRENCY } from 'ui-component/QuotaInput'
+import { calculateQuota, renderNumber, renderQuota, showError, timestamp2string } from 'utils/common'
 import { Icon } from '@iconify/react'
 import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +45,7 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
   const [openDelete, setOpenDelete] = useState(false)
   const [openChangeQuota, setOpenChangeQuota] = useState(false)
   const [statusSwitch, setStatusSwitch] = useState(item.status)
-  const [money, setMoney] = useState(0)
+  const [quotaDelta, setQuotaDelta] = useState(0)
   const [remark, setRemark] = useState('')
 
   const handleDeleteOpen = () => {
@@ -65,21 +65,25 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
     setOpen(null)
   }
 
+  const closeAndResetChangeQuota = () => {
+    setOpenChangeQuota(false)
+    setQuotaDelta(0)
+    setRemark('')
+  }
+
   const handleChangeQuota = async() => {
-    if (money === 0) {
+    const quota = Number(quotaDelta)
+    if (!quota) {
       showError(t('userPage.changeQuotaNotEmpty'))
+      return
     }
-
-    const quota = Number(renderQuotaByMoney(money))
-
-    if (money < 0 && Math.abs(quota) > item.quota) {
+    // 欠费用户（item.quota < 0）的可扣上限按 0 算，避免允许在负余额上继续扣（业务上"扣减不超过正余额"）
+    if (quota < 0 && Math.abs(quota) > Math.max(0, item.quota)) {
       showError(t('userPage.changeQuotaNotEnough'))
       return
     }
-    const ok = await manageUser(item.id, 'quota', { quota: Number(quota), remark })
-    if (ok) {
-      setOpenChangeQuota(false)
-    }
+    const ok = await manageUser(item.id, 'quota', { quota, remark })
+    if (ok) closeAndResetChangeQuota()
   }
 
   const handleStatus = async() => {
@@ -258,23 +262,22 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
 
       <ConfirmDialog
         open={openChangeQuota}
-        onClose={() => setOpenChangeQuota(false)}
+        onClose={closeAndResetChangeQuota}
         title={t('userPage.changeQuota')}
         content={
-          <>
-            <TextField
-              fullWidth
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <QuotaInput
               id="quota-label"
+              name="quotaDelta"
               label={t('userPage.changeQuota')}
-              type="number"
-              value={money}
-              onChange={(e) => setMoney(e.target.value)}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                endAdornment: <InputAdornment position="end">{renderQuotaByMoney(money)}</InputAdornment>
-              }}
-              helperText={t('userPage.changeQuotaHelperText', { quota: renderQuota(item.quota, 6) })}
-              sx={{ mt: 2 }}
+              value={quotaDelta}
+              onChange={(e) => setQuotaDelta(e.target.value)}
+              defaultUnit={QUOTA_UNIT_CURRENCY}
+              maxDeduct={Math.max(0, item.quota)}
+              helperText={t('userPage.changeQuotaHelperText', {
+                tokens: renderNumber(Math.max(0, item.quota)),
+                money: '$' + calculateQuota(Math.max(0, item.quota), 6)
+              })}
             />
             <TextField
               fullWidth
@@ -283,9 +286,8 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
               type="text"
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
-              sx={{ mt: 2 }}
             />
-          </>
+          </Stack>
         }
         action={
           <Button variant="contained" color="primary" onClick={handleChangeQuota}>

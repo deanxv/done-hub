@@ -310,7 +310,15 @@
     "noDataAvailable": "冇數據可用",
     "pageSize": "每頁條數",
     "search": "搜尋",
-    "total": "總數"
+    "total": "總數",
+    "quotaInput": {
+      "equivalentTokens": "≈ {{tokens}} tokens",
+      "equivalentMoney": "≈ {{amount}}",
+      "precisionHint": "將四捨五入為 {{tokens}} tokens",
+      "toggleToCurrency": "按美元輸入",
+      "toggleToToken": "按 token 數輸入",
+      "overDeductLimit": "⚠ 超出可扣除上限（{{max}}）"
+    }
   },
   "dashboard": "儀表板",
   "dashboard_index": {
@@ -1466,8 +1474,8 @@
     "usernameRequired": "用戶名不能為空",
     "users": "用戶",
     "changeQuota": "增減額度",
-    "changeQuotaHelperText": "呢度係增減，唔係直接更改用戶餘額，輸入美元，你最多可以扣除 {{quota}}",
-    "changeQuotaNotEmpty": "請填寫更改額度",
+    "changeQuotaHelperText": "呢度係增減，唔係直接更改用戶餘額，最多可以扣除 {{tokens}} tokens (≈ {{money}})",
+    "changeQuotaNotEmpty": "變更額度不能為 0",
     "changeQuotaNotEnough": "唔可以扣除超過用戶餘額嘅金額",
     "quotaRemark": "備註"
   },
