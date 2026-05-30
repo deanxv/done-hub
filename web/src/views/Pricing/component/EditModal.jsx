@@ -2,7 +2,7 @@ import PropTypes from 'prop-types';
 import * as Yup from 'yup';
 import { Formik } from 'formik';
 import { useTheme } from '@mui/material/styles';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -36,6 +36,36 @@ import { useTranslation } from 'react-i18next';
 import ToggleButtonGroup from 'ui-component/ToggleButton';
 import Decimal from 'decimal.js';
 import { ExtraRatiosSelector } from './ExtraRatiosSelector';
+
+// rate 是后端存储的基准单位；USD/RMB × K/M 通过 rate 中转换算
+// 基准：1 rate = $0.002 / 1K tokens（同时 1 rate = ¥0.014 / 1K，暗藏汇率 7）
+const valueToRate = (value, unitType, localUnit) => {
+  if (value === '' || value == null) return '';
+  const v = new Decimal(value);
+  if (unitType === 'rate') return Number(v.toFixed(4));
+  let r = v;
+  if (localUnit === 'M') r = r.div(1000);
+  if (unitType === 'USD') r = r.div(0.002);
+  if (unitType === 'RMB') r = r.div(0.014);
+  return Number(r.toFixed(4));
+};
+
+const rateToValue = (rate, unitType, localUnit) => {
+  if (rate === '' || rate == null) return '';
+  const r = new Decimal(rate);
+  if (unitType === 'rate') return Number(r.toFixed(4));
+  let v = r;
+  if (unitType === 'USD') v = v.mul(0.002);
+  if (unitType === 'RMB') v = v.mul(0.014);
+  if (localUnit === 'M') v = v.mul(1000);
+  return Number(v.toFixed(6));
+};
+
+const convertUnit = (value, fromType, fromUnit, toType, toUnit) => {
+  if (fromType === toType && fromUnit === toUnit) return value;
+  const rate = valueToRate(value, fromType, fromUnit);
+  return rateToValue(rate, toType, toUnit);
+};
 
 const icon = <CheckBoxOutlineBlankIcon fontSize="small" />;
 const checkedIcon = <CheckBoxIcon fontSize="small" />;
@@ -90,7 +120,9 @@ const getValidationSchema = (t) =>
     output: Yup.number().when('type', {
       is: 'tokens',
       then: (schema) =>
-        schema.required(t('pricing_edit.requiredOutput')).test('isPositive', t('pricing_edit.outputVal'), (value) => value !== '' && value >= 0),
+        schema
+          .required(t('pricing_edit.requiredOutput'))
+          .test('isPositive', t('pricing_edit.outputVal'), (value) => value !== '' && value >= 0),
       otherwise: (schema) =>
         schema
           .notRequired()
@@ -145,36 +177,10 @@ const EditModal = ({
   const [unitType, setUnitType] = useState('rate');
   const [localUnit, setLocalUnit] = useState(unit);
 
-  // 当外部unit变化时同步本地unit
-  useEffect(() => {
-    setLocalUnit(unit);
-  }, [unit]);
-
   const calculateRate = useCallback(
     (price) => {
-      if (price === '') {
-        return 0;
-      }
-      if (unitType === 'rate') {
-        return price;
-      }
-
-      let priceValue = new Decimal(price);
-
-      if (localUnit === 'M') {
-        priceValue = priceValue.div(1000);
-      }
-
-      switch (unitType) {
-        case 'USD':
-          priceValue = priceValue.div(0.002);
-          break;
-        case 'RMB':
-          priceValue = priceValue.div(0.014);
-          break;
-      }
-
-      return Number(priceValue.toFixed(4));
+      if (price === '') return 0;
+      return valueToRate(price, unitType, localUnit);
     },
     [unitType, localUnit]
   );
@@ -354,10 +360,22 @@ const EditModal = ({
     }
   }, [singleMode, price, pricesItem, noPriceModel]);
 
+  // 打开时按"新建/编辑"分别初始化默认 tab：
+  // - 新建模型：USD / M（最常见的运营场景）
+  // - 编辑已存：rate / 跟随外部 unit prop，让用户看到 DB 真实倍率
+  // 只对 open 上升沿响应，其它 props 通过 ref 取最新值，避免父组件 re-render 让 prop 引用变化时覆盖用户已经切过的 unitType/localUnit
+  const initRef = useRef({ singleMode, price, pricesItem, unit });
+  initRef.current = { singleMode, price, pricesItem, unit };
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const { singleMode: sm, price: p, pricesItem: pi, unit: u } = initRef.current;
+    const isCreate = sm ? !p : !pi;
+    if (isCreate) {
+      setUnitType('USD');
+      setLocalUnit('M');
+    } else {
       setUnitType('rate');
-      setLocalUnit('K');
+      setLocalUnit(u);
     }
   }, [open]);
 
@@ -444,29 +462,47 @@ const EditModal = ({
   };
 
   // 渲染单位类型切换按钮组
-  const renderUnitTypeToggle = () => (
-    <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
-      <Stack direction="row" spacing={2}>
-        <ToggleButtonGroup
-          value={unitType}
-          onChange={(event, newUnitType) => {
-            setUnitType(newUnitType);
-          }}
-          options={unitTypeOptions}
-          aria-label="unit toggle"
-        />
+  const renderUnitTypeToggle = (formProps) => {
+    // 切换 unitType / localUnit 时把当前 input/output 反向换算到新单位，
+    // 否则原来语义"1.5 rate"会被误解为"1.5 USD/K"，submit 时 calculateRate 会把它当 USD 反算成 750 rate 写入 DB
+    const reconvertFields = (fromType, fromUnit, toType, toUnit) => {
+      if (fromType === toType && fromUnit === toUnit) return;
+      const curInput = singleMode ? inputs.input : formProps?.values?.input ?? 0;
+      const curOutput = singleMode ? inputs.output : formProps?.values?.output ?? 0;
+      const newInput = convertUnit(curInput, fromType, fromUnit, toType, toUnit);
+      const newOutput = convertUnit(curOutput, fromType, fromUnit, toType, toUnit);
+      if (singleMode) {
+        setInputs((prev) => ({ ...prev, input: newInput, output: newOutput }));
+      } else if (formProps?.setFieldValue) {
+        formProps.setFieldValue('input', newInput);
+        formProps.setFieldValue('output', newOutput);
+      }
+    };
 
-        <ToggleButtonGroup
-          value={localUnit}
-          onChange={(event, newUnit) => {
-            setLocalUnit(newUnit);
-          }}
-          options={unitOptions}
-          aria-label="unit toggle"
-        />
-      </Stack>
-    </FormControl>
-  );
+    const handleUnitTypeChange = (_event, newUnitType) => {
+      if (!newUnitType || newUnitType === unitType) return;
+      reconvertFields(unitType, localUnit, newUnitType, localUnit);
+      setUnitType(newUnitType);
+    };
+
+    const handleLocalUnitChange = (_event, newLocalUnit) => {
+      if (!newLocalUnit || newLocalUnit === localUnit) return;
+      // rate 模式下 K/M 不影响数值，只需切 state
+      if (unitType !== 'rate') {
+        reconvertFields(unitType, localUnit, unitType, newLocalUnit);
+      }
+      setLocalUnit(newLocalUnit);
+    };
+
+    return (
+      <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
+        <Stack direction="row" spacing={2}>
+          <ToggleButtonGroup value={unitType} onChange={handleUnitTypeChange} options={unitTypeOptions} aria-label="unit toggle" />
+          <ToggleButtonGroup value={localUnit} onChange={handleLocalUnitChange} options={unitOptions} aria-label="unit toggle" />
+        </Stack>
+      </FormControl>
+    );
+  };
 
   // 渲染输入价格表单
   const renderInputField = (formProps) => {
@@ -737,7 +773,7 @@ const EditModal = ({
               <form noValidate onSubmit={formProps.handleSubmit}>
                 {renderTypeSelector(formProps)}
                 {renderChannelTypeSelector(formProps)}
-                {renderUnitTypeToggle()}
+                {renderUnitTypeToggle(formProps)}
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                   {renderInputField(formProps)}
                   {formProps.values.type === 'tokens' && renderOutputField(formProps)}
