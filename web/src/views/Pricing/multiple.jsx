@@ -50,7 +50,7 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
   const [rowsPerPage, setRowsPerPage] = useState(getPageSize('pricing_multiple', 10));
   const [channelFilter, setChannelFilter] = useState('all');
   const [lockFilter, setLockFilter] = useState('all');
-  const [unit, setUnit] = useState('K');
+  const [unit, setUnit] = useState('M');
 
   const unitOptions = [
     { value: 'K', label: 'K' },

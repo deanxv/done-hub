@@ -42,7 +42,7 @@ const Single = ({ ownedby, prices, reloadData }) => {
   const [rowsPerPage, setRowsPerPage] = useState(getPageSize('pricing', 24));
   const [channelFilter, setChannelFilter] = useState('all');
   const [lockFilter, setLockFilter] = useState('all');
-  const [unit, setUnit] = useState('K');
+  const [unit, setUnit] = useState('M');
 
   const unitOptions = [
     { value: 'K', label: 'K' },
