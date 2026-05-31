@@ -71,6 +71,9 @@ var allowedUserOrderFields = map[string]bool{
 	"created_time":    true,
 	"last_login_time": true,
 	"last_login_ip":   true,
+	"quota":           true,
+	"used_quota":      true,
+	"request_count":   true,
 }
 
 func GetUsersList(params *GenericParams) (*DataResult[User], error) {

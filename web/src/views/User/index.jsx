@@ -6,6 +6,7 @@ import TableBody from '@mui/material/TableBody'
 import TableContainer from '@mui/material/TableContainer'
 import PerfectScrollbar from 'react-perfect-scrollbar'
 import TablePagination from '@mui/material/TablePagination'
+import TableSortLabel from '@mui/material/TableSortLabel'
 import LinearProgress from '@mui/material/LinearProgress'
 import ButtonGroup from '@mui/material/ButtonGroup'
 import Toolbar from '@mui/material/Toolbar'
@@ -214,7 +215,41 @@ export default function Users() {
                   { id: 'id', label: t('userPage.id'), disableSort: false },
                   { id: 'username', label: t('userPage.username'), disableSort: false },
                   { id: 'group', label: t('userPage.group'), disableSort: true },
-                  { id: 'stats', label: t('userPage.statistics'), disableSort: true },
+                  {
+                    id: 'stats',
+                    disableSort: true,
+                    label: (
+                      <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+                        <span>{t('userPage.statistics')}：</span>
+                        <TableSortLabel
+                          hideSortIcon
+                          active={orderBy === 'quota'}
+                          direction={orderBy === 'quota' ? order : 'asc'}
+                          onClick={(e) => handleSort(e, 'quota')}
+                        >
+                          {t('userPage.remainingShort')}
+                        </TableSortLabel>
+                        <span style={{ opacity: 0.4 }}>/</span>
+                        <TableSortLabel
+                          hideSortIcon
+                          active={orderBy === 'used_quota'}
+                          direction={orderBy === 'used_quota' ? order : 'asc'}
+                          onClick={(e) => handleSort(e, 'used_quota')}
+                        >
+                          {t('userPage.usedShort')}
+                        </TableSortLabel>
+                        <span style={{ opacity: 0.4 }}>/</span>
+                        <TableSortLabel
+                          hideSortIcon
+                          active={orderBy === 'request_count'}
+                          direction={orderBy === 'request_count' ? order : 'asc'}
+                          onClick={(e) => handleSort(e, 'request_count')}
+                        >
+                          {t('userPage.requestCountShort')}
+                        </TableSortLabel>
+                      </Stack>
+                    )
+                  },
                   { id: 'role', label: t('userPage.userRole'), disableSort: false },
                   { id: 'bind', label: t('userPage.bind'), disableSort: true },
                   { id: 'created_time', label: t('userPage.creationTime'), disableSort: false },
