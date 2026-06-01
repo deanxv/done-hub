@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -36,23 +38,33 @@ type streamReader[T streamable] struct {
 
 	DataChan chan T
 	ErrChan  chan error
+
+	closeOnce  sync.Once
+	recvCalled atomic.Bool
 }
 
 func (stream *streamReader[T]) Recv() (<-chan T, <-chan error) {
+	stream.recvCalled.Store(true)
 	gopool.Go(func() {
 		defer func() {
-
 			if r := recover(); r != nil {
 				logger.SysError(fmt.Sprintf("Panic in streamReader.processLines: %v", r))
 				logger.SysError(fmt.Sprintf("stacktrace from panic: %s", string(debug.Stack())))
 
+				// processLines 的 defer 会先关闭 DataChan/ErrChan，panic 才冒泡到这里，
+				// 此时 ErrChan 已关闭。直接 ErrChan <- err 会触发 "send on closed channel"
+				// 二次 panic、整个进程崩溃。改成非阻塞 send + recover 兜底：能投就投，
+				// 不能投就让 consumer 从已关 channel 读到 ok=false 自然退出。
 				err := &types.OpenAIError{
 					Code:    "system error",
 					Message: "stream processing panic",
 					Type:    "system_error",
 				}
-
-				stream.ErrChan <- err
+				defer func() { _ = recover() }()
+				select {
+				case stream.ErrChan <- err:
+				default:
+				}
 			}
 		}()
 		stream.processLines()
@@ -101,6 +113,24 @@ func (stream *streamReader[T]) processLines() {
 	}
 }
 
+// Close 既要关闭上游响应体，也要解除 producer goroutine 在 handler 内对
+// DataChan/ErrChan 的阻塞 send，避免 HTTP/2 stream slot 泄漏。
+// 实际的 drain + close 顺序逻辑见 DrainAndClose 的注释。
 func (stream *streamReader[T]) Close() {
-	stream.response.Body.Close()
+	stream.closeOnce.Do(func() {
+		closer := func() {
+			if stream.response != nil && stream.response.Body != nil {
+				_ = stream.response.Body.Close()
+			}
+		}
+
+		// Recv 从未调用过：没有 producer goroutine，也就没有阻塞 send 要解开，
+		// 只关 body 即可。否则下面的 drain 会在永远不会关闭的 channel 上死等。
+		if !stream.recvCalled.Load() {
+			closer()
+			return
+		}
+
+		DrainAndClose(stream.DataChan, stream.ErrChan, closer, "streamReader.Close")
+	})
 }

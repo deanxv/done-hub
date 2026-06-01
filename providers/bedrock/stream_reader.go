@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
@@ -26,9 +28,13 @@ type streamReader[T any] struct {
 
 	DataChan chan T
 	ErrChan  chan error
+
+	closeOnce  sync.Once
+	recvCalled atomic.Bool
 }
 
 func (stream *streamReader[T]) Recv() (<-chan T, <-chan error) {
+	stream.recvCalled.Store(true)
 	go stream.processLines()
 
 	return stream.DataChan, stream.ErrChan
@@ -36,6 +42,10 @@ func (stream *streamReader[T]) Recv() (<-chan T, <-chan error) {
 
 //nolint:gocognit
 func (stream *streamReader[T]) processLines() {
+	// 保证函数退出时关闭 channel，DrainAndClose 的 drain goroutine 才有终止条件
+	defer close(stream.DataChan)
+	defer close(stream.ErrChan)
+
 	decode := eventstream.NewDecoder()
 	payloadBuf := make([]byte, 0*1024)
 	for {
@@ -64,8 +74,24 @@ func (stream *streamReader[T]) processLines() {
 	}
 }
 
+// Close 关闭底层响应体并 drain pending channel send，避免 handler 在
+// unbuffered channel 上的阻塞 send 导致 producer goroutine 泄漏。
+// 实际的 drain + close 顺序逻辑见 requester.DrainAndClose 的注释。
 func (stream *streamReader[T]) Close() {
-	stream.response.Body.Close()
+	stream.closeOnce.Do(func() {
+		closer := func() {
+			if stream.response != nil && stream.response.Body != nil {
+				_ = stream.response.Body.Close()
+			}
+		}
+
+		if !stream.recvCalled.Load() {
+			closer()
+			return
+		}
+
+		requester.DrainAndClose(stream.DataChan, stream.ErrChan, closer, "bedrock streamReader.Close")
+	})
 }
 
 func (stream *streamReader[T]) deserializeEventMessage(msg *eventstream.Message) ([]byte, error) {
