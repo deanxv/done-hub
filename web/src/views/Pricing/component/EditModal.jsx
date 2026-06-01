@@ -39,32 +39,33 @@ import { ExtraRatiosSelector } from './ExtraRatiosSelector';
 
 // rate 是后端存储的基准单位；USD/RMB × K/M 通过 rate 中转换算
 // 基准：1 rate = $0.002 / 1K tokens（同时 1 rate = ¥0.014 / 1K，暗藏汇率 7）
-const valueToRate = (value, unitType, localUnit) => {
+// priceType='times' 表示按次计费，K/M 单位无意义，conversion 强制忽略
+const valueToRate = (value, unitType, localUnit, priceType) => {
   if (value === '' || value == null) return '';
   const v = new Decimal(value);
   if (unitType === 'rate') return Number(v.toFixed(4));
   let r = v;
-  if (localUnit === 'M') r = r.div(1000);
+  if (priceType !== 'times' && localUnit === 'M') r = r.div(1000);
   if (unitType === 'USD') r = r.div(0.002);
   if (unitType === 'RMB') r = r.div(0.014);
   return Number(r.toFixed(4));
 };
 
-const rateToValue = (rate, unitType, localUnit) => {
+const rateToValue = (rate, unitType, localUnit, priceType) => {
   if (rate === '' || rate == null) return '';
   const r = new Decimal(rate);
   if (unitType === 'rate') return Number(r.toFixed(4));
   let v = r;
   if (unitType === 'USD') v = v.mul(0.002);
   if (unitType === 'RMB') v = v.mul(0.014);
-  if (localUnit === 'M') v = v.mul(1000);
+  if (priceType !== 'times' && localUnit === 'M') v = v.mul(1000);
   return Number(v.toFixed(6));
 };
 
-const convertUnit = (value, fromType, fromUnit, toType, toUnit) => {
+const convertUnit = (value, fromType, fromUnit, toType, toUnit, priceType) => {
   if (fromType === toType && fromUnit === toUnit) return value;
-  const rate = valueToRate(value, fromType, fromUnit);
-  return rateToValue(rate, toType, toUnit);
+  const rate = valueToRate(value, fromType, fromUnit, priceType);
+  return rateToValue(rate, toType, toUnit, priceType);
 };
 
 const icon = <CheckBoxOutlineBlankIcon fontSize="small" />;
@@ -178,9 +179,9 @@ const EditModal = ({
   const [localUnit, setLocalUnit] = useState(unit);
 
   const calculateRate = useCallback(
-    (price) => {
+    (price, priceType) => {
       if (price === '') return 0;
-      return valueToRate(price, unitType, localUnit);
+      return valueToRate(price, unitType, localUnit, priceType);
     },
     [unitType, localUnit]
   );
@@ -202,7 +203,7 @@ const EditModal = ({
   ];
 
   const handleEndAdornment = useCallback(
-    (value) => {
+    (value, priceType) => {
       let endAdornment = '';
 
       switch (unitType) {
@@ -211,7 +212,7 @@ const EditModal = ({
           break;
         case 'USD':
         case 'RMB':
-          endAdornment = value === 0 ? 'Free' : calculateRate(value) + ' Rate';
+          endAdornment = value === 0 ? 'Free' : calculateRate(value, priceType) + ' Rate';
           break;
       }
 
@@ -220,16 +221,20 @@ const EditModal = ({
     [unitType, calculateRate]
   );
 
-  const handleStartAdornment = useCallback(() => {
-    switch (unitType) {
-      case 'rate':
-        return 'Rate：';
-      case 'USD':
-        return `USD(${localUnit})：`;
-      case 'RMB':
-        return `RMB(${localUnit})：`;
-    }
-  }, [unitType, localUnit]);
+  const handleStartAdornment = useCallback(
+    (priceType) => {
+      const unitSuffix = priceType === 'times' ? '' : `(${localUnit})`;
+      switch (unitType) {
+        case 'rate':
+          return 'Rate：';
+        case 'USD':
+          return `USD${unitSuffix}：`;
+        case 'RMB':
+          return `RMB${unitSuffix}：`;
+      }
+    },
+    [unitType, localUnit]
+  );
 
   // 表单提交处理
   const submit = async (values, { setErrors, setStatus, setSubmitting }) => {
@@ -247,8 +252,8 @@ const EditModal = ({
 
       try {
         if (onSaveSingle) {
-          const calculatedInput = calculateRate(values.input);
-          const calculatedOutput = values.type === 'times' ? calculatedInput : calculateRate(values.output);
+          const calculatedInput = calculateRate(values.input, values.type);
+          const calculatedOutput = values.type === 'times' ? calculatedInput : calculateRate(values.output, values.type);
           await onSaveSingle({
             ...values,
             input: calculatedInput,
@@ -267,8 +272,8 @@ const EditModal = ({
     // 多选模式处理
     values.models = trims(values.models);
     try {
-      const calculatedInput = calculateRate(values.input);
-      const calculatedOutput = values.type === 'times' ? calculatedInput : calculateRate(values.output);
+      const calculatedInput = calculateRate(values.input, values.type);
+      const calculatedOutput = values.type === 'times' ? calculatedInput : calculateRate(values.output, values.type);
       const res = await API.post(`/api/prices/multiple`, {
         original_models: inputs.models,
         models: values.models,
@@ -463,14 +468,17 @@ const EditModal = ({
 
   // 渲染单位类型切换按钮组
   const renderUnitTypeToggle = (formProps) => {
+    const currentType = singleMode ? inputs.type : formProps?.values?.type;
+    const isTimes = currentType === 'times';
+
     // 切换 unitType / localUnit 时把当前 input/output 反向换算到新单位，
     // 否则原来语义"1.5 rate"会被误解为"1.5 USD/K"，submit 时 calculateRate 会把它当 USD 反算成 750 rate 写入 DB
     const reconvertFields = (fromType, fromUnit, toType, toUnit) => {
       if (fromType === toType && fromUnit === toUnit) return;
       const curInput = singleMode ? inputs.input : formProps?.values?.input ?? 0;
       const curOutput = singleMode ? inputs.output : formProps?.values?.output ?? 0;
-      const newInput = convertUnit(curInput, fromType, fromUnit, toType, toUnit);
-      const newOutput = convertUnit(curOutput, fromType, fromUnit, toType, toUnit);
+      const newInput = convertUnit(curInput, fromType, fromUnit, toType, toUnit, currentType);
+      const newOutput = convertUnit(curOutput, fromType, fromUnit, toType, toUnit, currentType);
       if (singleMode) {
         setInputs((prev) => ({ ...prev, input: newInput, output: newOutput }));
       } else if (formProps?.setFieldValue) {
@@ -498,7 +506,9 @@ const EditModal = ({
       <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
         <Stack direction="row" spacing={2}>
           <ToggleButtonGroup value={unitType} onChange={handleUnitTypeChange} options={unitTypeOptions} aria-label="unit toggle" />
-          <ToggleButtonGroup value={localUnit} onChange={handleLocalUnitChange} options={unitOptions} aria-label="unit toggle" />
+          {!isTimes && (
+            <ToggleButtonGroup value={localUnit} onChange={handleLocalUnitChange} options={unitOptions} aria-label="unit toggle" />
+          )}
         </Stack>
       </FormControl>
     );
@@ -526,8 +536,8 @@ const EditModal = ({
           type="number"
           value={value}
           name="input"
-          startAdornment={<InputAdornment position="start">{handleStartAdornment()}</InputAdornment>}
-          endAdornment={<InputAdornment position="end">{handleEndAdornment(value)}</InputAdornment>}
+          startAdornment={<InputAdornment position="start">{handleStartAdornment(currentType)}</InputAdornment>}
+          endAdornment={<InputAdornment position="end">{handleEndAdornment(value, currentType)}</InputAdornment>}
           onBlur={handleBlur}
           onChange={onChange}
           aria-describedby="helper-text-channel-input-label"
@@ -550,6 +560,7 @@ const EditModal = ({
     const value = singleMode ? inputs.output : values.output;
     const onChange = singleMode ? handleChange : formikHandleChange;
     const errorState = singleMode ? !!errors.output : Boolean(touched?.output && errors?.output);
+    const currentType = singleMode ? inputs.type : values?.type;
 
     return (
       <FormControl fullWidth error={errorState} sx={{ ...theme.typography.otherInput }}>
@@ -560,8 +571,8 @@ const EditModal = ({
           type="number"
           value={value}
           name="output"
-          startAdornment={<InputAdornment position="start">{handleStartAdornment()}</InputAdornment>}
-          endAdornment={<InputAdornment position="end">{handleEndAdornment(value)}</InputAdornment>}
+          startAdornment={<InputAdornment position="start">{handleStartAdornment(currentType)}</InputAdornment>}
+          endAdornment={<InputAdornment position="end">{handleEndAdornment(value, currentType)}</InputAdornment>}
           onBlur={handleBlur}
           onChange={onChange}
           aria-describedby="helper-text-channel-output-label"
