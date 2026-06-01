@@ -4,12 +4,15 @@ import { useFormikContext } from 'formik';
 import { Autocomplete, Box, Chip, FormControl, FormHelperText, Grid, Paper, TextField, Typography } from '@mui/material';
 import PropTypes from 'prop-types';
 import { useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import UnknownType from 'assets/images/icons/unknown_type.svg';
 
 const ModelLimitSelector = ({ modelOptions, getModelIcon }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { values, setFieldValue } = useFormikContext();
+  const { userGroup } = useSelector((state) => state.account);
+  const getGroupLabel = (symbol) => userGroup?.[symbol]?.name || symbol;
   const sortedModelOptions = useMemo(() => {
     return [...modelOptions].sort((a, b) => a.owned_by.localeCompare(b.owned_by));
   }, [modelOptions]);
@@ -64,7 +67,7 @@ const ModelLimitSelector = ({ modelOptions, getModelIcon }) => {
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
                   {option.groups.map((group) => (
-                    <Chip key={group} label={group} size="small" variant="outlined" />
+                    <Chip key={group} label={getGroupLabel(group)} size="small" variant="outlined" />
                   ))}
                 </Box>
               </Grid>
