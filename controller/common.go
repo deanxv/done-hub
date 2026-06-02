@@ -6,6 +6,7 @@ import (
 	"done-hub/common/logger"
 	"done-hub/common/notify"
 	"done-hub/common/redis"
+	"done-hub/common/utils"
 	"done-hub/model"
 	"done-hub/types"
 	"fmt"
@@ -143,9 +144,11 @@ func DisableChannel(channelId int, channelName string, reason string, sendNotify
 		model.UpdateChannelStatusById(channelId, config.ChannelStatusAutoDisabled)
 
 		// 发送通知：受全局开关控制，并通过 SETNX 在多节点间去重。
+		// reason 可能来自上游 err.Message,可能包含 URL/IP/api_key 等敏感串,
+		// 通知会直达运维收件人,这里强制脱敏。
 		if sendNotify && config.AutomaticDisableChannelNotifyEnabled && shouldSendChannelDisableNotify(channelId) {
 			subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelName, channelId)
-			content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelName, channelId, reason)
+			content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelName, channelId, utils.MaskSensitiveInfo(reason))
 			notify.Send(subject, content)
 		}
 

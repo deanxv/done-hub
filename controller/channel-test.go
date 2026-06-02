@@ -158,6 +158,7 @@ func testChannel(channel *model.Channel, testModel string) (openaiErr *types.Ope
 	}
 
 	if openAIErrorWithStatusCode != nil {
+		// 透传原始 err; UI/通知文案的脱敏由 caller 统一在调用 utils.MaskSensitiveInfo 时完成。
 		return openAIErrorWithStatusCode, errors.New(openAIErrorWithStatusCode.Message)
 	}
 
@@ -216,13 +217,13 @@ func TestChannel(c *gin.Context) {
 	msg := ""
 	if openaiErr != nil {
 		if ShouldDisableChannel(channel.Type, openaiErr) {
-			msg = fmt.Sprintf("测速失败，已被禁用，原因：%s", err.Error())
+			msg = fmt.Sprintf("测速失败，已被禁用，原因：%s", utils.MaskSensitiveInfo(err.Error()))
 			DisableChannel(channel.Id, channel.Name, err.Error(), false)
 		} else {
-			msg = fmt.Sprintf("测速失败，原因：%s", err.Error())
+			msg = fmt.Sprintf("测速失败，原因：%s", utils.MaskSensitiveInfo(err.Error()))
 		}
 	} else if err != nil {
-		msg = fmt.Sprintf("测速失败，原因：%s", err.Error())
+		msg = fmt.Sprintf("测速失败，原因：%s", utils.MaskSensitiveInfo(err.Error()))
 	} else {
 		success = true
 		msg = "测速成功"
@@ -321,7 +322,7 @@ func testAllChannels(isNotify bool) error {
 			// 通道为禁用状态，并且还是请求错误 或者 响应时间超过阈值 直接跳过，也不需要更新响应时间。
 			if !isChannelEnabled {
 				if err != nil {
-					sb.WriteString(fmt.Sprintf("- 测试报错: %s \n\n- 无需改变状态，跳过\n\n", utils.EscapeMarkdownText(err.Error())))
+					sb.WriteString(fmt.Sprintf("- 测试报错: %s \n\n- 无需改变状态，跳过\n\n", utils.EscapeMarkdownText(utils.MaskSensitiveInfo(err.Error()))))
 					continue
 				}
 				if milliseconds > disableThreshold {
@@ -348,13 +349,13 @@ func testAllChannels(isNotify bool) error {
 				}
 
 				if ShouldDisableChannel(channel.Type, openaiErr) {
-					sb.WriteString(fmt.Sprintf("- 已被禁用，原因：%s\n\n", utils.EscapeMarkdownText(err.Error())))
+					sb.WriteString(fmt.Sprintf("- 已被禁用，原因：%s\n\n", utils.EscapeMarkdownText(utils.MaskSensitiveInfo(err.Error()))))
 					DisableChannel(channel.Id, channel.Name, err.Error(), false)
 					continue
 				}
 
 				if err != nil {
-					sb.WriteString(fmt.Sprintf("- 测试报错: %s \n\n", utils.EscapeMarkdownText(err.Error())))
+					sb.WriteString(fmt.Sprintf("- 测试报错: %s \n\n", utils.EscapeMarkdownText(utils.MaskSensitiveInfo(err.Error()))))
 					continue
 				}
 			}

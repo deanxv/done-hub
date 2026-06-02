@@ -573,6 +573,11 @@ var (
 )
 
 func FilterOpenAIErr(c *gin.Context, err *types.OpenAIErrorWithStatusCode) (errWithStatusCode types.OpenAIErrorWithStatusCode) {
+	// 兜底脱敏:在最终返回前统一对 Message 脱敏,避免逐条 return 漏改。
+	defer func() {
+		errWithStatusCode.OpenAIError.Message = utils.MaskSensitiveInfo(errWithStatusCode.OpenAIError.Message)
+	}()
+
 	newErr := types.OpenAIErrorWithStatusCode{}
 	if err != nil {
 		newErr = *err
