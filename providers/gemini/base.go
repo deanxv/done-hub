@@ -107,6 +107,21 @@ const rateLimitResetBufferSeconds int64 = 5
 // 正则表达式匹配每日配额限制（Quota exceeded + per_day），不限制 limit 具体数值
 var perDayQuotaRegex = regexp.MustCompile(`Quota exceeded for metric:.*per_day`)
 
+// perMinuteRateLimitRegex 匹配 Google 对"每分钟请求限流（RPM）"的标准错误文本，例：
+//
+//	"Quota exceeded for quota metric 'API requests' and limit 'Request limit per minute for a region' ..."
+//
+// 触发场景：客户端 RPM 超过当前模型 quota（free tier ~15 RPM、paid 1k+ RPM）。
+// 这条错误上游通常**不会**附带 RetryInfo 或 "Please retry in" 文本——既然 RPM 一分钟内一定刷新，
+// Google 没必要回精确时间——所以 message 启发式是唯一可用兜底。否则会落到下面的 keyword/code/type
+// 检查，配了 "Quota exceeded" 等宽 keyword 的部署会被永久禁渠道（per-minute 实际只该冻 60s）。
+var perMinuteRateLimitRegex = regexp.MustCompile(`Request limit per minute`)
+
+// perMinuteRateLimitCooldownSeconds per-minute 限流兜底冻结时长（秒）。
+// quota 在每个分钟边界刷新，worst-case 等下一个边界即恢复。60s 是稳妥上界；
+// 偏长比偏短安全：偏短会立即撞同 channel 再翻一轮，偏长只是这一分钟内换别的渠道服务。
+const perMinuteRateLimitCooldownSeconds int64 = 60
+
 // CachedContentNotFoundMsg 是 Google 对 "cachedContent 引用失效" 这一类错误的统一返回串。
 // 触发场景包括：cache TTL 过期、cache 不属于当前 key、跨项目 / 跨区域引用。
 // Google 故意把"不存在"与"无权访问"合并成同一句返回（防缓存名枚举），所以这一条本质是
@@ -208,6 +223,16 @@ func parseRateLimitResetTime(errorInfo *GeminiError) (int64, bool) {
 		logger.SysLog(fmt.Sprintf("[Gemini] Daily quota exceeded, reset at: %s (Pacific Time)",
 			nextReset.Format(time.RFC3339)))
 		return nextReset.Unix(), true
+	}
+
+	// 方式4: 每分钟请求限流（RPM），冻结 60s 与配额刷新窗口对齐
+	// 上游既无 RetryInfo Details，message 也没有 "Please retry in" 文本时，仅能从限流类型本身推断。
+	// 优先级最低：放在结构化 / 精确文本 / per_day 之后，让带精确时间的路径先匹配。
+	if perMinuteRateLimitRegex.MatchString(errorInfo.Message) {
+		resetTimestamp := time.Now().Unix() + perMinuteRateLimitCooldownSeconds + rateLimitResetBufferSeconds
+		logger.SysLog(fmt.Sprintf("[Gemini] Per-minute rate limit detected (heuristic, %ds + %ds buffer), reset at: %s",
+			perMinuteRateLimitCooldownSeconds, rateLimitResetBufferSeconds, time.Unix(resetTimestamp, 0).Format(time.RFC3339)))
+		return resetTimestamp, true
 	}
 
 	return 0, false
