@@ -3,12 +3,14 @@ package relay
 import (
 	"done-hub/common"
 	"done-hub/common/config"
+	"done-hub/common/logger"
 	"done-hub/common/requester"
 	"done-hub/providers/gemini"
 	"done-hub/safty"
 	"done-hub/types"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -142,6 +144,8 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 		var response requester.StreamReaderInterface[string]
 		response, err = chatProvider.CreateGeminiChatStream(r.geminiRequest)
 		if err != nil {
+			// cache 失效的 403 → 剥字段，让下一轮 retry 不再带上失效引用
+			r.handleCachedContentFailure(err)
 			return
 		}
 
@@ -162,6 +166,8 @@ func (r *relayGeminiOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 		var response *gemini.GeminiChatResponse
 		response, err = chatProvider.CreateGeminiChat(r.geminiRequest)
 		if err != nil {
+			// cache 失效的 403 → 剥字段，让下一轮 retry 不再带上失效引用
+			r.handleCachedContentFailure(err)
 			return
 		}
 
@@ -189,6 +195,53 @@ func (r *relayGeminiOnly) releaseBody() {
 	r.c.Set(config.GinRequestBodyKey, nil)
 	r.c.Set(config.GinProcessedBytesKey, nil)
 	r.c.Set(config.GinProcessedBytesIsVertexAI, nil)
+}
+
+// handleCachedContentFailure 撞上 "CachedContent not found" 后剥掉 cachedContent，
+// 让下一轮 retry 复用已 clean 的 body 但不再带失效引用。
+// AllowGeminiChannelType 下两类 provider 用不同缓存：
+//   - Gemini / VertexAI / VertexAIExpress: 写 GinProcessedBytesKey (bytes)；读取顺序 bytes → raw → map
+//   - GeminiCli / Antigravity:             写 GinProcessedBodyKey (map)；只读 map 系列，不读 bytes 缓存
+//
+// 两个 key 都尝试剥可覆盖：同组渠道间 retry、以及 "cli/antigravity 首攻 → Gemini 家 retry 通过 map 回退命中"。
+// 反方向（Gemini 家首攻 → cli/antigravity retry）会撞预先存在的 "request body not found"——
+// 因为 SetProcessedBodyBytes 会 nil 掉 raw bytes 和 raw map，cli 这边没东西可读。本函数不解决这条。
+func (r *relayGeminiOnly) handleCachedContentFailure(apiErr *types.OpenAIErrorWithStatusCode) {
+	if apiErr == nil || apiErr.StatusCode != http.StatusForbidden {
+		return
+	}
+	if !strings.Contains(apiErr.OpenAIError.Message, gemini.CachedContentNotFoundMsg) {
+		return
+	}
+
+	stripped := false
+	// bytes 路径：Gemini / VertexAI / VertexAIExpress provider
+	if raw, ok := r.c.Get(config.GinProcessedBytesKey); ok {
+		if data, ok := raw.([]byte); ok && len(data) > 0 {
+			r.c.Set(config.GinProcessedBytesKey, gemini.StripCachedContentBytes(data))
+			stripped = true
+		}
+	}
+	// map 路径：GeminiCli / Antigravity provider
+	if raw, ok := r.c.Get(config.GinProcessedBodyKey); ok {
+		if m, ok := raw.(map[string]interface{}); ok {
+			gemini.StripCachedContentMap(m)
+			stripped = true
+		}
+	}
+	if !stripped {
+		return
+	}
+
+	var channelId int
+	if r.provider != nil {
+		if ch := r.provider.GetChannel(); ch != nil {
+			channelId = ch.Id
+		}
+	}
+	logger.LogWarn(r.c.Request.Context(), fmt.Sprintf(
+		"gemini_cached_content_stripped reason=upstream_cache_invalid model=%s channel_id=%d",
+		r.modelName, channelId))
 }
 
 func (r *relayGeminiOnly) GetError(err *types.OpenAIErrorWithStatusCode) (int, any) {

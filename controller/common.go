@@ -8,10 +8,12 @@ import (
 	"done-hub/common/redis"
 	"done-hub/common/utils"
 	"done-hub/model"
+	"done-hub/providers/gemini"
 	"done-hub/types"
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -86,7 +88,12 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 		return false
 	}
 
-	// 状态码检查（优先级最高）
+	// CachedContent 引用失效，渠道本身没坏，不应禁用（必须放在 403 状态码规则之前）
+	if strings.Contains(err.OpenAIError.Message, gemini.CachedContentNotFoundMsg) {
+		return false
+	}
+
+	// 状态码检查（在关键词 / code / type 之上；白名单短路已在前面处理）
 	if err.StatusCode == http.StatusUnauthorized {
 		return true
 	}

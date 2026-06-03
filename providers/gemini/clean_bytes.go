@@ -13,6 +13,25 @@ import (
 // 混入，对官方 Gemini API 没有意义。
 const minThoughtSignatureLength = 50
 
+// StripCachedContentBytes 在字节层面剥掉根级 cachedContent / cached_content 字段。
+// 触发场景：上游回 "CachedContent not found (or permission denied)" 后剥掉再 retry，
+// 避免下一个渠道继续撞同样的 403。
+// camelCase 是 Gemini 官方 JSON 字段，snake_case 是部分 SDK 习惯写法，两个变体都剥。
+// 字节版用在 Gemini / VertexAI / VertexAIExpress 路径（chat.go 走 SetProcessedBodyBytes）。
+func StripCachedContentBytes(data []byte) []byte {
+	data, _ = sjson.DeleteBytes(data, "cachedContent")
+	data, _ = sjson.DeleteBytes(data, "cached_content")
+	return data
+}
+
+// StripCachedContentMap 是 StripCachedContentBytes 的 map 对偶。
+// GeminiCli / Antigravity 走的是 SetProcessedBody 的 map 缓存（不写 bytes 缓存），
+// 字节版剥不到，必须有这一份。delete on nil map 是 Go 语言层面 no-op，调用方不需要再判 nil。
+func StripCachedContentMap(m map[string]interface{}) {
+	delete(m, "cachedContent")
+	delete(m, "cached_content")
+}
+
 // CleanGeminiRequestBytes 在字节层面清理 Gemini 请求数据中的不兼容字段
 // 使用 gjson/sjson 直接操作字节，避免对含 base64 图片的大请求做完整 json.Unmarshal/Marshal
 func CleanGeminiRequestBytes(data []byte, isVertexAI bool) ([]byte, error) {

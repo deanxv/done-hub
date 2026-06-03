@@ -107,6 +107,14 @@ const rateLimitResetBufferSeconds int64 = 5
 // 正则表达式匹配每日配额限制（Quota exceeded + per_day），不限制 limit 具体数值
 var perDayQuotaRegex = regexp.MustCompile(`Quota exceeded for metric:.*per_day`)
 
+// CachedContentNotFoundMsg 是 Google 对 "cachedContent 引用失效" 这一类错误的统一返回串。
+// 触发场景包括：cache TTL 过期、cache 不属于当前 key、跨项目 / 跨区域引用。
+// Google 故意把"不存在"与"无权访问"合并成同一句返回（防缓存名枚举），所以这一条本质是
+// "请求体里 cachedContent 字段当前不可用"，跟渠道 key 自身是否有效无关。
+// 跨包共用：controller.ShouldDisableChannel 用它做"不要禁用渠道"决策，
+// relay/gemini 用它做"剥字段透明重试"决策——两个决策独立但判定串相同，集中在此一份。
+const CachedContentNotFoundMsg = "CachedContent not found (or permission denied)"
+
 // 请求错误处理
 func RequestErrorHandle(key string) requester.HttpErrorHandler {
 	return func(resp *http.Response) *types.OpenAIError {
