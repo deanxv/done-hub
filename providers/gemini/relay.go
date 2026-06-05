@@ -59,7 +59,7 @@ func (p *GeminiProvider) CreateGeminiChat(request *GeminiChatRequest) (*GeminiCh
 	// 上游 promptTokenCount 在中转链路里有时丢字段或为 0（中转商裁字段 / cache 命中等），
 	// 整对象赋值会把 RelayHandler 在 send 前填的本地预估 PromptTokens 一并抹掉，
 	// 导致消费日志记成 "0 in / N out"、平台漏收 input 部分费用。保留本地预估值兜底。
-	upstreamUsage := ConvertOpenAIUsage(geminiResponse.UsageMetadata)
+	upstreamUsage := ConvertOpenAIUsageWithFallback(geminiResponse.UsageMetadata, geminiResponse)
 	if upstreamUsage.PromptTokens <= 0 && usage.PromptTokens > 0 {
 		upstreamUsage.PromptTokens = usage.PromptTokens
 	}

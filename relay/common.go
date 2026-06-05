@@ -567,15 +567,31 @@ func processChannelRelayError(ctx context.Context, channelId int, channelName st
 	}
 }
 
-var (
-	requestIdRegex = regexp.MustCompile(`\(request id: [^\)]+\)`)
-	quotaKeywords  = []string{"余额", "额度", "quota", model.KeywordNoAvailableChannel, "令牌"}
-)
+// notifyChannelRelayError 是所有有重试循环的入口（main.go / recraftAI.go / rerank.go 等）
+// 在拿到上游失败 apiErr 后的统一通知入口：
+//   - 异步触发 processChannelRelayError（判断是否要永久禁用渠道）
+//   - 记录 429 信号（upstream_seen_429）供 FilterOpenAIErr 坍缩时保留 status code，
+//     让客户端 SDK 的标准退避算法生效
+//
+// 把两件事绑在一起，未来加新入口只要调一次，从机制上消除"漏调一个就丢 429 信号"的脆弱约定。
+func notifyChannelRelayError(ctx context.Context, c *gin.Context, channel *model.Channel, apiErr *types.OpenAIErrorWithStatusCode) {
+	go processChannelRelayError(ctx, channel.Id, channel.Name, apiErr, channel.Type)
+	if apiErr != nil && apiErr.StatusCode == http.StatusTooManyRequests {
+		c.Set("upstream_seen_429", true)
+	}
+}
+
+var requestIdRegex = regexp.MustCompile(`\(request id: [^\)]+\)`)
 
 func FilterOpenAIErr(c *gin.Context, err *types.OpenAIErrorWithStatusCode) (errWithStatusCode types.OpenAIErrorWithStatusCode) {
 	// 兜底脱敏:在最终返回前统一对 Message 脱敏,避免逐条 return 漏改。
+	// skipMask=true 时跳过——管理员在后台配置的 ChannelFailErrorMessage 属于受信内容，
+	// 运维若特意写了 support@x.com 这类联系方式，不应被脱敏成 ***。
+	skipMask := false
 	defer func() {
-		errWithStatusCode.OpenAIError.Message = utils.MaskSensitiveInfo(errWithStatusCode.OpenAIError.Message)
+		if !skipMask {
+			errWithStatusCode.OpenAIError.Message = utils.MaskSensitiveInfo(errWithStatusCode.OpenAIError.Message)
+		}
 	}()
 
 	newErr := types.OpenAIErrorWithStatusCode{}
@@ -583,9 +599,49 @@ func FilterOpenAIErr(c *gin.Context, err *types.OpenAIErrorWithStatusCode) (errW
 		newErr = *err
 	}
 
-	if newErr.StatusCode == http.StatusTooManyRequests {
-		newErr.OpenAIError.Message = "当前分组上游负载已饱和，请稍后再试"
+	// 客户端可见错误白名单：仅 400 透传上游原文（参数错误对客户端有意义），
+	// 其余统一坍缩为 503 + 固定文案，避免客户端通过 status code 或 message 差异
+	// 反推上游身份/key 状态/路径等内部信息。
+	// 坍缩范围：
+	//   1) 非 LocalError 且 status != 400：所有上游返回的非 400 错误（401/403/404/429/5xx）
+	//   2) LocalError 且 type == "upstream_unavailable"：路由阶段无渠道、重试超时等
+	//      "渠道整体不可用"语义的本地错误（消息体仍保留用于内部日志诊断）
+	// 其余 LocalError（参数错误、计费错误等）走原路径，文案本就是我们自己写的。
+	// 总开关 ChannelFailErrorWrapEnabled 关闭时跳过坍缩，让运维能临时看到上游真实错误用于调试。
+	collapse := config.ChannelFailErrorWrapEnabled &&
+		((!newErr.LocalError && newErr.StatusCode != http.StatusBadRequest) ||
+			(newErr.LocalError && newErr.OpenAIError.Type == "upstream_unavailable"))
+	if collapse {
+		// 坍缩 message 来自管理员后台配置，跳过脱敏。
+		skipMask = true
+		requestId := c.GetString(logger.RequestIdKey)
+		// 默认坍缩到 503；保留 429 的两个触发源：
+		//   - upstream_seen_429：main.go 重试循环里检测到的"链中曾出现过 429"
+		//   - newErr.StatusCode == 429：单次入口（relay/relay.go RelayOnly、relay/recraftAI.go 等）的最终错误是 429
+		// OR 兜底确保所有路径都能保留 429 让客户端 SDK 的标准退避算法生效。
+		// message 仍统一为自定义文案，隐藏上游 provider 名/key 状态等内部信息。
+		statusCode := http.StatusServiceUnavailable
+		errCode := "service_unavailable"
+		if c.GetBool("upstream_seen_429") || newErr.StatusCode == http.StatusTooManyRequests {
+			statusCode = http.StatusTooManyRequests
+			errCode = "rate_limit_exceeded"
+		}
+		return types.OpenAIErrorWithStatusCode{
+			StatusCode: statusCode,
+			OpenAIError: types.OpenAIError{
+				Type:    "system_error",
+				Code:    errCode,
+				Message: utils.MessageWithRequestId(config.GetChannelFailErrorMessage(), requestId),
+			},
+		}
 	}
+
+	// 至此 newErr 落到此分支的两类情况：
+	//   1) ChannelFailErrorWrapEnabled=true 的残余路径：
+	//      - !LocalError && StatusCode == 400：上游 400 透传给客户端（参数错误对其有意义）
+	//      - LocalError 且 type != upstream_unavailable：本地参数/计费/token 等业务错误，文案本就是我们自己写的
+	//   2) ChannelFailErrorWrapEnabled=false（运维临时关掉调试）：所有错误都落到这里，包括上游 4xx/5xx 与 upstream_unavailable 类 LocalError
+	// 这里做最后的轻度规整：拼 request id、隐藏暴露上游身份或内部 sentinel 的 type 标签、修补 bad_response_status_code 文案。
 
 	// 如果message中已经包含 request id: 则不再添加
 	if strings.Contains(newErr.Message, "(request id:") {
@@ -595,127 +651,12 @@ func FilterOpenAIErr(c *gin.Context, err *types.OpenAIErrorWithStatusCode) (errW
 	requestId := c.GetString(logger.RequestIdKey)
 	newErr.OpenAIError.Message = utils.MessageWithRequestId(newErr.OpenAIError.Message, requestId)
 
-	channelType := c.GetInt("channel_type")
-
-	// GeminiCli 错误处理（优先处理，避免被通用逻辑覆盖）
-	if channelType == config.ChannelTypeGeminiCli && !newErr.LocalError {
-		if newErr.OpenAIError.Type == "geminicli_error" || newErr.OpenAIError.Type == "geminicli_token_error" {
-			if newErr.StatusCode == http.StatusUnauthorized || newErr.StatusCode == http.StatusForbidden {
-				if cachedErr, exists := c.Get("first_non_auth_error"); exists {
-					if firstErr, ok := cachedErr.(*types.OpenAIErrorWithStatusCode); ok {
-						newErr = *firstErr
-						if newErr.OpenAIError.Type == "geminicli_error" {
-							newErr.OpenAIError.Type = "system_error"
-						}
-						newErr.OpenAIError.Message = utils.MessageWithRequestId(newErr.OpenAIError.Message, requestId)
-						return newErr
-					}
-				}
-				if newErr.StatusCode == http.StatusUnauthorized {
-					newErr.OpenAIError.Type = "authentication_error"
-				} else {
-					newErr.OpenAIError.Type = "access_denied"
-				}
-				newErr.OpenAIError.Message = utils.MessageWithRequestId("上游负载已饱和，请稍后再试", requestId)
-				newErr.StatusCode = http.StatusTooManyRequests
-				return newErr
-			} else {
-				newErr.OpenAIError.Type = "system_error"
-			}
-		}
-	}
-
-	// ClaudeCode 错误处理（优先处理，避免被通用逻辑覆盖）
-	if channelType == config.ChannelTypeClaudeCode && !newErr.LocalError {
-		if newErr.OpenAIError.Type == "claudecode_error" || newErr.OpenAIError.Type == "claudecode_token_error" {
-			if newErr.StatusCode == http.StatusUnauthorized || newErr.StatusCode == http.StatusForbidden {
-				if cachedErr, exists := c.Get("first_non_auth_error"); exists {
-					if firstErr, ok := cachedErr.(*types.OpenAIErrorWithStatusCode); ok {
-						newErr = *firstErr
-						if newErr.OpenAIError.Type == "claudecode_error" {
-							newErr.OpenAIError.Type = "system_error"
-						}
-						newErr.OpenAIError.Message = utils.MessageWithRequestId(newErr.OpenAIError.Message, requestId)
-						return newErr
-					}
-				}
-				if newErr.StatusCode == http.StatusUnauthorized {
-					newErr.OpenAIError.Type = "authentication_error"
-				} else {
-					newErr.OpenAIError.Type = "access_denied"
-				}
-				newErr.OpenAIError.Message = utils.MessageWithRequestId("上游负载已饱和，请稍后再试", requestId)
-				newErr.StatusCode = http.StatusTooManyRequests
-				return newErr
-			} else {
-				newErr.OpenAIError.Type = "system_error"
-			}
-		}
-	}
-
-	// Codex 错误处理（优先处理，避免被通用逻辑覆盖）
-	if channelType == config.ChannelTypeCodex && !newErr.LocalError {
-		if newErr.OpenAIError.Type == "codex_error" || newErr.OpenAIError.Type == "codex_token_error" {
-			if newErr.StatusCode == http.StatusUnauthorized || newErr.StatusCode == http.StatusForbidden {
-				if cachedErr, exists := c.Get("first_non_auth_error"); exists {
-					if firstErr, ok := cachedErr.(*types.OpenAIErrorWithStatusCode); ok {
-						newErr = *firstErr
-						if newErr.OpenAIError.Type == "codex_error" {
-							newErr.OpenAIError.Type = "system_error"
-						}
-						newErr.OpenAIError.Message = utils.MessageWithRequestId(newErr.OpenAIError.Message, requestId)
-						return newErr
-					}
-				}
-				if newErr.StatusCode == http.StatusUnauthorized {
-					newErr.OpenAIError.Type = "authentication_error"
-				} else {
-					newErr.OpenAIError.Type = "access_denied"
-				}
-				newErr.OpenAIError.Message = utils.MessageWithRequestId("上游负载已饱和，请稍后再试", requestId)
-				newErr.StatusCode = http.StatusTooManyRequests
-				return newErr
-			} else {
-				newErr.OpenAIError.Type = "system_error"
-			}
-		}
-	}
-
-	// Antigravity 错误处理（优先处理，避免被通用逻辑覆盖）
-	if channelType == config.ChannelTypeAntigravity && !newErr.LocalError {
-		if newErr.OpenAIError.Type == "antigravity_error" || newErr.OpenAIError.Type == "antigravity_token_error" {
-			if newErr.StatusCode == http.StatusUnauthorized || newErr.StatusCode == http.StatusForbidden {
-				if cachedErr, exists := c.Get("first_non_auth_error"); exists {
-					if firstErr, ok := cachedErr.(*types.OpenAIErrorWithStatusCode); ok {
-						newErr = *firstErr
-						if newErr.OpenAIError.Type == "antigravity_error" {
-							newErr.OpenAIError.Type = "system_error"
-						}
-						newErr.OpenAIError.Message = utils.MessageWithRequestId(newErr.OpenAIError.Message, requestId)
-						return newErr
-					}
-				}
-				if newErr.StatusCode == http.StatusUnauthorized {
-					newErr.OpenAIError.Type = "authentication_error"
-				} else {
-					newErr.OpenAIError.Type = "access_denied"
-				}
-				newErr.OpenAIError.Message = utils.MessageWithRequestId("上游负载已饱和，请稍后再试", requestId)
-				newErr.StatusCode = http.StatusTooManyRequests
-				return newErr
-			} else {
-				newErr.OpenAIError.Type = "system_error"
-			}
-		}
-	}
-
-	// 通用错误处理
-	if !newErr.LocalError && (newErr.OpenAIError.Type == "one_hub_error" || strings.HasSuffix(newErr.OpenAIError.Type, "_api_error")) {
+	// 隐藏暴露上游身份或仅供内部使用的 type 标签：
+	//   - one_hub_error / *_api_error：暴露上游 SDK 身份（anthropic_api_error 等）
+	//   - upstream_unavailable：internal sentinel，仅用于 collapse 路由；关闭开关调试时不应漏给客户端
+	if newErr.OpenAIError.Type == "upstream_unavailable" ||
+		(!newErr.LocalError && (newErr.OpenAIError.Type == "one_hub_error" || strings.HasSuffix(newErr.OpenAIError.Type, "_api_error"))) {
 		newErr.OpenAIError.Type = "system_error"
-		if utils.ContainsString(newErr.Message, quotaKeywords) {
-			newErr.Message = "上游负载已饱和，请稍后再试"
-			newErr.StatusCode = http.StatusTooManyRequests
-		}
 	}
 
 	if code, ok := newErr.OpenAIError.Code.(string); ok && code == "bad_response_status_code" && !strings.Contains(newErr.OpenAIError.Message, "bad response status code") {

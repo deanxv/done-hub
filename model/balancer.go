@@ -31,11 +31,6 @@ const (
 	ErrChannelDisabled                   = "该渠道已被禁用"
 )
 
-// 关键词常量
-const (
-	KeywordNoAvailableChannel = "无可用渠道"
-)
-
 type ChannelChoice struct {
 	Channel       *Channel
 	CooldownsTime int64

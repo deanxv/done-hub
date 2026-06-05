@@ -877,6 +877,12 @@
           "label": "重试超时时间(秒)",
           "placeholder": "重试超时时间(秒)"
         },
+        "channelFailErrorWrapEnabled": "封装上游错误信息",
+        "channelFailErrorWrapEnabledTooltip": "关闭后客户端将收到上游原始错误文案（可能包含 key 片段、provider 名等敏感信息），仅建议运维临时关掉用于调试",
+        "channelFailErrorMessage": {
+          "label": "渠道失败统一返回文案",
+          "placeholder": "所有非 400 的上游失败（401/403/404/429/5xx）统一坍缩为此文案 + 503；留空使用默认值"
+        },
         "displayInCurrency": "以货币形式显示额度",
         "displayTokenStat": "Billing 相关 API 显示令牌额度而非用户额度",
         "approximateToken": "使用近似的方式估算 token 数以减少计算量",

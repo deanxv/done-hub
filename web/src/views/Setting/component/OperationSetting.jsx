@@ -70,6 +70,8 @@ const OperationSetting = () => {
     RetryTimeOut: 0,
     RetryCooldownSeconds: 0,
     RetryCooldownPerStatus: '',
+    ChannelFailErrorWrapEnabled: 'true',
+    ChannelFailErrorMessage: '',
     MjNotifyEnabled: 'false',
     ChatImageRequestProxy: '',
     PaymentUSDRate: 0,
@@ -382,6 +384,12 @@ const OperationSetting = () => {
           if (originInputs['RetryTimeOut'] !== inputs.RetryTimeOut) {
             await updateOption('RetryTimeOut', inputs.RetryTimeOut);
           }
+          if (originInputs['ChannelFailErrorWrapEnabled'] !== inputs.ChannelFailErrorWrapEnabled) {
+            await updateOption('ChannelFailErrorWrapEnabled', inputs.ChannelFailErrorWrapEnabled);
+          }
+          if (originInputs['ChannelFailErrorMessage'] !== inputs.ChannelFailErrorMessage) {
+            await updateOption('ChannelFailErrorMessage', inputs.ChannelFailErrorMessage);
+          }
           if (originInputs['EmptyResponseBillingEnabled'] !== inputs.EmptyResponseBillingEnabled) {
             await updateOption('EmptyResponseBillingEnabled', inputs.EmptyResponseBillingEnabled);
           }
@@ -621,6 +629,41 @@ const OperationSetting = () => {
                 label={t('setting_index.operationSettings.generalSettings.retryTimeOut.label')}
                 placeholder={t('setting_index.operationSettings.generalSettings.retryTimeOut.placeholder')}
                 disabled={loading}
+              />
+            </FormControl>
+          </Stack>
+          <Stack direction={{ sm: 'column', md: 'row' }} spacing={{ xs: 3, sm: 2, md: 4 }}>
+            <Tooltip
+              title={t('setting_index.operationSettings.generalSettings.channelFailErrorWrapEnabledTooltip')}
+              placement="top"
+              enterDelay={300}
+              arrow
+            >
+              <FormControlLabel
+                sx={{ marginLeft: '0px' }}
+                label={t('setting_index.operationSettings.generalSettings.channelFailErrorWrapEnabled')}
+                control={
+                  <Checkbox
+                    checked={dataLoaded ? inputs.ChannelFailErrorWrapEnabled === 'true' : false}
+                    onChange={handleInputChange}
+                    name="ChannelFailErrorWrapEnabled"
+                    disabled={!dataLoaded || loading}
+                  />
+                }
+              />
+            </Tooltip>
+            <FormControl fullWidth>
+              <InputLabel htmlFor="ChannelFailErrorMessage">
+                {t('setting_index.operationSettings.generalSettings.channelFailErrorMessage.label')}
+              </InputLabel>
+              <OutlinedInput
+                id="ChannelFailErrorMessage"
+                name="ChannelFailErrorMessage"
+                value={inputs.ChannelFailErrorMessage}
+                onChange={handleInputChange}
+                label={t('setting_index.operationSettings.generalSettings.channelFailErrorMessage.label')}
+                placeholder={t('setting_index.operationSettings.generalSettings.channelFailErrorMessage.placeholder')}
+                disabled={!dataLoaded || loading || inputs.ChannelFailErrorWrapEnabled !== 'true'}
               />
             </FormControl>
           </Stack>

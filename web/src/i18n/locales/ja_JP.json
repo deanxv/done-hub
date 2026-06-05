@@ -921,6 +921,12 @@
           "label": "再試行のタイムアウト時間（秒）",
           "placeholder": "再試行のタイムアウト時間（秒）"
         },
+        "channelFailErrorWrapEnabled": "上流エラーメッセージをラップ",
+        "channelFailErrorWrapEnabledTooltip": "無効にするとクライアントは上流の生エラー文（キーの断片やプロバイダ名など機微情報を含む可能性）を受け取ります。デバッグ用の一時的な無効化のみ推奨",
+        "channelFailErrorMessage": {
+          "label": "チャネル失敗時の統一メッセージ",
+          "placeholder": "400 以外のすべての上流エラー（401/403/404/429/5xx）はこのメッセージ + 503 に集約されます。空欄でデフォルト値を使用"
+        },
         "emptyResponseBilling": "空応答課金"
       },
       "logSettings": {

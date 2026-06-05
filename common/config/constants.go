@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -203,6 +204,32 @@ var EmptyResponseBillingEnabled = true
 var DisableTokenEncoders = false
 var RetryTimes = 0
 var RetryTimeOut = 10
+
+// ChannelFailErrorWrapEnabled 是否启用"渠道失败统一封装"。
+// 开启（默认）：FilterOpenAIErr 把所有非 400 上游错误坍缩为 503 + ChannelFailErrorMessage，
+//
+//	对客户端隐藏上游身份、key 状态等内部信息。
+//
+// 关闭：跳过坍缩，上游错误原样透传（仍走 request id 拼接 / Type 隐藏等轻度规整）。
+//
+//	给运维一个"临时关掉看上游真实错误"的口子，便于调试。
+var ChannelFailErrorWrapEnabled = true
+
+// ChannelFailErrorMessage 返回给客户端的统一上游错误文案。
+// 仅在 ChannelFailErrorWrapEnabled 为 true 时生效；留空时回退到 DefaultChannelFailErrorMessage。
+// 通过 GetChannelFailErrorMessage() 取值。
+const DefaultChannelFailErrorMessage = "当前分组上游负载已饱和，请稍后再试"
+
+var ChannelFailErrorMessage = DefaultChannelFailErrorMessage
+
+// GetChannelFailErrorMessage 返回当前配置的统一错误文案；
+// 运维在管理后台清空（空串或纯空白）时回退到默认值，避免客户端收到空 message。
+func GetChannelFailErrorMessage() string {
+	if strings.TrimSpace(ChannelFailErrorMessage) == "" {
+		return DefaultChannelFailErrorMessage
+	}
+	return ChannelFailErrorMessage
+}
 
 // 统一请求响应模型（响应中显示用户请求的原始模型名称）
 var UnifiedRequestResponseModelEnabled = false

@@ -40,7 +40,7 @@ func RelayRerank(c *gin.Context) {
 	}
 
 	channel := relay.getProvider().GetChannel()
-	go processChannelRelayError(c.Request.Context(), channel.Id, channel.Name, apiErr, channel.Type)
+	notifyChannelRelayError(c.Request.Context(), c, channel, apiErr)
 
 	retryTimes := config.RetryTimes
 	// 在重试开始前计算并缓存总渠道数，避免重试过程中动态变化
@@ -117,7 +117,7 @@ func RelayRerank(c *gin.Context) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_failed model=%s channel_id=%d attempt=%d/%d status_code=%d error_type=\"%s\" error=\"%s\"",
 			modelName, channel.Id, attemptCount, actualRetryTimes, apiErr.StatusCode, apiErr.OpenAIError.Type, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
-		go processChannelRelayError(c.Request.Context(), channel.Id, channel.Name, apiErr, channel.Type)
+		notifyChannelRelayError(c.Request.Context(), c, channel, apiErr)
 		if done || !shouldRetry(c, apiErr, channel.Type) {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("retry_stop_condition model=%s channel_id=%d attempt=%d/%d done=%t should_retry=%t",
 				modelName, channel.Id, attemptCount, actualRetryTimes, done, shouldRetry(c, apiErr, channel.Type)))
@@ -132,8 +132,11 @@ func RelayRerank(c *gin.Context) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_exhausted model=%s channel_id=%d total_attempts=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d error=\"%s\"",
 			modelName, channel.Id, finalAttempt, c.GetInt("total_channels_at_start"), retryTimes, actualRetryTimes, apiErr.StatusCode, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
-		if apiErr.StatusCode == http.StatusTooManyRequests {
-			apiErr.OpenAIError.Message = "当前分组上游负载已饱和，请稍后再试"
+		// rerank 走自有响应格式（detail 字段），不经过 FilterOpenAIErr 的坍缩路径，
+		// 因此 ChannelFailErrorWrapEnabled 总开关在这里要单独判一次，
+		// 否则运维关掉开关想看上游真实 429 错误时，rerank 仍会替换文案，与 main 路径行为分叉。
+		if apiErr.StatusCode == http.StatusTooManyRequests && config.ChannelFailErrorWrapEnabled {
+			apiErr.OpenAIError.Message = config.GetChannelFailErrorMessage()
 		}
 		relayRerankResponseWithErr(c, apiErr)
 	}

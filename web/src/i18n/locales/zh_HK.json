@@ -929,6 +929,12 @@
           "label": "重試超時時間(秒)",
           "placeholder": "重試超時時間(秒)"
         },
+        "channelFailErrorWrapEnabled": "封裝上游錯誤信息",
+        "channelFailErrorWrapEnabledTooltip": "關閉後客戶端將收到上游原始錯誤文案（可能包含 key 片段、provider 名等敏感信息），僅建議運維臨時關掉用於調試",
+        "channelFailErrorMessage": {
+          "label": "渠道失敗統一返回文案",
+          "placeholder": "所有非 400 的上游失敗（401/403/404/429/5xx）統一坍縮為此文案 + 503；留空使用默認值"
+        },
         "emptyResponseBilling": "空回覆計費",
         "unifiedRequestResponseModel": "統一請求響應模型",
         "unifiedRequestResponseModelTooltip": "當存在模型映射時，響應中的model值為請求的model值，而非實際調用的模型名稱"

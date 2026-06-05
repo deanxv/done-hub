@@ -47,8 +47,9 @@ func Relay(c *gin.Context) {
 
 	c.Set("is_stream", relay.IsStream())
 	if err := relay.setProvider(relay.getOriginalModel()); err != nil {
-		openaiErr := common.StringErrorWrapperLocal(err.Error(), "one_hub_error", http.StatusServiceUnavailable)
-		relay.HandleJsonError(openaiErr)
+		// UpstreamUnavailableError 触发 FilterOpenAIErr 坍缩为统一错误响应。
+		// 保留 err.Error() 仅供内部日志诊断（"所有分组都无可用渠道"等），不会暴露给客户端。
+		relay.HandleJsonError(common.UpstreamUnavailableError(err.Error()))
 		return
 	}
 
@@ -64,7 +65,7 @@ func Relay(c *gin.Context) {
 	}
 
 	channel := relay.getProvider().GetChannel()
-	go processChannelRelayError(c.Request.Context(), channel.Id, channel.Name, apiErr, channel.Type)
+	notifyChannelRelayError(c.Request.Context(), c, channel, apiErr)
 
 	retryTimes := config.RetryTimes
 	// 在重试开始前计算并缓存总渠道数，避免重试过程中动态变化
@@ -98,10 +99,6 @@ func Relay(c *gin.Context) {
 	logger.LogError(c.Request.Context(), fmt.Sprintf("retry_start model=%s channel_id=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d error=\"%s\"",
 		modelName, channel.Id, totalChannelsAtStart, retryTimes, actualRetryTimes, apiErr.StatusCode, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
-	if apiErr.StatusCode != http.StatusUnauthorized && apiErr.StatusCode != http.StatusForbidden {
-		c.Set("first_non_auth_error", apiErr)
-	}
-
 	// breakReason 区分循环退出原因，避免最终日志一律打成 retry_exhausted 而产生误导。
 	// 默认值 "exhausted" 表示循环自然跑完（真的把可用渠道用完了）。
 	// 注意：done==true 或 shouldRetry==false 触发的早跳过路径上方会把 retryTimes 置 0，
@@ -119,7 +116,9 @@ func Relay(c *gin.Context) {
 		if time.Since(startTime) > timeout {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("retry_timeout model=%s channel_id=%d elapsed_time=%.2fs timeout=%.2fs",
 				modelName, channel.Id, time.Since(startTime).Seconds(), timeout.Seconds()))
-			apiErr = common.StringErrorWrapperLocal("重试超时，上游负载已饱和，请稍后再试", "system_error", http.StatusTooManyRequests)
+			// UpstreamUnavailableError 让 FilterOpenAIErr 坍缩为 503 + 统一文案，与"无可用渠道"出口对齐。
+			// 原 message 保留供 retry_aborted 日志诊断。
+			apiErr = common.UpstreamUnavailableError("重试超时，上游负载已饱和，请稍后再试")
 			breakReason = "timeout"
 			break
 		}
@@ -163,13 +162,7 @@ func Relay(c *gin.Context) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_failed model=%s channel_id=%d attempt=%d/%d status_code=%d error_type=\"%s\" error=\"%s\"",
 			modelName, channel.Id, attemptCount, actualRetryTimes, apiErr.StatusCode, apiErr.OpenAIError.Type, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
-		if apiErr.StatusCode != http.StatusUnauthorized && apiErr.StatusCode != http.StatusForbidden {
-			if _, exists := c.Get("first_non_auth_error"); !exists {
-				c.Set("first_non_auth_error", apiErr)
-			}
-		}
-
-		go processChannelRelayError(c.Request.Context(), channel.Id, channel.Name, apiErr, channel.Type)
+		notifyChannelRelayError(c.Request.Context(), c, channel, apiErr)
 		if done || !shouldRetry(c, apiErr, channel.Type) {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("retry_stop_condition model=%s channel_id=%d attempt=%d/%d done=%t should_retry=%t",
 				modelName, channel.Id, attemptCount, actualRetryTimes, done, shouldRetry(c, apiErr, channel.Type)))

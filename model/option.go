@@ -105,6 +105,8 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterFloat("QuotaPerUnit", &config.QuotaPerUnit)
 	config.GlobalOption.RegisterInt("RetryTimes", &config.RetryTimes)
 	config.GlobalOption.RegisterInt("RetryCooldownSeconds", &config.RetryCooldownSeconds)
+	config.GlobalOption.RegisterBool("ChannelFailErrorWrapEnabled", &config.ChannelFailErrorWrapEnabled)
+	config.GlobalOption.RegisterString("ChannelFailErrorMessage", &config.ChannelFailErrorMessage)
 	config.GlobalOption.RegisterCustom("RetryCooldownPerStatus", func() string {
 		return config.RetryCooldownPerStatus
 	}, func(value string) error {

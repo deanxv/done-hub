@@ -978,6 +978,12 @@
           "label": "Retry Timeout (seconds)",
           "placeholder": "Retry Timeout (seconds)"
         },
+        "channelFailErrorWrapEnabled": "Wrap upstream error message",
+        "channelFailErrorWrapEnabledTooltip": "When disabled, clients receive raw upstream error text (may contain key fragments, provider names and other sensitive info). Recommended only for temporary debugging.",
+        "channelFailErrorMessage": {
+          "label": "Channel Failure Unified Message",
+          "placeholder": "All non-400 upstream failures (401/403/404/429/5xx) collapse to this message + 503; leave blank for default"
+        },
         "emptyResponseBilling": "Empty Response Billing",
         "unifiedRequestResponseModel": "Unified Request Response Model",
         "unifiedRequestResponseModelTooltip": "When model mapping exists, the model value in the response will be the requested model value instead of the actual called model name",

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -147,6 +148,23 @@ func StringErrorWrapperLocal(err string, code string, statusCode int) *types.Ope
 	openaiErr.LocalError = true
 	return openaiErr
 
+}
+
+// UpstreamUnavailableError 构造"渠道整体不可用"类的 LocalError，专供 FilterOpenAIErr 坍缩使用。
+//
+// 之所以单独封装：StringErrorWrapper 把 Type 硬编码为 one_hub_error，第二参数赋给 Code；
+// 而 FilterOpenAIErr 的 collapse 路由依赖 Type == "upstream_unavailable" 作为内部 sentinel。
+// 调用方手工补一行 openaiErr.OpenAIError.Type = "upstream_unavailable" 容易漏写或拼错，
+// 因此把 sentinel 字符串和赋值步骤封进这里，唯一入口。
+//
+// 客户端永远看不到 Type=upstream_unavailable —— 要么被 collapse 改写成 system_error +
+// service_unavailable/rate_limit_exceeded，要么走 fall-through 段的 type 改写兜底。
+// Code 这里给 service_unavailable 是防御性默认值（万一某天有路径绕过 collapse），
+// 行业语义安全，不暴露上游身份。
+func UpstreamUnavailableError(msg string) *types.OpenAIErrorWithStatusCode {
+	e := StringErrorWrapperLocal(msg, "service_unavailable", http.StatusServiceUnavailable)
+	e.OpenAIError.Type = "upstream_unavailable"
+	return e
 }
 
 func AbortWithMessage(c *gin.Context, statusCode int, message string) {
