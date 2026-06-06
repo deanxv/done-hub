@@ -48,7 +48,13 @@ func RelayRecraftAI(c *gin.Context) {
 
 	recraftProvider, err := getRecraftProvider(c, model)
 	if err != nil {
-		common.AbortWithMessage(c, http.StatusServiceUnavailable, err.Error())
+		if IsModelNotFound(err) {
+			// 必须包成 {"error":...} 外层，否则 OpenAI SDK 读不到 code/type，model_not_found 语义失效。
+			errWithCode := FilterOpenAIErr(c, common.ModelNotFoundError(model))
+			relayResponseWithOpenAIErr(c, &errWithCode)
+		} else {
+			common.AbortWithMessage(c, http.StatusServiceUnavailable, err.Error())
+		}
 		return
 	}
 
@@ -164,7 +170,9 @@ func RelayRecraftAI(c *gin.Context) {
 
 	quota.Undo(c)
 	newErrWithCode := FilterOpenAIErr(c, apiErr)
-	common.AbortWithErr(c, newErrWithCode.StatusCode, &newErrWithCode.OpenAIError)
+	// 必须包成 {"error":...} 外层，与 main.go HandleJsonError 一致。
+	// 旧的 AbortWithErr(&OpenAIError) 让 gin 直接 marshal 结构体，OpenAI SDK 拿不到 error.code/type。
+	relayResponseWithOpenAIErr(c, &newErrWithCode)
 }
 
 func Path2RecraftAIModel(path string) string {

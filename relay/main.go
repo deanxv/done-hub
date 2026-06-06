@@ -47,9 +47,12 @@ func Relay(c *gin.Context) {
 
 	c.Set("is_stream", relay.IsStream())
 	if err := relay.setProvider(relay.getOriginalModel()); err != nil {
-		// UpstreamUnavailableError 触发 FilterOpenAIErr 坍缩为统一错误响应。
-		// 保留 err.Error() 仅供内部日志诊断（"所有分组都无可用渠道"等），不会暴露给客户端。
-		relay.HandleJsonError(common.UpstreamUnavailableError(err.Error()))
+		// 配置错误 → 404 model_not_found（SDK 不重试）；运行时错误 → 503 collapse（SDK 重试）。
+		if IsModelNotFound(err) {
+			relay.HandleJsonError(common.ModelNotFoundError(relay.getOriginalModel()))
+		} else {
+			relay.HandleJsonError(common.UpstreamUnavailableError(err.Error()))
+		}
 		return
 	}
 

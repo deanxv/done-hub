@@ -167,6 +167,15 @@ func UpstreamUnavailableError(msg string) *types.OpenAIErrorWithStatusCode {
 	return e
 }
 
+// ModelNotFoundError 构造 OpenAI 标准 model_not_found 错误（404 / invalid_request_error）。
+// 文案对齐 OpenAI 官方，不暴露内部分组结构。Type 非 upstream_unavailable，不触发 FilterOpenAIErr collapse。
+func ModelNotFoundError(modelName string) *types.OpenAIErrorWithStatusCode {
+	msg := fmt.Sprintf("The model `%s` does not exist or you do not have access to it.", modelName)
+	e := StringErrorWrapperLocal(msg, "model_not_found", http.StatusNotFound)
+	e.OpenAIError.Type = "invalid_request_error"
+	return e
+}
+
 func AbortWithMessage(c *gin.Context, statusCode int, message string) {
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{

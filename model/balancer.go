@@ -31,6 +31,15 @@ const (
 	ErrChannelDisabled                   = "该渠道已被禁用"
 )
 
+// runtime 错误 sentinel：表示"模型有配但渠道暂时不可用"（列表空、全冷却/过滤、指定 id 失效或被禁），
+// 与"配置层就没配"的错误区分开。必须是 sentinel —— fetchChannelByModel 会 wrap，上层用 errors.Is 跨层判定。
+var (
+	ErrNoChannelsAvailableSentinel               = errors.New(ErrNoChannelsAvailable)
+	ErrNoAvailableChannelsAfterFilteringSentinel = errors.New(ErrNoAvailableChannelsAfterFiltering)
+	ErrInvalidChannelIdSentinel                  = errors.New(ErrInvalidChannelId)
+	ErrChannelDisabledSentinel                   = errors.New(ErrChannelDisabled)
+)
+
 type ChannelChoice struct {
 	Channel       *Channel
 	CooldownsTime int64
@@ -734,7 +743,7 @@ func (cc *ChannelsChooser) NextByValidatedModel(group, validatedModelName string
 	}
 
 	if len(channelsPriority) == 0 {
-		return nil, errors.New(ErrNoChannelsAvailable)
+		return nil, ErrNoChannelsAvailableSentinel
 	}
 
 	for _, priority := range channelsPriority {
@@ -744,7 +753,7 @@ func (cc *ChannelsChooser) NextByValidatedModel(group, validatedModelName string
 		}
 	}
 
-	return nil, errors.New(ErrNoAvailableChannelsAfterFiltering)
+	return nil, ErrNoAvailableChannelsAfterFilteringSentinel
 }
 
 func (cc *ChannelsChooser) GetGroupModels(group string) ([]string, error) {

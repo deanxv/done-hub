@@ -108,6 +108,35 @@ func CheckLimitModel(c *gin.Context, modelName string) error {
 	return fmt.Errorf("Model %s is not supported for current token", modelName)
 }
 
+// errModelNotFoundSentinel 标记"配置层就不可用"的错误，调用方据此选 ModelNotFoundError 而非
+// UpstreamUnavailableError。GetProvider 用 fmt.Errorf("%w: %s", sentinel, modelName) 构造返回，
+// 所以判定必须用 errors.Is 跨 wrap 链识别。
+var errModelNotFoundSentinel = errors.New("model not found")
+
+func IsModelNotFound(err error) bool {
+	return errors.Is(err, errModelNotFoundSentinel)
+}
+
+// shouldReportModelNotFound 决定 GetProvider 全分组失败时是否把错误收敛为 model_not_found。
+// modelName 为空（如 RelayOnly 的 /files、/batches 等无 model 字段端点）时不收敛，避免 sentinel
+// 被 wrap 成 "model not found: " 这种带空尾巴的误导文案传给客户端。
+func shouldReportModelNotFound(allConfigErr bool, modelName string) bool {
+	return allConfigErr && modelName != ""
+}
+
+// isRuntimeChannelErr 命中"模型有配但当前没渠道"的运行时状态，不命中"模型在分组里根本就没配"的配置错误。
+//
+// 4 个 sentinel 来源不同 —— fetchChannelByModel 只 wrap 前两个，后两个是 fetchChannelById 直接产出：
+//   - ErrNoChannelsAvailableSentinel / ErrNoAvailableChannelsAfterFilteringSentinel：来自 NextByValidatedModel，
+//     经 fetchChannelByModel 的 fmt.Errorf("%w ...") wrap，跨层判定必须用 errors.Is。
+//   - ErrInvalidChannelIdSentinel / ErrChannelDisabledSentinel：来自 fetchChannelById，直接返回 sentinel 不 wrap。
+func isRuntimeChannelErr(err error) bool {
+	return errors.Is(err, model.ErrNoChannelsAvailableSentinel) ||
+		errors.Is(err, model.ErrNoAvailableChannelsAfterFilteringSentinel) ||
+		errors.Is(err, model.ErrInvalidChannelIdSentinel) ||
+		errors.Is(err, model.ErrChannelDisabledSentinel)
+}
+
 // buildGroupChain 构建分组降级链
 func buildGroupChain(tokenGroup, backupGroup, userGroup string) []string {
 	var chain []string
@@ -155,8 +184,19 @@ func GetProvider(c *gin.Context, modelName string) (provider providersBase.Provi
 		return
 	}
 
-	// 保存原始的第一优先级分组（用于日志记录）
+	// originalGroup 必须先取（用于日志和 isBackupGroup 判定）；下面的 validChain 是它的过滤产物。
 	originalGroup := groupChain[0]
+
+	// 剔除 user_group 表里查不到（不存在/已禁用）的分组，避免错误归因到 balancer 的"无可用渠道"模板。
+	missingGroups := make([]string, 0, len(groupChain))
+	validChain := make([]string, 0, len(groupChain))
+	for _, g := range groupChain {
+		if model.GlobalUserGroupRatio.GetBySymbol(g) == nil {
+			missingGroups = append(missingGroups, g)
+			continue
+		}
+		validChain = append(validChain, g)
+	}
 
 	// 尝试每个分组，直到成功获取渠道
 	var lastErr error
@@ -164,12 +204,16 @@ func GetProvider(c *gin.Context, modelName string) (provider providersBase.Provi
 	var channel *model.Channel
 	var usedGroup string
 	var isBackupGroup bool
+	// 任一分组报运行时错误就置 false，最终走 503 保留 SDK 重试；全配置错误才收敛为 model_not_found。
+	allConfigErr := true
+	configErrs := make([]string, 0)
 
-	for i, groupName := range groupChain {
+	for _, groupName := range validChain {
 		matchedModelName, err := model.ChannelGroup.GetMatchedModelName(groupName, modelName)
 		if err != nil {
 			lastErr = err
-			continue // 尝试下一个分组
+			configErrs = append(configErrs, fmt.Sprintf("%s: %v", model.GlobalUserGroupRatio.GetDisplayNameWithStatus(groupName), err))
+			continue // 配置类，allConfigErr 不变
 		}
 
 		actualModelName = matchedModelName
@@ -179,18 +223,42 @@ func GetProvider(c *gin.Context, modelName string) (provider providersBase.Provi
 		channel, err = fetchChannel(c, actualModelName)
 		if err != nil {
 			lastErr = err
+			if isRuntimeChannelErr(err) {
+				allConfigErr = false
+			} else {
+				configErrs = append(configErrs, fmt.Sprintf("%s: %v", model.GlobalUserGroupRatio.GetDisplayNameWithStatus(groupName), err))
+			}
 			continue // 尝试下一个分组
 		}
 
 		// 成功获取渠道
 		usedGroup = groupName
-		isBackupGroup = (i > 0) // 如果不是第一个分组，说明使用了降级分组
+		isBackupGroup = (groupName != originalGroup) // 不是原始第一优先级分组，说明走了降级
 
 		break
 	}
 
 	// 所有分组都失败
 	if channel == nil {
+		// 循环里 c.Set("token_group", groupName) 会污染 context；失败时还原到调用方传入的原始值，
+		// 避免下游中间件（含未来新增的 post-fail 处理）读到"最后一次尝试的分组"。
+		c.Set("token_group", tokenGroup)
+
+		// 全是配置错误（含分组不存在/禁用）→ model_not_found，让 SDK 不重试；详情进日志。
+		// modelName="" 时（RelayOnly 路径）由 shouldReportModelNotFound 拦掉，避免空尾巴文案。
+		if shouldReportModelNotFound(allConfigErr, modelName) {
+			displayMissing := make([]string, len(missingGroups))
+			for i, g := range missingGroups {
+				displayMissing[i] = model.GlobalUserGroupRatio.GetDisplayNameWithStatus(g)
+			}
+			logger.LogError(c.Request.Context(), fmt.Sprintf(
+				"model_not_found user=%d model=%s original_group=%s missing_groups=%v config_errs=%v",
+				c.GetInt("id"), modelName, originalGroup, displayMissing, configErrs,
+			))
+			fail = fmt.Errorf("%w: %s", errModelNotFoundSentinel, modelName)
+			return
+		}
+
 		fail = lastErr
 		if fail == nil {
 			fail = errors.New("所有分组都无可用渠道")
@@ -250,10 +318,10 @@ func fetchChannel(c *gin.Context, modelName string) (channel *model.Channel, fai
 func fetchChannelById(channelId int) (*model.Channel, error) {
 	channel, err := model.GetChannelById(channelId)
 	if err != nil {
-		return nil, errors.New(model.ErrInvalidChannelId)
+		return nil, model.ErrInvalidChannelIdSentinel
 	}
 	if channel.Status != config.ChannelStatusEnabled {
-		return nil, errors.New(model.ErrChannelDisabled)
+		return nil, model.ErrChannelDisabledSentinel
 	}
 
 	return channel, nil
@@ -291,7 +359,13 @@ func fetchChannelByModel(c *gin.Context, modelName string) (*model.Channel, erro
 	// 传递 gin.Context 给 balancer，用于生成 session hash
 	channel, err := model.ChannelGroup.NextByValidatedModel(group, modelName, c, filters...)
 	if err != nil {
-		// 这里只处理渠道相关的错误，模型匹配错误已在上层处理
+		// 这里只判 NextByValidatedModel 自产的两个 sentinel；isRuntimeChannelErr 还列了另外 2 个
+		// （ErrInvalidChannelIdSentinel / ErrChannelDisabledSentinel）来自 fetchChannelById 直接返回，不经此分支。
+		// 命中 runtime sentinel 时显式 wrap 出来，否则会落到下方默认分支被 errors.New(message) 重建，
+		// sentinel 链断裂导致上层 isRuntimeChannelErr 漏判，渠道全冷却 / 状态异常会被误收敛成 model_not_found（SDK 不重试）。
+		if errors.Is(err, model.ErrNoChannelsAvailableSentinel) || errors.Is(err, model.ErrNoAvailableChannelsAfterFilteringSentinel) {
+			return nil, fmt.Errorf("%w (group=%s model=%s)", err, group, modelName)
+		}
 		message := fmt.Sprintf(model.ErrNoAvailableChannelForModel, model.GlobalUserGroupRatio.GetDisplayName(group), modelName)
 		if channel != nil {
 			logger.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))

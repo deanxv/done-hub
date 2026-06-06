@@ -16,6 +16,7 @@ import (
 func RelayOnly(c *gin.Context) {
 	provider, _, fail := GetProvider(c, "")
 	if fail != nil {
+		// /files、/batches 等端点本身没有 model 字段（传入 modelName 始终为空），不接 model_not_found 分支。
 		common.AbortWithMessage(c, http.StatusServiceUnavailable, fail.Error())
 		return
 	}

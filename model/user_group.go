@@ -53,18 +53,6 @@ func GetUserGroupsById(id int) (*UserGroup, error) {
 	return &userGroup, err
 }
 
-func GetUserGroupsAll(isPublic bool) ([]*UserGroup, error) {
-	var userGroups []*UserGroup
-
-	db := DB.Where("enable = ?", true)
-	if isPublic {
-		db = db.Where("public = ?", true)
-	}
-
-	err := db.Find(&userGroups).Error
-	return userGroups, err
-}
-
 func (c *UserGroup) Create() error {
 	// 确保enable字段有默认值
 	if c.Enable == nil {
@@ -104,30 +92,45 @@ func ChangeUserGroupEnable(id int, enable bool) error {
 	return err
 }
 
+type groupNameEntry struct {
+	Name    string
+	Enabled bool
+}
+
 type UserGroupRatio struct {
 	sync.RWMutex
-	UserGroup   map[string]*UserGroup
-	APILimiter  map[string]limit.RateLimiter
-	PublicGroup []string
+	UserGroup     map[string]*UserGroup
+	APILimiter    map[string]limit.RateLimiter
+	PublicGroup   []string
+	AllGroupNames map[string]groupNameEntry // 含禁用分组，供 GetDisplayName / GetDisplayNameWithStatus 展示
 }
 
 var GlobalUserGroupRatio = UserGroupRatio{}
 
 func (cgrm *UserGroupRatio) Load() {
-	userGroups, err := GetUserGroupsAll(false)
-	if err != nil {
+	// 单次全量查询后本地分桶，避免分两次查 enabled/disabled 之间的时序窗口（先前实现的遗留），
+	// 同时也减少 DB 调用。整体加载失败维持旧缓存（不替换字段）。
+	var allGroups []*UserGroup
+	if err := DB.Find(&allGroups).Error; err != nil {
+		logger.SysError(fmt.Sprintf("UserGroupRatio load failed, keep previous cache: %v", err))
 		return
 	}
 
-	newUserGroups := make(map[string]*UserGroup, len(userGroups))
-	newAPILimiter := make(map[string]limit.RateLimiter, len(userGroups))
+	newUserGroups := make(map[string]*UserGroup, len(allGroups))
+	newAPILimiter := make(map[string]limit.RateLimiter, len(allGroups))
 	publicGroup := make([]string, 0)
+	newAllNames := make(map[string]groupNameEntry, len(allGroups))
 
-	for _, userGroup := range userGroups {
-		newUserGroups[userGroup.Symbol] = userGroup
-		newAPILimiter[userGroup.Symbol] = limit.NewAPILimiter(userGroup.APIRate)
-		if userGroup.Public {
-			publicGroup = append(publicGroup, userGroup.Symbol)
+	for _, g := range allGroups {
+		enabled := g.Enable != nil && *g.Enable
+		newAllNames[g.Symbol] = groupNameEntry{Name: g.Name, Enabled: enabled}
+		if !enabled {
+			continue
+		}
+		newUserGroups[g.Symbol] = g
+		newAPILimiter[g.Symbol] = limit.NewAPILimiter(g.APIRate)
+		if g.Public {
+			publicGroup = append(publicGroup, g.Symbol)
 		}
 	}
 
@@ -137,6 +140,7 @@ func (cgrm *UserGroupRatio) Load() {
 	cgrm.UserGroup = newUserGroups
 	cgrm.APILimiter = newAPILimiter
 	cgrm.PublicGroup = publicGroup
+	cgrm.AllGroupNames = newAllNames
 }
 
 func (cgrm *UserGroupRatio) GetBySymbol(symbol string) *UserGroup {
@@ -179,13 +183,30 @@ func (cgrm *UserGroupRatio) GetAPIRate(symbol string) int {
 	return userGroup.APIRate
 }
 
-// GetDisplayName 获取分组的展示名称，如果找不到则返回 symbol 本身
+// GetDisplayName 返回分组展示名（启用/禁用都只返回 name），name 为空或分组被物理删除时 fallback 到 symbol。
+// 用于错误模板等对外/通用文案，保持纯文本输出，避免污染日志关键字告警的正则匹配。
+// 需要在日志里区分禁用状态时，用 GetDisplayNameWithStatus。
 func (cgrm *UserGroupRatio) GetDisplayName(symbol string) string {
-	userGroup := cgrm.GetBySymbol(symbol)
-	if userGroup == nil || userGroup.Name == "" {
-		return symbol
+	cgrm.RLock()
+	defer cgrm.RUnlock()
+	if entry, ok := cgrm.AllGroupNames[symbol]; ok && entry.Name != "" {
+		return entry.Name
 	}
-	return userGroup.Name
+	return symbol
+}
+
+// GetDisplayNameWithStatus 返回带状态的展示名：禁用分组拼上"（已禁用）"，便于 admin 在错误日志里
+// 一眼定位"分组被误禁导致路由失败"的配置异常。仅用于内部日志诊断，不要用于对外文案。
+func (cgrm *UserGroupRatio) GetDisplayNameWithStatus(symbol string) string {
+	cgrm.RLock()
+	defer cgrm.RUnlock()
+	if entry, ok := cgrm.AllGroupNames[symbol]; ok && entry.Name != "" {
+		if !entry.Enabled {
+			return entry.Name + "（已禁用）"
+		}
+		return entry.Name
+	}
+	return symbol
 }
 
 func (cgrm *UserGroupRatio) GetPublicGroupList() []string {
@@ -220,7 +241,7 @@ func CheckAndUpgradeUserGroup(userId int, rechargeAmount int) error {
 
 	// Calculate cumulative recharge amount
 	cumulativeAmount := user.Quota + user.UsedQuota + rechargeAmount
-	logger.SysError(fmt.Sprintf("use:%f q:%f  cumulative:%f rechargeAmount:%f", (float64)(user.UsedQuota)/config.QuotaPerUnit, (float64)(user.Quota)/config.QuotaPerUnit, (float64)(cumulativeAmount)/config.QuotaPerUnit, rechargeAmount))
+	logger.SysError(fmt.Sprintf("use:%f q:%f  cumulative:%f rechargeAmount:%f", (float64)(user.UsedQuota)/config.QuotaPerUnit, (float64)(user.Quota)/config.QuotaPerUnit, (float64)(cumulativeAmount)/config.QuotaPerUnit, (float64)(rechargeAmount)/config.QuotaPerUnit))
 	// Get all promotion-enabled user groups
 	var promotionGroups []*UserGroup
 	err = DB.Where("promotion = ? AND enable = ?", true, true).Find(&promotionGroups).Error
