@@ -28,8 +28,10 @@ export default function FilterCollapse({ title, children }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           cursor: 'pointer',
-          borderBottom: expanded ? '1px solid' : 'none',
-          borderColor: 'divider',
+          // 常驻 1px border，仅切色，避免 toggle 瞬间盒高跳变 1px
+          borderBottom: '1px solid',
+          borderColor: expanded ? 'divider' : 'transparent',
+          transition: (theme) => theme.transitions.create('border-color'),
           '&:hover': {
             backgroundColor: 'action.hover'
           }
@@ -48,7 +50,9 @@ export default function FilterCollapse({ title, children }) {
           color={theme.palette.grey[500]}
         />
       </Box>
-      <Collapse in={expanded}>{children}</Collapse>
+      <Collapse in={expanded} timeout="auto">
+        {children}
+      </Collapse>
     </Box>
   );
 }
