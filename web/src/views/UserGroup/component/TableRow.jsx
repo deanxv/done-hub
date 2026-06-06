@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { useState } from 'react'
 
-import { Button, IconButton, MenuItem, Popover, TableCell, TableRow } from '@mui/material'
+import { Button, IconButton, MenuItem, Popover, TableCell, TableRow, Tooltip } from '@mui/material'
 
 import Label from 'ui-component/Label'
 import TableSwitch from 'ui-component/Switch'
@@ -52,6 +52,11 @@ export default function UserGroupTableRow({ item, manageUserGroup, handleOpenMod
 
         <TableCell>{item.symbol}</TableCell>
         <TableCell>{item.name}</TableCell>
+        <Tooltip title={item.description || ''} placement="top" disableHoverListener={!item.description}>
+          <TableCell sx={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.description || '-'}
+          </TableCell>
+        </Tooltip>
         <TableCell>{item.ratio}</TableCell>
         <TableCell>{item.api_rate}</TableCell>
         <TableCell>

@@ -24,8 +24,11 @@ import {
   MenuItem,
   Typography,
   Grid,
-  TextField
+  TextField,
+  ListItemText,
+  Box
 } from '@mui/material';
+import RatioBadge from 'ui-component/RatioBadge';
 
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -91,8 +94,11 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
   const { t } = useTranslation();
   const theme = useTheme();
   const userIsReliable = useIsReliable();
-  const { userGroup } = useSelector((state) => state.account);
+  const { user, userGroup } = useSelector((state) => state.account);
   const [inputs, setInputs] = useState(originInputs);
+
+  // admin 模式编辑别人的 token 时，当前 redux 里的 user 是管理员自己，不能代表 token 所属用户的「跟随分组」
+  const followingGroup = !adminMode && user?.group ? userGroup?.[user.group] : null;
 
   // 当前值是已不可用的分组时，临时插入一个 disabled 兜底项用于回填显示，避免 MUI Select value 失配显示空白
   const optionsWithFallback = (currentValue) => {
@@ -100,9 +106,57 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
       return userGroupOptions;
     }
     const g = userGroup?.[currentValue];
-    const label = g ? `${g.name} (倍率：${g.ratio}) (不可用)` : `${currentValue} (不可用)`;
-    return [...userGroupOptions, { label, value: currentValue, disabled: true }];
+    return [
+      ...userGroupOptions,
+      {
+        value: currentValue,
+        name: g?.name || currentValue,
+        ratio: g?.ratio,
+        desc: g?.description || '',
+        disabled: true,
+        inaccessible: true
+      }
+    ];
   };
+
+  const renderGroupValue = (selected, placeholder, followingRatio) => {
+    if (selected === '' || selected === '-1') {
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+          <span>{placeholder}</span>
+          {followingRatio !== undefined && followingRatio !== null && <RatioBadge ratio={followingRatio} />}
+        </Box>
+      );
+    }
+    const opt = optionsWithFallback(selected).find((o) => o.value === selected);
+    if (!opt) return selected;
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {opt.name}
+          {opt.inaccessible ? ' (不可用)' : ''}
+        </span>
+        <RatioBadge ratio={opt.ratio} />
+      </Box>
+    );
+  };
+
+  const renderGroupMenuItem = (option) => (
+    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+      <ListItemText
+        sx={{ my: 0, flex: 1, minWidth: 0 }}
+        primary={option.name + (option.inaccessible ? ' (不可用)' : '')}
+        secondary={option.desc || null}
+        primaryTypographyProps={{
+          sx: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+        }}
+        secondaryTypographyProps={{
+          sx: { fontSize: '0.7rem', whiteSpace: 'normal', lineHeight: 1.2 }
+        }}
+      />
+      <RatioBadge ratio={option.ratio} />
+    </Box>
+  );
   const [modelOptions, setModelOptions] = useState([]);
   const [ownedByIcons, setOwnedByIcons] = useState({});
   const fetchOwnedByIcons = async () => {
@@ -424,11 +478,27 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                         }
                       }}
                       variant={'outlined'}
+                      renderValue={(selected) => renderGroupValue(selected, '跟随用户分组', followingGroup?.ratio)}
                     >
-                      <MenuItem value="-1">跟随用户分组</MenuItem>
+                      <MenuItem value="-1">
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+                          <ListItemText
+                            sx={{ my: 0, flex: 1, minWidth: 0 }}
+                            primary="跟随用户分组"
+                            secondary={followingGroup ? `当前：${followingGroup.name}` : null}
+                            primaryTypographyProps={{
+                              sx: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+                            }}
+                            secondaryTypographyProps={{
+                              sx: { fontSize: '0.7rem', whiteSpace: 'normal', lineHeight: 1.2 }
+                            }}
+                          />
+                          {followingGroup && <RatioBadge ratio={followingGroup.ratio} />}
+                        </Box>
+                      </MenuItem>
                       {optionsWithFallback(values.group).map((option) => (
                         <MenuItem key={option.value} value={option.value} disabled={option.disabled}>
-                          {option.label}
+                          {renderGroupMenuItem(option)}
                         </MenuItem>
                       ))}
                     </Select>
@@ -446,6 +516,7 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                         setFieldValue('backup_group', value);
                       }}
                       variant={'outlined'}
+                      renderValue={(selected) => renderGroupValue(selected, '无备用分组')}
                     >
                       <MenuItem value="-1">无备用分组</MenuItem>
                       {optionsWithFallback(values.backup_group).map((option) => (
@@ -454,7 +525,7 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                           value={option.value}
                           disabled={option.disabled || (values.group === option.value && values.group !== '')}
                         >
-                          {option.label}
+                          {renderGroupMenuItem(option)}
                         </MenuItem>
                       ))}
                     </Select>
@@ -550,11 +621,12 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                             setFieldValue('setting.billing_tag', value);
                           }}
                           variant={'outlined'}
+                          renderValue={(selected) => renderGroupValue(selected, '-')}
                         >
                           <MenuItem value="">-</MenuItem>
                           {optionsWithFallback(values?.setting?.billing_tag).map((option) => (
                             <MenuItem key={option.value} value={option.value} disabled={option.disabled}>
-                              {option.label}
+                              {renderGroupMenuItem(option)}
                             </MenuItem>
                           ))}
                         </Select>

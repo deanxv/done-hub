@@ -26,6 +26,7 @@ const validationSchema = Yup.object().shape({
   is_edit: Yup.boolean(),
   symbol: Yup.string().required('symbol is required'),
   name: Yup.string().required('name is required'),
+  description: Yup.string().max(500, 'userGroup.descriptionTooLong'),
   ratio: Yup.number().required('ratio is required'),
   promotion: Yup.boolean(),
   min: Yup.number(),
@@ -36,6 +37,7 @@ const originInputs = {
   is_edit: false,
   symbol: '',
   name: '',
+  description: '',
   ratio: 1,
   public: false,
   api_rate: 300,
@@ -156,6 +158,29 @@ const EditModal = ({ open, userGroupId, onCancel, onOk }) => {
                   </FormHelperText>
                 ) : (
                   <FormHelperText id="helper-tex-channel-type-label"> {t('userGroup.nameTip')} </FormHelperText>
+                )}
+              </FormControl>
+
+              <FormControl fullWidth error={Boolean(touched.description && errors.description)} sx={{ ...theme.typography.otherInput }}>
+                <InputLabel htmlFor="channel-description-label">{t('userGroup.description')}</InputLabel>
+                <OutlinedInput
+                  id="channel-description-label"
+                  label={t('userGroup.description')}
+                  type="text"
+                  multiline
+                  rows={3}
+                  value={values.description || ''}
+                  name="description"
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                  aria-describedby="helper-text-channel-description-label"
+                />
+                {touched.description && errors.description ? (
+                  <FormHelperText error id="helper-tex-channel-description-label">
+                    {t(errors.description)}
+                  </FormHelperText>
+                ) : (
+                  <FormHelperText id="helper-tex-channel-description-label"> {t('userGroup.descriptionTip')} </FormHelperText>
                 )}
               </FormControl>
 

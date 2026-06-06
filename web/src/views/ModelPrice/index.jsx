@@ -946,7 +946,12 @@ export default function ModelPrice() {
               return (
                 <Tooltip
                   key={key}
-                  title={group.ratio > 0 ? `${t('modelpricePage.rate')}: x${group.ratio}` : t('modelpricePage.free')}
+                  title={
+                    <>
+                      {group.description && <div style={{ marginBottom: 4, whiteSpace: 'pre-wrap' }}>{group.description}</div>}
+                      <div>{group.ratio > 0 ? `${t('modelpricePage.rate')}: x${group.ratio}` : t('modelpricePage.free')}</div>
+                    </>
+                  }
                   arrow
                 >
                   <ButtonBase

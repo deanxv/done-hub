@@ -143,7 +143,7 @@ export default function Token() {
     const options = Object.values(userGroup)
       .filter((item) => !item.inaccessible)
       .sort((a, b) => (a.ratio ?? 0) - (b.ratio ?? 0))
-      .map((item) => ({ label: `${item.name} (倍率：${item.ratio})`, value: item.symbol }));
+      .map((item) => ({ value: item.symbol, name: item.name, ratio: item.ratio, desc: item.description || '' }));
     setUserGroupOptions(options);
   }, [userGroup]);
 

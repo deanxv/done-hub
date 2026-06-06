@@ -185,6 +185,7 @@ export default function UserGroup() {
                   { id: 'id', label: t('userGroup.id'), disableSort: false },
                   { id: 'symbol', label: t('userGroup.symbol'), disableSort: false },
                   { id: 'name', label: t('userGroup.name'), disableSort: false },
+                  { id: 'description', label: t('userGroup.description'), disableSort: true },
                   { id: 'ratio', label: t('userGroup.ratio'), disableSort: false },
                   { id: 'api_rate', label: t('userGroup.apiRate'), disableSort: false },
                   { id: 'public', label: t('userGroup.public'), disableSort: false },

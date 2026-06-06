@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux'
 
 import { Button, ButtonGroup, IconButton, MenuItem, Popover, Stack, TableCell, TableRow, Tooltip } from '@mui/material'
 
+import RatioBadge from 'ui-component/RatioBadge'
+
 import TableSwitch from 'ui-component/Switch'
 import ConfirmDialog from 'ui-component/confirm-dialog'
 import { copy, getChatLinks, renderQuota, replaceChatPlaceholders, timestamp2string } from 'utils/common'
@@ -54,6 +56,35 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
   const chatLinks = getChatLinks()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+
+  // 非 admin 搜索时，列表里所有 token 都属于当前登录用户，「跟随用户」的实际倍率 = 用户当前分组的倍率
+  const user = useSelector((state) => state.account.user)
+  const followingRatio = !isAdminSearch && user?.group ? userGroup?.[user.group]?.ratio : undefined
+
+  const renderGroupCell = (symbol, fallback, fallbackRatio) => {
+    if (!symbol) {
+      const labelEl = <Label color="default">{fallback}</Label>
+      if (fallbackRatio === undefined || fallbackRatio === null) return labelEl
+      return (
+        <Stack direction="row" alignItems="center" spacing={0.5}>
+          {labelEl}
+          <RatioBadge ratio={fallbackRatio}/>
+        </Stack>
+      )
+    }
+    const g = userGroup[symbol]
+    if (!g) return <Label color="error">{symbol} (不存在)</Label>
+    const label = g.inaccessible
+      ? <Label color="error">{g.name} (不可用)</Label>
+      : <Label color={g.color}>{g.name}</Label>
+    if (g.ratio === undefined || g.ratio === null) return label
+    return (
+      <Stack direction="row" alignItems="center" spacing={0.5}>
+        {label}
+        <RatioBadge ratio={g.ratio}/>
+      </Stack>
+    )
+  }
 
   const handleDeleteOpen = () => {
     handleCloseMenu()
@@ -179,27 +210,17 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
         <TableCell>{item.name}</TableCell>
         <TableCell>
           {isAdminSearch ? (
-            <Stack direction="column" spacing={0.5}>
-              <Label color={userGroup[item.group]?.color}>{userGroup[item.group]?.name || '跟随用户'}</Label>
-              <Label color={userGroup[item.backup_group]?.color}>{userGroup[item.backup_group]?.name || '-'}</Label>
+            <Stack direction="column" spacing={0.5} alignItems="flex-start">
+              {renderGroupCell(item.group, '跟随用户')}
+              {renderGroupCell(item.backup_group, '-')}
             </Stack>
-          ) : item.group === '' ? (
-            <Label color="default">跟随用户</Label>
-          ) : userGroup[item.group] ? (
-            userGroup[item.group].inaccessible ? (
-              <Label color="error">{userGroup[item.group].name} (不可用)</Label>
-            ) : (
-              <Label color={userGroup[item.group].color}>{userGroup[item.group].name}</Label>
-            )
           ) : (
-            <Label color="error">{item.group} (不存在)</Label>
+            renderGroupCell(item.group, '跟随用户', followingRatio)
           )}
         </TableCell>
         {userIsReliable && (
           <TableCell>
-            <Label color={userGroup[item.setting?.billing_tag]?.color}>
-              {userGroup[item.setting?.billing_tag]?.name || '-'}
-            </Label>
+            {renderGroupCell(item.setting?.billing_tag, '-')}
           </TableCell>
         )}
 

@@ -147,6 +147,15 @@ const ProfileDrawer = ({ open, onClose }) => {
               {userGroup?.[user?.group]?.ratio || t('dashboard_index.unknown')}/ {t('modelpricePage.RPM')}:{userGroup?.[user?.group]?.api_rate || t('dashboard_index.unknown')}）
             </Typography>
           </Box>
+          {userGroup?.[user?.group]?.description && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mt: 0.5, px: 2, textAlign: 'center', display: 'block', maxWidth: 320 }}
+            >
+              {userGroup[user.group].description}
+            </Typography>
+          )}
         </Box>
 
         {/* 用户数据区域 - 严格按照图片布局 */}
