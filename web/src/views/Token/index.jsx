@@ -416,6 +416,7 @@ export default function Token() {
                     return [
                       { id: 'owner', label: t('token_index.owner'), disableSort: true },
                       { id: 'name', label: t('token_index.name'), disableSort: false },
+                      { id: 'key', label: t('token_index.tokenKey'), disableSort: true },
                       { id: 'group', label: t('token_index.userGroup') + ' / ' + t('token_index.userBackupGroup'), disableSort: false },
                       { id: 'billing_tag', label: t('token_index.billingTag'), disableSort: true, hide: !userIsReliable },
                       { id: 'status', label: t('token_index.status'), disableSort: false },
@@ -427,6 +428,7 @@ export default function Token() {
                   }
                   return [
                     { id: 'name', label: t('token_index.name'), disableSort: false },
+                    { id: 'key', label: t('token_index.tokenKey'), disableSort: true },
                     { id: 'group', label: t('token_index.userGroup'), disableSort: false },
                     { id: 'billing_tag', label: t('token_index.billingTag'), disableSort: true, hide: !userIsReliable },
                     { id: 'status', label: t('token_index.status'), disableSort: false },

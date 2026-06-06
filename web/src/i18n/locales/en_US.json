@@ -1432,7 +1432,13 @@
     "adminEditWarning": "You are editing this token as an administrator, you can change the token owner",
     "transferToUser": "Owner User ID",
     "transferToUserHelper": "Change user ID to transfer token ownership",
-    "accessedTime": "Last Used"
+    "accessedTime": "Last Used",
+    "tokenKey": "Key",
+    "createdSuccessTitle": "Token Created",
+    "createdSuccessTip": "Please keep this token safe and do not share it with others.",
+    "done": "Done",
+    "showKey": "Show key",
+    "hideKey": "Hide key"
   },
   "topup": "Top-up",
   "topupCard": {

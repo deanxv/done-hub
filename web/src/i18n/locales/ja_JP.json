@@ -1372,7 +1372,13 @@
     "adminEditWarning": "管理者としてこのトークンを編集しています。トークンの所有者を変更できます",
     "transferToUser": "所有者ユーザーID",
     "transferToUserHelper": "ユーザーIDを変更してトークンの所有権を転送します",
-    "accessedTime": "最終使用"
+    "accessedTime": "最終使用",
+    "tokenKey": "キー",
+    "createdSuccessTitle": "トークンを作成しました",
+    "createdSuccessTip": "このトークンは大切に保管し、他人と共有しないでください。",
+    "done": "完了",
+    "showKey": "キーを表示",
+    "hideKey": "キーを非表示"
   },
   "topup": "トップアップ",
   "topupCard": {

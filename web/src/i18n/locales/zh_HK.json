@@ -1382,7 +1382,13 @@
     "adminEditWarning": "您正在以管理員身份編輯此權杖，可以修改權杖所屬用戶",
     "transferToUser": "所屬用戶ID",
     "transferToUserHelper": "修改用戶ID可轉移此權杖的所有權",
-    "accessedTime": "最近使用"
+    "accessedTime": "最近使用",
+    "tokenKey": "密鑰",
+    "createdSuccessTitle": "權杖建立成功",
+    "createdSuccessTip": "請妥善保存此權杖，請勿洩露給他人。",
+    "done": "完成",
+    "showKey": "顯示密鑰",
+    "hideKey": "隱藏密鑰"
   },
   "topup": "儲值",
   "topupCard": {

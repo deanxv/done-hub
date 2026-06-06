@@ -2,34 +2,18 @@ import PropTypes from 'prop-types'
 import { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 
-import { Button, ButtonGroup, IconButton, MenuItem, Popover, Stack, TableCell, TableRow, Tooltip } from '@mui/material'
+import { Box, Button, IconButton, Stack, TableCell, TableRow, Tooltip } from '@mui/material'
 
 import RatioBadge from 'ui-component/RatioBadge'
 
 import TableSwitch from 'ui-component/Switch'
 import ConfirmDialog from 'ui-component/confirm-dialog'
-import { copy, getChatLinks, renderQuota, replaceChatPlaceholders, timestamp2string } from 'utils/common'
+import { copy, renderQuota, timestamp2string } from 'utils/common'
 import Label from 'ui-component/Label'
 
 import { Icon } from '@iconify/react'
-import { IconCaretDownFilled } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
-import useMediaQuery from '@mui/material/useMediaQuery'
-import { useTheme } from '@mui/material/styles'
 import { stickyCellSx } from 'ui-component/stickyCellSx'
-
-function createMenu(menuItems) {
-  return (
-    <>
-      {menuItems.map((menuItem, index) => (
-        <MenuItem key={index} onClick={menuItem.onClick} sx={{ color: menuItem.color }}>
-          {menuItem.icon}
-          {menuItem.text}
-        </MenuItem>
-      ))}
-    </>
-  )
-}
 
 function statusInfo(t, status) {
   switch (status) {
@@ -46,21 +30,23 @@ function statusInfo(t, status) {
   }
 }
 
+function maskTokenKey(fullKey) {
+  if (!fullKey) return ''
+  if (fullKey.length <= 12) return fullKey
+  return `${fullKey.slice(0, 6)}****${fullKey.slice(-6)}`
+}
+
 export default function TokensTableRow({ item, manageToken, handleOpenModal, setModalTokenId, userGroup, userIsReliable, isAdminSearch }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(null)
-  const [menuItems, setMenuItems] = useState(null)
   const [openDelete, setOpenDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [statusSwitch, setStatusSwitch] = useState(item.status)
-  const siteInfo = useSelector((state) => state.siteInfo)
-  const chatLinks = getChatLinks()
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const [keyVisible, setKeyVisible] = useState(false)
 
   // 非 admin 搜索时，列表里所有 token 都属于当前登录用户，「跟随用户」的实际倍率 = 用户当前分组的倍率
   const user = useSelector((state) => state.account.user)
   const followingRatio = !isAdminSearch && user?.group ? userGroup?.[user.group]?.ratio : undefined
+  const fullKey = `sk-${item.key}`
 
   const renderGroupCell = (symbol, fallback, fallbackRatio) => {
     let label
@@ -88,30 +74,11 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
   }
 
   const handleDeleteOpen = () => {
-    handleCloseMenu()
     setOpenDelete(true)
   }
 
   const handleDeleteClose = () => {
     setOpenDelete(false)
-  }
-
-  const handleOpenMenu = (event, type) => {
-    switch (type) {
-      case 'copy':
-        setMenuItems(copyItems)
-        break
-      case 'link':
-        setMenuItems(linkItems)
-        break
-      default:
-        setMenuItems(actionItems)
-    }
-    setOpen(event.currentTarget)
-  }
-
-  const handleCloseMenu = () => {
-    setOpen(null)
   }
 
   const handleStatus = async() => {
@@ -125,7 +92,6 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
   const handleDelete = async() => {
     if (deleting) return
 
-    handleCloseMenu()
     setDeleting(true)
     try {
       await manageToken(item.id, 'delete', '')
@@ -134,65 +100,6 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
       setOpenDelete(false)
     }
   }
-
-  const actionItems = createMenu([
-    {
-      text: t('common.edit'),
-      icon: <Icon icon="solar:pen-bold-duotone" style={{ marginRight: '16px' }}/>,
-      onClick: () => {
-        handleCloseMenu()
-        handleOpenModal()
-        setModalTokenId(item.id)
-      },
-      color: undefined
-    },
-    {
-      text: t('common.delete'),
-      icon: <Icon icon="solar:trash-bin-trash-bold-duotone" style={{ marginRight: '16px' }}/>,
-      onClick: handleDeleteOpen,
-      color: 'error.main'
-    }
-  ])
-
-  const handleCopy = (option, type) => {
-    let server = ''
-    if (siteInfo?.server_address) {
-      server = siteInfo.server_address
-    } else {
-      server = window.location.host
-    }
-
-    server = encodeURIComponent(server)
-
-    let url = option.url
-
-    const key = 'sk-' + item.key
-    const text = replaceChatPlaceholders(url, key, server)
-    if (type === 'link') {
-      window.open(text)
-    } else {
-      copy(text, t('common.link'))
-    }
-    handleCloseMenu()
-  }
-
-  const copyItems = createMenu(
-    chatLinks.map((option) => ({
-      text: option.name,
-      icon: undefined,
-      onClick: () => handleCopy(option, 'copy'),
-      color: undefined
-    }))
-  )
-
-  const linkItems = createMenu(
-    chatLinks.map((option) => ({
-      text: option.name,
-      icon: undefined,
-      onClick: () => handleCopy(option, 'link'),
-      color: undefined
-    }))
-  )
 
   useEffect(() => {
     setStatusSwitch(item.status)
@@ -209,6 +116,39 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
           </TableCell>
         )}
         <TableCell>{item.name}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <Box
+              component="code"
+              sx={{
+                fontFamily: 'monospace',
+                fontSize: '0.75rem',
+                px: 0.75,
+                py: 0.25,
+                bgcolor: 'action.hover',
+                borderRadius: 0.5,
+                userSelect: 'all',
+                wordBreak: keyVisible ? 'break-all' : 'normal'
+              }}
+            >
+              {keyVisible ? fullKey : maskTokenKey(fullKey)}
+            </Box>
+            <Tooltip title={keyVisible ? t('token_index.hideKey') : t('token_index.showKey')} placement="top" arrow>
+              <IconButton size="small" sx={{ p: 0.25 }} onClick={() => setKeyVisible((v) => !v)}>
+                <Icon icon={keyVisible ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'} width={16}/>
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t('token_index.copy')} placement="top" arrow>
+              <IconButton
+                size="small"
+                sx={{ p: 0.25, color: 'primary.main' }}
+                onClick={() => copy(fullKey, t('token_index.token'))}
+              >
+                <Icon icon="solar:copy-bold-duotone" width={16}/>
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </TableCell>
         <TableCell>
           {isAdminSearch ? (
             <Stack direction="column" spacing={0.5} alignItems="flex-start">
@@ -278,61 +218,30 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
         <TableCell
           sx={stickyCellSx}
         >
-          <Stack direction="row" justifyContent="center" alignItems="center" spacing={1}>
-            {isAdminSearch ? (
-              <Button
+          <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.5}>
+            <Tooltip title={t('common.edit')} placement="top" arrow>
+              <IconButton
                 size="small"
-                variant="outlined"
-                color="primary"
                 onClick={() => {
-                  copy(`sk-${item.key}`, t('token_index.token'))
+                  handleOpenModal()
+                  setModalTokenId(item.id)
                 }}
               >
-                {isMobile ? <Icon icon="mdi:content-copy"/> : t('token_index.copy')}
-              </Button>
-            ) : (
-              <>
-                <ButtonGroup size="small" aria-label="split button">
-                  <Button
-                    color="primary"
-                    onClick={() => {
-                      copy(`sk-${item.key}`, t('token_index.token'))
-                    }}
-                  >
-                    {isMobile ? <Icon icon="mdi:content-copy"/> : t('token_index.copy')}
-                  </Button>
-                  <Button size="small" onClick={(e) => handleOpenMenu(e, 'copy')}>
-                    <IconCaretDownFilled size={'16px'}/>
-                  </Button>
-                </ButtonGroup>
-                <ButtonGroup size="small" onClick={(e) => handleOpenMenu(e, 'link')} aria-label="split button">
-                  <Button size="small" color="primary">
-                    {isMobile ? <Icon icon="mdi:chat"/> : t('token_index.chat')}
-                  </Button>
-                  <Button size="small">
-                    <IconCaretDownFilled size={'16px'}/>
-                  </Button>
-                </ButtonGroup>
-              </>
-            )}
-            <IconButton onClick={(e) => handleOpenMenu(e, 'action')} sx={{ color: 'rgb(99, 115, 129)' }}>
-              <Icon icon="solar:menu-dots-circle-bold-duotone" width={20}/>
-            </IconButton>
+                <Icon icon="solar:pen-bold-duotone" width={20}/>
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t('common.delete')} placement="top" arrow>
+              <IconButton
+                size="small"
+                sx={{ color: 'error.main' }}
+                onClick={handleDeleteOpen}
+              >
+                <Icon icon="solar:trash-bin-trash-bold-duotone" width={20}/>
+              </IconButton>
+            </Tooltip>
           </Stack>
         </TableCell>
       </TableRow>
-      <Popover
-        open={!!open}
-        anchorEl={open}
-        onClose={handleCloseMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{
-          sx: { minWidth: 140 }
-        }}
-      >
-        {menuItems}
-      </Popover>
 
       <ConfirmDialog
         open={openDelete}

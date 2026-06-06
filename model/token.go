@@ -59,6 +59,9 @@ func (token *Token) AfterCreate(tx *gorm.DB) (err error) {
 		return err
 	}
 
+	// 同步到内存中的 token 实例，使 caller 可以在 Insert 返回后直接读取 Key
+	token.Key = tokenKey
+
 	// 更新 key 字段
 	return tx.Model(token).Update("key", tokenKey).Error
 }
