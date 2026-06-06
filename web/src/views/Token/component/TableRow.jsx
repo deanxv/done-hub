@@ -127,7 +127,7 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
                 py: 0.25,
                 bgcolor: 'action.hover',
                 borderRadius: 0.5,
-                userSelect: 'all',
+                userSelect: keyVisible ? 'all' : 'none',
                 wordBreak: keyVisible ? 'break-all' : 'normal'
               }}
             >

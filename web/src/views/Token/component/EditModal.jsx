@@ -249,8 +249,6 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
   };
 
   const handleCreatedDone = () => {
-    // 不在这里清 createdKey：Dialog 关闭动画期间 children 仍挂载，立即清会让内容闪回 Formik 表单。
-    // 清理放在 useEffect 里、下次 open=true 时执行。
     onOk(true);
   };
 
