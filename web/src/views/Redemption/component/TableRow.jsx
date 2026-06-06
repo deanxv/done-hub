@@ -10,6 +10,7 @@ import { copy, renderQuota, timestamp2string } from 'utils/common'
 
 import { Icon } from '@iconify/react'
 import { useTranslation } from 'react-i18next'
+import { stickyCellSx } from 'ui-component/stickyCellSx'
 
 export default function RedemptionTableRow({ item, manageRedemption, handleOpenModal, setModalRedemptionId }) {
   const { t } = useTranslation()
@@ -65,9 +66,11 @@ export default function RedemptionTableRow({ item, manageRedemption, handleOpenM
         </TableCell>
 
         <TableCell>{renderQuota(item.quota)}</TableCell>
-        <TableCell>{timestamp2string(item.created_time)}</TableCell>
-        <TableCell>{item.redeemed_time ? timestamp2string(item.redeemed_time) : t('redemptionPage.unredeemed')}</TableCell>
-        <TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{timestamp2string(item.created_time)}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.redeemed_time ? timestamp2string(item.redeemed_time) : t('redemptionPage.unredeemed')}</TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <Stack direction="row" justifyContent="center" alignItems="center" spacing={1}>
             <Button
               variant="contained"

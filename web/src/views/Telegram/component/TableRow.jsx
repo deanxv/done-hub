@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 
 import { Icon } from '@iconify/react';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 export default function TelegramTableRow({ item, manageAction, handleOpenModal, setModalId }) {
   const [open, setOpen] = useState(null);
@@ -55,7 +56,9 @@ export default function TelegramTableRow({ item, manageAction, handleOpenModal, 
 
         <TableCell>{item.parse_mode}</TableCell>
         <TableCell>{item.reply_message}</TableCell>
-        <TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <Stack direction="row" spacing={1}>
             <IconButton onClick={handleOpenMenu} sx={{ color: 'rgb(99, 115, 129)' }}>
               <Icon icon="solar:menu-dots-circle-bold-duotone" />

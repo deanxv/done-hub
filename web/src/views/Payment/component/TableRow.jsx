@@ -22,6 +22,7 @@ import { PaymentType } from '../type/Config';
 import TableSwitch from 'ui-component/Switch';
 import PaymentIcon from 'ui-component/PaymentIcon';
 import { useTranslation } from 'react-i18next';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 export default function PaymentTableRow({ item, managePayment, handleOpenModal, setModalPaymentId }) {
   const { t } = useTranslation();
@@ -97,8 +98,10 @@ export default function PaymentTableRow({ item, managePayment, handleOpenModal, 
             }}
           />
         </TableCell>
-        <TableCell>{timestamp2string(item.created_at)}</TableCell>
-        <TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{timestamp2string(item.created_at)}</TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <IconButton onClick={handleOpenMenu} sx={{ color: 'rgb(99, 115, 129)' }}>
             <Icon icon="solar:menu-dots-circle-bold-duotone" />
           </IconButton>

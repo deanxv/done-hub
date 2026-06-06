@@ -19,9 +19,11 @@ import { API } from 'utils/api';
 import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { Icon } from '@iconify/react';
 import PerfectScrollbar from 'react-perfect-scrollbar';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 export default function Gateway() {
   const { t } = useTranslation();
+  const stickyShadowRef = useStickyShadow();
 
   const originalKeyword = {
     p: 0,
@@ -206,7 +208,7 @@ export default function Gateway() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress />}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
             <KeywordTableHead
@@ -267,7 +269,8 @@ export default function Gateway() {
                 {
                   id: 'action',
                   label: t('paymentGatewayPage.tableHeaders.action'),
-                  disableSort: true
+                  disableSort: true,
+                  sticky: true
                 }
               ]}
             />

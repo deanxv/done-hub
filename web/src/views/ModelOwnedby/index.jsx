@@ -16,9 +16,11 @@ import EditeModal from './component/EditModal';
 import { Icon } from '@iconify/react';
 
 import { useTranslation } from 'react-i18next';
+import useStickyShadow from 'hooks/useStickyShadow';
 // ----------------------------------------------------------------------
 export default function ModelOwnedby() {
   const { t } = useTranslation();
+  const stickyShadowRef = useStickyShadow();
   const [modelOwnedby, setModelOwnedby] = useState([]);
   const [refreshFlag, setRefreshFlag] = useState(false);
 
@@ -128,7 +130,7 @@ export default function ModelOwnedby() {
             </ButtonGroup>
           </Container>
         </Toolbar>
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -136,7 +138,7 @@ export default function ModelOwnedby() {
                   { id: 'id', label: t('modelOwnedby.id'), disableSort: false },
                   { id: 'name', label: t('modelOwnedby.name'), disableSort: false },
                   { id: 'icon', label: t('modelOwnedby.icon'), disableSort: false },
-                  { id: 'action', label: t('modelOwnedby.action'), disableSort: true }
+                  { id: 'action', label: t('modelOwnedby.action'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

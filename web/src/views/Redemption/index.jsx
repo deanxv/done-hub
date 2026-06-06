@@ -19,10 +19,12 @@ import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { Icon } from '@iconify/react';
 import EditeModal from './component/EditModal';
 import { useTranslation } from 'react-i18next';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 // ----------------------------------------------------------------------
 export default function Redemption() {
   const { t } = useTranslation();
+  const stickyShadowRef = useStickyShadow();
   const [page, setPage] = useState(0);
   const [order, setOrder] = useState('desc');
   const [orderBy, setOrderBy] = useState('id');
@@ -192,7 +194,7 @@ export default function Redemption() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress />}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -206,7 +208,7 @@ export default function Redemption() {
                   { id: 'quota', label: t('redemptionPage.headLabels.quota'), disableSort: false },
                   { id: 'created_time', label: t('redemptionPage.headLabels.createdTime'), disableSort: false },
                   { id: 'redeemed_time', label: t('redemptionPage.headLabels.redeemedTime'), disableSort: false },
-                  { id: 'action', label: t('redemptionPage.headLabels.action'), disableSort: true }
+                  { id: 'action', label: t('redemptionPage.headLabels.action'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

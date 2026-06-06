@@ -22,6 +22,7 @@ import { useTheme } from '@mui/material/styles'
 import { useTranslation } from 'react-i18next'
 import ConfirmDialog from 'ui-component/confirm-dialog'
 import LinuxDoIcon from 'assets/images/icons/LinuxDoIcon'
+import { stickyCellSx } from 'ui-component/stickyCellSx'
 
 function renderRole(t, role) {
   switch (role) {
@@ -156,14 +157,16 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
             </Tooltip>
           </Stack>
         </TableCell>
-        <TableCell>{item.created_time === 0 ? t('common.unknown') : timestamp2string(item.created_time)}</TableCell>
-        <TableCell>{item.last_login_time === 0 ? t('common.unknown') : timestamp2string(item.last_login_time)}</TableCell>
-        <TableCell>{item.last_login_ip === '' || item.last_login_time === undefined ? t('common.unknown') : item.last_login_ip}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.created_time === 0 ? t('common.unknown') : timestamp2string(item.created_time)}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.last_login_time === 0 ? t('common.unknown') : timestamp2string(item.last_login_time)}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.last_login_ip === '' || item.last_login_time === undefined ? t('common.unknown') : item.last_login_ip}</TableCell>
         <TableCell>
           {' '}
           <TableSwitch id={`switch-${item.id}`} checked={statusSwitch === 1} onChange={handleStatus}/>
         </TableCell>
-        <TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <IconButton onClick={handleOpenMenu} sx={{ color: 'rgb(99, 115, 129)' }}>
             <Icon icon="solar:menu-dots-circle-bold-duotone"/>
           </IconButton>

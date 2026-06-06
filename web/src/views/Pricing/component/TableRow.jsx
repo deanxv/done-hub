@@ -5,6 +5,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import { Icon } from '@iconify/react';
 import { useTranslation } from 'react-i18next';
 import { ValueFormatter } from 'utils/common';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 const PricesTableRow = ({ item, onEdit, onDelete, ownedby, unit = 'K' }) => {
   const { t } = useTranslation();
@@ -314,7 +315,11 @@ const PricesTableRow = ({ item, onEdit, onDelete, ownedby, unit = 'K' }) => {
       </TableCell>
 
       {/* 操作按钮 */}
-      <TableCell width="10%" align="right" sx={{ pr: 2 }}>
+      <TableCell
+        width="10%"
+        align="right"
+        sx={{ pr: 2, ...stickyCellSx }}
+      >
         <Stack
           direction="row"
           spacing={0.5}

@@ -19,10 +19,12 @@ import { API } from 'utils/api';
 import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { Icon } from '@iconify/react';
 import EditeModal from './component/EditModal';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 // ----------------------------------------------------------------------
 export default function Telegram() {
   const { t } = useTranslation(); // 使用 useTranslation hook 获取 t 函数
+  const stickyShadowRef = useStickyShadow();
 
   const [page, setPage] = useState(0);
   const [order, setOrder] = useState('desc');
@@ -233,7 +235,7 @@ export default function Telegram() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress />}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -246,7 +248,7 @@ export default function Telegram() {
                   { id: 'description', label: t('telegramPage.description'), disableSort: false },
                   { id: 'parse_mode', label: t('telegramPage.replyType'), disableSort: false },
                   { id: 'reply_message', label: t('telegramPage.replyContent'), disableSort: false },
-                  { id: 'action', label: t('telegramPage.action'), disableSort: true }
+                  { id: 'action', label: t('telegramPage.action'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

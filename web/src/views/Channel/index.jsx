@@ -26,7 +26,9 @@ import BatchModal from './component/BatchModal'
 import { useTranslation } from 'react-i18next'
 
 import { useBoolean } from 'hooks/use-boolean'
+import useStickyShadow from 'hooks/useStickyShadow'
 import ConfirmDialog from 'ui-component/confirm-dialog'
+import FilterCollapse from 'ui-component/FilterCollapse'
 import { Icon } from '@iconify/react'
 
 const originalKeyword = {
@@ -73,6 +75,7 @@ export async function fetchChannelData(page, rowsPerPage, keyword, order, orderB
 // CHANNEL_OPTIONS,
 export default function ChannelList() {
   const { t } = useTranslation()
+  const stickyShadowRef = useStickyShadow()
   const [page, setPage] = useState(0)
   const [order, setOrder] = useState(() => getTableSort('channel').order)
   const [orderBy, setOrderBy] = useState(() => getTableSort('channel').orderBy)
@@ -546,15 +549,17 @@ export default function ChannelList() {
         </Alert>
       </Stack>
       <Card>
-        <Box component="form" noValidate>
-          <TableToolBar
-            filterName={toolBarValue}
-            handleFilterName={handleToolBarValue}
-            groupOptions={groupOptions}
-            tags={tags}
-            onSearch={searchChannels}
-          />
-        </Box>
+        <FilterCollapse>
+          <Box component="form" noValidate>
+            <TableToolBar
+              filterName={toolBarValue}
+              handleFilterName={handleToolBarValue}
+              groupOptions={groupOptions}
+              tags={tags}
+              onSearch={searchChannels}
+            />
+          </Box>
+        </FilterCollapse>
 
         <Toolbar
           sx={{
@@ -745,7 +750,7 @@ export default function ChannelList() {
           </Box>
         </Toolbar>
         {searching && <LinearProgress/>}
-        <TableContainer>
+        <TableContainer ref={stickyShadowRef}>
           <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
                 order={order}
@@ -766,7 +771,7 @@ export default function ChannelList() {
                   { id: 'used', label: t('channel_index.usedBalance'), disableSort: true },
                   { id: 'priority', label: t('channel_index.priority'), disableSort: false, width: '80px' },
                   { id: 'weight', label: t('channel_index.weight'), disableSort: false, width: '80px' },
-                  { id: 'action', label: t('channel_index.actions'), disableSort: true }
+                  { id: 'action', label: t('channel_index.actions'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

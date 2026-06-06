@@ -67,8 +67,8 @@ export default function LogTableRow({ item, userIsAdmin }) {
     <>
       <TableRow tabIndex={item.id}>
         <TableCell>{item.task_id}</TableCell>
-        <TableCell>{timestamp2string(item.submit_time)}</TableCell>
-        <TableCell>{timestamp2string(item.finish_time)}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{timestamp2string(item.submit_time)}</TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{timestamp2string(item.finish_time)}</TableCell>
 
         {userIsAdmin && <TableCell>{item.channel_id || ''}</TableCell>}
         {userIsAdmin && <TableCell>{item.user_id || ''}</TableCell>}

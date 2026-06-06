@@ -23,11 +23,13 @@ import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from 'contexts/UserContext';
 import { useTheme } from '@mui/material/styles';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 export default function Token() {
   const { t } = useTranslation();
   const theme = useTheme();
   const grey500 = theme.palette.grey[500];
+  const stickyShadowRef = useStickyShadow();
   const [page, setPage] = useState(0);
   const [order, setOrder] = useState('desc');
   const [orderBy, setOrderBy] = useState('id');
@@ -401,7 +403,7 @@ export default function Token() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress />}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -420,7 +422,7 @@ export default function Token() {
                       { id: 'quota', label: t('token_index.usedQuota') + ' / ' + t('token_index.remainingQuota'), disableSort: true },
                       { id: 'time', label: t('token_index.createdTime') + ' / ' + t('token_index.expiryTime'), disableSort: true },
                       { id: 'accessed_time', label: t('token_index.accessedTime'), disableSort: false },
-                      { id: 'action', label: t('token_index.actions'), disableSort: true }
+                      { id: 'action', label: t('token_index.actions'), disableSort: true, sticky: true }
                     ].filter((col) => !col.hide);
                   }
                   return [
@@ -432,7 +434,7 @@ export default function Token() {
                     { id: 'remain_quota', label: t('token_index.remainingQuota'), disableSort: false },
                     { id: 'created_time', label: t('token_index.createdTime'), disableSort: false },
                     { id: 'expired_time', label: t('token_index.expiryTime'), disableSort: false },
-                    { id: 'action', label: t('token_index.actions'), disableSort: true }
+                    { id: 'action', label: t('token_index.actions'), disableSort: true, sticky: true }
                   ].filter((col) => !col.hide);
                 })()}
               />

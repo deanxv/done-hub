@@ -310,6 +310,7 @@
     "noDataAvailable": "冇數據可用",
     "pageSize": "每頁條數",
     "search": "搜尋",
+    "searchFilters": "搜尋條件",
     "total": "總數",
     "quotaInput": {
       "equivalentTokens": "≈ {{tokens}} tokens",

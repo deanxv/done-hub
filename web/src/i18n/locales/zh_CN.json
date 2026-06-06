@@ -1350,6 +1350,7 @@
     "action": "操作",
     "pageSize": "每页条数",
     "search": "搜索",
+    "searchFilters": "搜索条件",
     "actions": "操作",
     "total": "总数",
     "noDataAvailable": "没有数据可用",

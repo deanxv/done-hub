@@ -306,6 +306,7 @@
     "noDataAvailable": "データがありません。",
     "pageSize": "ページごとのアイテム数",
     "search": "検索",
+    "searchFilters": "検索条件",
     "total": "総数",
     "quotaInput": {
       "equivalentTokens": "≈ {{tokens}} tokens",

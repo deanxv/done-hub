@@ -365,6 +365,7 @@
     "noDataAvailable": "No data available",
     "pageSize": "Number of items per page",
     "search": "Search",
+    "searchFilters": "Search Filters",
     "total": "Total",
     "quotaInput": {
       "equivalentTokens": "≈ {{tokens}} tokens",

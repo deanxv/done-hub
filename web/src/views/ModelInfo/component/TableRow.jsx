@@ -20,6 +20,7 @@ import { Icon } from '@iconify/react';
 import Label from 'ui-component/Label';
 import { MODALITY_OPTIONS } from 'constants/Modality';
 import { copy } from 'utils/common';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 export default function ModelInfoTableRow({ item, manageModelInfo, handleOpenModal }) {
   const [open, setOpen] = useState(null);
@@ -100,7 +101,9 @@ export default function ModelInfoTableRow({ item, manageModelInfo, handleOpenMod
             }
           })()}
         </TableCell>
-        <TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <IconButton onClick={handleOpenMenu} sx={{ color: 'rgb(99, 115, 129)' }}>
             <Icon icon="solar:menu-dots-circle-bold-duotone" />
           </IconButton>

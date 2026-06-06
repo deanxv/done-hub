@@ -19,9 +19,11 @@ import EditeModal from './component/EditModal';
 import { Icon } from '@iconify/react';
 
 import { useTranslation } from 'react-i18next';
+import useStickyShadow from 'hooks/useStickyShadow';
 // ----------------------------------------------------------------------
 export default function UserGroup() {
   const { t } = useTranslation();
+  const stickyShadowRef = useStickyShadow();
   const [page, setPage] = useState(0);
   const [order, setOrder] = useState('desc');
   const [orderBy, setOrderBy] = useState('id');
@@ -174,7 +176,7 @@ export default function UserGroup() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress />}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -194,7 +196,7 @@ export default function UserGroup() {
                   { id: 'max', label: t('userGroup.max') + '($)', disableSort: false },
                   { id: 'enable', label: t('userGroup.enable'), disableSort: false },
 
-                  { id: 'action', label: t('userPage.action'), disableSort: true }
+                  { id: 'action', label: t('userPage.action'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

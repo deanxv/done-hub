@@ -11,6 +11,7 @@ import {
   Typography
 } from '@mui/material'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
+import { stickyHeadCellSx } from './stickyCellSx'
 
 const KeywordTableHead = ({ order, orderBy, headLabel, onRequestSort, numSelected, rowCount, onSelectAllClick }) => {
   const onSort = (property) => (event) => {
@@ -47,13 +48,7 @@ const KeywordTableHead = ({ order, orderBy, headLabel, onRequestSort, numSelecte
                 width: headCell.width,
                 minWidth: headCell.minWidth,
                 p: '10px 8px',
-                ...(headCell.sticky && {
-                  position: 'sticky',
-                  right: 0,
-                  backgroundColor: 'background.paper',
-                  zIndex: 2,
-                  boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'
-                })
+                ...(headCell.sticky && stickyHeadCellSx)
               }}
             >
               {headCell.id === 'select' && onSelectAllClick ? (

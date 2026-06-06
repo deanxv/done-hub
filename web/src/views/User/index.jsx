@@ -21,9 +21,11 @@ import { getPageSize, PAGE_SIZE_OPTIONS, savePageSize } from 'constants'
 import EditeModal from './component/EditModal'
 
 import { useTranslation } from 'react-i18next'
+import useStickyShadow from 'hooks/useStickyShadow'
 // ----------------------------------------------------------------------
 export default function Users() {
   const { t } = useTranslation()
+  const stickyShadowRef = useStickyShadow()
   const [page, setPage] = useState(0)
   const [order, setOrder] = useState('desc')
   const [orderBy, setOrderBy] = useState('id')
@@ -204,7 +206,7 @@ export default function Users() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress/>}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -256,7 +258,7 @@ export default function Users() {
                   { id: 'last_login_time', label: t('userPage.lastLoginTime'), disableSort: false },
                   { id: 'last_login_ip', label: t('userPage.lastLoginIP'), disableSort: false },
                   { id: 'status', label: t('userPage.status'), disableSort: false },
-                  { id: 'action', label: t('userPage.action'), disableSort: true }
+                  { id: 'action', label: t('userPage.action'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

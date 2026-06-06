@@ -17,10 +17,12 @@ import { API } from 'utils/api';
 import { Icon } from '@iconify/react';
 import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { useTranslation } from 'react-i18next';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 export default function Invoice() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const stickyShadowRef = useStickyShadow();
   const [page, setPage] = useState(0);
   const [order, setOrder] = useState('desc');
   const [orderBy, setOrderBy] = useState('date');
@@ -122,7 +124,7 @@ export default function Invoice() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress />}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -135,7 +137,7 @@ export default function Invoice() {
                   { id: 'tokens', label: t('invoice_index.tokens'), disableSort: true },
                   { id: 'request_count', label: t('invoice_index.requestCount'), disableSort: false },
                   { id: 'request_time', label: t('invoice_index.requestTime'), disableSort: false },
-                  { id: 'option', label: t('invoice_index.option'), disableSort: true }
+                  { id: 'option', label: t('invoice_index.option'), disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>

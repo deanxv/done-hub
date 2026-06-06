@@ -21,6 +21,7 @@ import { Icon } from '@iconify/react';
 import dayjs from 'dayjs';
 
 import { useTranslation } from 'react-i18next'; // Add this import
+import FilterCollapse from 'ui-component/FilterCollapse';
 export default function Log() {
   const { t } = useTranslation(); // Use i18n translations
   const originalKeyword = {
@@ -156,9 +157,11 @@ export default function Log() {
         </Stack>
       </Stack>
       <Card>
-        <Box component="form" noValidate>
-          <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} userIsAdmin={userIsAdmin} onSearch={searchLogs} />
-        </Box>
+        <FilterCollapse>
+          <Box component="form" noValidate>
+            <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} userIsAdmin={userIsAdmin} onSearch={searchLogs} />
+          </Box>
+        </FilterCollapse>
         <Toolbar
           sx={{
             textAlign: 'right',

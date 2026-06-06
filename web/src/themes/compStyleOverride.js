@@ -536,13 +536,13 @@ export default function componentStyleOverrides(theme) {
         root: {
           transition: 'background-color 0.2s ease',
           '&:hover': {
-            backgroundColor: theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.04)'
+            backgroundColor: theme.tableRowHoverBackgroundColor
           },
           '&:last-child td': {
             borderBottom: 0
           },
           '&.MuiTableRow-root.MuiTableRow-hover:hover': {
-            backgroundColor: theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.04)'
+            backgroundColor: theme.tableRowHoverBackgroundColor
           },
           '& .MuiCollapse-root': {
             '&:hover': {
@@ -956,7 +956,7 @@ export default function componentStyleOverrides(theme) {
         row: {
           transition: 'background-color 0.2s ease',
           '&:hover': {
-            backgroundColor: theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.04)'
+            backgroundColor: theme.tableRowHoverBackgroundColor
           },
           '&.Mui-selected': {
             backgroundColor: theme.mode === 'dark' ? 'rgba(8, 132, 221, 0.15)' : 'rgba(8, 132, 221, 0.08)',

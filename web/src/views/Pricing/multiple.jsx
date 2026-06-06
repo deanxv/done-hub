@@ -36,11 +36,13 @@ import { alpha } from '@mui/material/styles';
 import { getPageSize, savePageSize } from 'constants';
 import EditModal from './component/EditModal';
 import ToggleButtonGroup from 'ui-component/ToggleButton';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 // ----------------------------------------------------------------------
 export default function Multiple({ prices, reloadData, ownedby, noPriceModels }) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const stickyShadowRef = useStickyShadow();
   const [rows, setRows] = useState([]);
   const [selectedRow, setSelectedRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
@@ -302,7 +304,7 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
 
       {/* 数据表格 */}
       <Card>
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table
               sx={{
@@ -326,7 +328,7 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
                   { id: 'price', label: t('modelpricePage.price'), width: '15%', align: 'center' },
                   { id: 'models', label: t('modelpricePage.model'), width: '30%', align: 'left' },
                   { id: 'extra_ratios', label: t('modelpricePage.extraRatios'), width: '25%', align: 'left' },
-                  { id: 'action', label: t('common.actions'), width: '10%', align: 'right' }
+                  { id: 'action', label: t('common.actions'), width: '10%', align: 'right', sticky: true }
                 ]}
               />
               <TableBody>

@@ -38,12 +38,15 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import { useSelector } from 'react-redux'
 import { useLogType } from './type/LogType'
+import useStickyShadow from 'hooks/useStickyShadow'
+import FilterCollapse from 'ui-component/FilterCollapse'
 
 // 「全部」和「消费」两个 Tab 才显示总消费汇总
 const isCostLogType = (v) => v === '0' || v === '2'
 
 export default function Log() {
   const { t } = useTranslation()
+  const stickyShadowRef = useStickyShadow()
   const LogType = useLogType()
   const originalKeyword = {
     p: 0,
@@ -391,10 +394,12 @@ export default function Log() {
             })}
           </Tabs>
         </Box>
-        <Box component="form" noValidate>
-          <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} userIsAdmin={userIsAdmin}
-                        onSearch={searchLogs}/>
-        </Box>
+        <FilterCollapse>
+          <Box component="form" noValidate>
+            <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} userIsAdmin={userIsAdmin}
+                          onSearch={searchLogs}/>
+          </Box>
+        </FilterCollapse>
         <Toolbar
           sx={{
             textAlign: 'right',
@@ -591,7 +596,7 @@ export default function Log() {
           </Container>
         </Toolbar>
         {searching && <LinearProgress/>}
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead

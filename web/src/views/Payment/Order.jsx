@@ -19,6 +19,7 @@ import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { Icon } from '@iconify/react';
 import dayjs from 'dayjs';
 import PerfectScrollbar from 'react-perfect-scrollbar';
+import FilterCollapse from 'ui-component/FilterCollapse';
 
 export default function Order() {
   const { t } = useTranslation();
@@ -144,9 +145,11 @@ export default function Order() {
         <Typography variant="h4">{t('orderlogPage.title')}</Typography>
       </Stack>
       <Card>
-        <Box component="form" noValidate>
-          <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} onSearch={searchLogs} />
-        </Box>
+        <FilterCollapse>
+          <Box component="form" noValidate>
+            <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} onSearch={searchLogs} />
+          </Box>
+        </FilterCollapse>
         <Toolbar
           sx={{
             textAlign: 'right',

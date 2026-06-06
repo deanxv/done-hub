@@ -18,6 +18,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import IconWrapper from 'ui-component/IconWrapper';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 export default function ModelOwnedbyTableRow({ item, manageModelOwnedBy, handleOpenModal, setModalId }) {
   const { t } = useTranslation();
@@ -55,7 +56,9 @@ export default function ModelOwnedbyTableRow({ item, manageModelOwnedBy, handleO
         <TableCell>
           <IconWrapper url={item.icon} />
         </TableCell>
-        <TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <IconButton onClick={handleOpenMenu} sx={{ color: 'rgb(99, 115, 129)' }}>
             <Icon icon="solar:menu-dots-circle-bold-duotone" />
           </IconButton>

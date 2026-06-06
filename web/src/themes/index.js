@@ -63,6 +63,9 @@ export const theme = (customization) => {
   };
 
   const themes = createTheme(themeOptions);
+  // 把自定义 themeOption 字段挂到 MUI theme 上，sx callback (theme) => theme.xxx 才拿得到
+  themes.headBackgroundColor = themeOption.headBackgroundColor;
+  themes.tableRowHoverBackgroundColor = themeOption.tableRowHoverBackgroundColor;
   themes.components = componentStyleOverrides(themeOption);
 
   return themes;
@@ -90,6 +93,7 @@ function GetDarkOption() {
     menuChip: '#28323D',
     headBackgroundColor: '#28323D',
     headBackgroundColorHover: varAlpha('#28323D', 0.08),
+    tableRowHoverBackgroundColor: 'rgba(0, 0, 0, 0.3)',
     tableBorderBottom: varAlpha(color.grey500, 0.2)
   };
 }
@@ -114,6 +118,7 @@ function GetLightOption() {
     menuChip: color.grey200,
     headBackgroundColor: color.grey200,
     headBackgroundColorHover: varAlpha(color.grey200, 0.12),
+    tableRowHoverBackgroundColor: 'rgba(0, 0, 0, 0.04)',
     tableBorderBottom: color.grey300
   };
 }

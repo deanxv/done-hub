@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import QuotaWithDetailRow from './QuotaWithDetailRow'
 import QuotaWithDetailContent, { calculatePrice } from './QuotaWithDetailContent'
 import { styled } from '@mui/material/styles'
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 function renderType(type, logTypes, t) {
   const typeOption = logTypes[type]
@@ -190,15 +191,9 @@ export default function LogTableRow({ item, userIsAdmin, userGroup, columnVisibi
         {columnVisibility.source_ip &&
           <TableCell sx={{ p: '10px 8px', textAlign: 'center' }}>{item.source_ip || ''}</TableCell>}
         {columnVisibility.detail && (
-          <TableCell sx={{
-            p: '10px 8px',
-            textAlign: 'center',
-            position: 'sticky',
-            right: 0,
-            backgroundColor: 'background.paper',
-            zIndex: 1,
-            boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'
-          }}>{viewLogContent(item, t, totalInputTokens, totalOutputTokens)}</TableCell>
+          <TableCell sx={{ p: '10px 8px', textAlign: 'center', ...stickyCellSx }}>
+            {viewLogContent(item, t, totalInputTokens, totalOutputTokens)}
+          </TableCell>
         )}
       </TableRow>
       {/* 展开行 */}

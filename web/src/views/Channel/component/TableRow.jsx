@@ -53,6 +53,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 import { ChannelCheck } from './ChannelCheck'
 import { getPageSize, PAGE_SIZE_OPTIONS, savePageSize } from 'constants'
+import { stickyCellSx } from 'ui-component/stickyCellSx'
 
 const StyledMenu = styled((props) => (
   <Menu
@@ -583,8 +584,10 @@ export default function ChannelTableRow({
           </TableCell>
         )}
 
-        <TableCell>
-          <Stack direction="row" justifyContent="right" alignItems="right" spacing={1}>
+        <TableCell
+          sx={stickyCellSx}
+        >
+          <Stack direction="row" justifyContent="right" alignItems="center" spacing={1}>
             {!item.tag && (
               <IconButton
                 size="small"

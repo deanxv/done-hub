@@ -5,6 +5,7 @@ import { TableRow, TableCell, Button } from '@mui/material';
 import { renderNumber, calculateQuota } from 'utils/common';
 
 import { useTranslation } from 'react-i18next';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 export default function InvoiceTableRow({ item, manageInvoice }) {
   const { t } = useTranslation();
@@ -19,11 +20,13 @@ export default function InvoiceTableRow({ item, manageInvoice }) {
         </TableCell>
         <TableCell>{item.request_count}</TableCell>
         <TableCell>{(item.request_time / 1000).toFixed(3)}s</TableCell>
-        <TableCell>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            size="small" 
+        <TableCell
+          sx={stickyCellSx}
+        >
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
             onClick={() => manageInvoice(item.date)}
           >
             {t('invoice_index.viewInvoice')}

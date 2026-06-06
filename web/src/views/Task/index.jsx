@@ -20,6 +20,7 @@ import { PAGE_SIZE_OPTIONS, getPageSize, savePageSize } from 'constants';
 import { Icon } from '@iconify/react';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
+import FilterCollapse from 'ui-component/FilterCollapse';
 
 export default function Task() {
   const originalKeyword = {
@@ -158,9 +159,11 @@ export default function Task() {
         </Stack>
       </Stack>
       <Card>
-        <Box component="form" noValidate>
-          <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} userIsAdmin={userIsAdmin} onSearch={searchLogs} />
-        </Box>
+        <FilterCollapse>
+          <Box component="form" noValidate>
+            <TableToolBar filterName={toolBarValue} handleFilterName={handleToolBarValue} userIsAdmin={userIsAdmin} onSearch={searchLogs} />
+          </Box>
+        </FilterCollapse>
         <Toolbar
           sx={{
             textAlign: 'right',

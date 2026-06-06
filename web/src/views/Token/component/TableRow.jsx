@@ -16,6 +16,7 @@ import { IconCaretDownFilled } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
+import { stickyCellSx } from 'ui-component/stickyCellSx'
 
 function createMenu(menuItems) {
   return (
@@ -62,26 +63,26 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
   const followingRatio = !isAdminSearch && user?.group ? userGroup?.[user.group]?.ratio : undefined
 
   const renderGroupCell = (symbol, fallback, fallbackRatio) => {
+    let label
+    let ratio
     if (!symbol) {
-      const labelEl = <Label color="default">{fallback}</Label>
-      if (fallbackRatio === undefined || fallbackRatio === null) return labelEl
-      return (
-        <Stack direction="row" alignItems="center" spacing={0.5}>
-          {labelEl}
-          <RatioBadge ratio={fallbackRatio}/>
-        </Stack>
-      )
+      label = <Label color="default">{fallback}</Label>
+      ratio = fallbackRatio
+    } else {
+      const g = userGroup[symbol]
+      if (!g) {
+        label = <Label color="error">{symbol} (不存在)</Label>
+      } else {
+        label = g.inaccessible
+          ? <Label color="error">{g.name} (不可用)</Label>
+          : <Label color={g.color}>{g.name}</Label>
+        ratio = g.ratio
+      }
     }
-    const g = userGroup[symbol]
-    if (!g) return <Label color="error">{symbol} (不存在)</Label>
-    const label = g.inaccessible
-      ? <Label color="error">{g.name} (不可用)</Label>
-      : <Label color={g.color}>{g.name}</Label>
-    if (g.ratio === undefined || g.ratio === null) return label
     return (
-      <Stack direction="row" alignItems="center" spacing={0.5}>
+      <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
         {label}
-        <RatioBadge ratio={g.ratio}/>
+        {ratio !== undefined && ratio !== null && <RatioBadge ratio={ratio}/>}
       </Stack>
     )
   }
@@ -255,7 +256,7 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
         )}
 
         {isAdminSearch ? (
-          <TableCell>
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
             <Stack direction="column" spacing={0.5}>
               <span>{timestamp2string(item.created_time)}</span>
               <span style={{ color: 'text.secondary' }}>{item.expired_time === -1 ? t('token_index.neverExpires') : timestamp2string(item.expired_time)}</span>
@@ -263,18 +264,20 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
           </TableCell>
         ) : (
           <>
-            <TableCell>{timestamp2string(item.created_time)}</TableCell>
-            <TableCell>{item.expired_time === -1 ? t('token_index.neverExpires') : timestamp2string(item.expired_time)}</TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>{timestamp2string(item.created_time)}</TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.expired_time === -1 ? t('token_index.neverExpires') : timestamp2string(item.expired_time)}</TableCell>
           </>
         )}
 
         {isAdminSearch && (
-          <TableCell>
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
             {item.accessed_time ? timestamp2string(item.accessed_time) : '-'}
           </TableCell>
         )}
 
-        <TableCell>
+        <TableCell
+          sx={stickyCellSx}
+        >
           <Stack direction="row" justifyContent="center" alignItems="center" spacing={1}>
             {isAdminSearch ? (
               <Button

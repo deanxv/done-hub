@@ -15,9 +15,11 @@ import { API } from 'utils/api';
 import EditModal from './component/EditModal';
 import ImportModal from './component/ImportModal';
 import { Icon } from '@iconify/react';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 // ----------------------------------------------------------------------
 export default function ModelInfo() {
+  const stickyShadowRef = useStickyShadow();
   const [modelInfos, setModelInfos] = useState([]);
   const [refreshFlag, setRefreshFlag] = useState(false);
 
@@ -175,7 +177,7 @@ export default function ModelInfo() {
             sx={{ height: 40, width: 600 }}
           />
         </Toolbar>
-        <PerfectScrollbar component="div">
+        <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
           <TableContainer sx={{ overflow: 'unset' }}>
             <Table sx={{ minWidth: 800 }}>
               <KeywordTableHead
@@ -187,7 +189,7 @@ export default function ModelInfo() {
                   { id: 'input_modalities', label: '输入模态', disableSort: false },
                   { id: 'output_modalities', label: '输出模态', disableSort: false },
                   { id: 'tags', label: '标签', disableSort: false },
-                  { id: 'action', label: '操作', disableSort: true }
+                  { id: 'action', label: '操作', disableSort: true, sticky: true }
                 ]}
               />
               <TableBody>
