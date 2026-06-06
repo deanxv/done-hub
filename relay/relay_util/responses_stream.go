@@ -5,6 +5,7 @@ import (
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +30,7 @@ type OpenAIResponsesStreamConverter struct {
 	nowStatus         string
 	lastToolCallIndex int
 	usage             *types.Usage
+	functionArgsBuf   strings.Builder
 }
 
 func NewOpenAIResponsesStreamConverter(c *gin.Context, request *types.OpenAIResponsesRequest, usage *types.Usage) *OpenAIResponsesStreamConverter {
@@ -163,8 +165,9 @@ func (converter *OpenAIResponsesStreamConverter) createNewItem(choice types.Chat
 
 	switch currentType {
 	case types.InputTypeFunctionCall:
+		converter.functionArgsBuf.Reset()
 		if len(choice.Delta.ToolCalls) > 0 && choice.Delta.ToolCalls[0].Function != nil {
-			converter.item.Arguments = &choice.Delta.ToolCalls[0].Function.Arguments
+			converter.item.Arguments = types.ArgumentsFromString(choice.Delta.ToolCalls[0].Function.Arguments)
 			converter.item.CallID = choice.Delta.ToolCalls[0].Id
 			converter.item.Name = choice.Delta.ToolCalls[0].Function.Name
 		}
@@ -344,13 +347,7 @@ func (converter *OpenAIResponsesStreamConverter) processFunctionCall(choice type
 		tool := choice.Delta.ToolCalls[0]
 		response.Delta = tool.Function.Arguments
 
-		arguments := ""
-		if converter.item.Arguments != nil {
-			arguments = *converter.item.Arguments
-		}
-
-		arguments += tool.Function.Arguments
-		converter.item.Arguments = &arguments
+		converter.functionArgsBuf.WriteString(tool.Function.Arguments)
 	}
 
 	converter.sendStreamEvent(response, "response.function_call_arguments.delta")
@@ -358,6 +355,8 @@ func (converter *OpenAIResponsesStreamConverter) processFunctionCall(choice type
 
 // 结束function call
 func (converter *OpenAIResponsesStreamConverter) doneFunctionCall() {
+	converter.item.Arguments = types.ArgumentsFromString(converter.functionArgsBuf.String())
+
 	response := converter.buildStreamResponseWithItemID("response.function_call_arguments.done")
 	response.Arguments = converter.item.Arguments
 

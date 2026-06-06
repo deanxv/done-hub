@@ -2,7 +2,6 @@ package relay
 
 import (
 	"done-hub/common"
-	"done-hub/common/config"
 	"done-hub/common/utils"
 	"done-hub/model"
 	"done-hub/providers/claude"
@@ -139,17 +138,13 @@ func ListGeminiModelsByToken(c *gin.Context) {
 
 	var geminiModels []gemini.ModelDetails
 	for _, modelName := range models {
-		// Get the price to check if it's a Gemini model (channel_type=25 or 42)
-		price := model.PricingInstance.GetPrice(modelName)
-		if price.ChannelType == config.ChannelTypeGemini || price.ChannelType == config.ChannelTypeVertexAI {
-			geminiModels = append(geminiModels, gemini.ModelDetails{
-				Name:        fmt.Sprintf("models/%s", modelName),
-				DisplayName: cases.Title(language.Und).String(strings.ReplaceAll(modelName, "-", " ")),
-				SupportedGenerationMethods: []string{
-					"generateContent",
-				},
-			})
-		}
+		geminiModels = append(geminiModels, gemini.ModelDetails{
+			Name:        fmt.Sprintf("models/%s", modelName),
+			DisplayName: cases.Title(language.Und).String(strings.ReplaceAll(modelName, "-", " ")),
+			SupportedGenerationMethods: []string{
+				"generateContent",
+			},
+		})
 	}
 
 	c.JSON(200, gemini.ModelListResponse{
@@ -182,14 +177,10 @@ func ListClaudeModelsByToken(c *gin.Context) {
 
 	var claudeModelsData []claude.Model
 	for _, modelName := range models {
-		// Get the price to check if it's a Gemini model (channel_type=25)
-		price := model.PricingInstance.GetPrice(modelName)
-		if price.ChannelType == config.ChannelTypeAnthropic {
-			claudeModelsData = append(claudeModelsData, claude.Model{
-				ID:   modelName,
-				Type: "model",
-			})
-		}
+		claudeModelsData = append(claudeModelsData, claude.Model{
+			ID:   modelName,
+			Type: "model",
+		})
 	}
 
 	c.JSON(200, claude.ModelListResponse{

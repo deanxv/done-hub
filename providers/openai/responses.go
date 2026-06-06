@@ -446,11 +446,6 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 				})
 				needOutput = true
 			case types.InputTypeFunctionCall:
-				arguments := ""
-				if openaiResponse.Item.Arguments != nil {
-					arguments = *openaiResponse.Item.Arguments
-				}
-
 				chatRes.Choices = append(chatRes.Choices, types.ChatCompletionStreamChoice{
 					Index: 0,
 					Delta: types.ChatCompletionStreamChoiceDelta{
@@ -462,7 +457,7 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 								Type:  "function",
 								Function: &types.ChatCompletionToolCallsFunction{
 									Name:      openaiResponse.Item.Name,
-									Arguments: arguments,
+									Arguments: openaiResponse.Item.ArgumentsString(),
 								},
 							},
 						},

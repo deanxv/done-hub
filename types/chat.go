@@ -594,7 +594,7 @@ func (c *ChatCompletionRequest) ToResponsesRequest() *OpenAIResponsesRequest {
 					Type:      InputTypeFunctionCall,
 					CallID:    tool.Id,
 					Name:      tool.Function.Name,
-					Arguments: tool.Function.Arguments,
+					Arguments: ArgumentsFromString(tool.Function.Arguments),
 				})
 			}
 
