@@ -75,8 +75,12 @@ func ClaudeUsageMerge(usage *Usage, mergeUsage *Usage) {
 	if mergeUsage.OutputTokens > usage.OutputTokens {
 		usage.OutputTokens = mergeUsage.OutputTokens
 	}
-	if mergeUsage.CacheCreationInputTokens > usage.CacheCreationInputTokens {
+	// 缓存创建：扁平与嵌套 ephemeral_*_input_tokens 互斥（Anthropic 二选一上报），
+	// 由 GetCacheCreationTotalTokens 统一取实际有值那一形式的总数。谁的总数大就
+	// 整体覆盖（扁平字段与嵌套指针一起搬，避免只搬一边丢字段）。
+	if mergeUsage.GetCacheCreationTotalTokens() > usage.GetCacheCreationTotalTokens() {
 		usage.CacheCreationInputTokens = mergeUsage.CacheCreationInputTokens
+		usage.CacheCreation = mergeUsage.CacheCreation
 	}
 	if mergeUsage.CacheReadInputTokens > usage.CacheReadInputTokens {
 		usage.CacheReadInputTokens = mergeUsage.CacheReadInputTokens
@@ -92,10 +96,11 @@ func ClaudeUsageToOpenaiUsage(cUsage *Usage, usage *types.Usage) bool {
 		return false
 	}
 
-	usage.PromptTokensDetails.CachedWriteTokens = cUsage.CacheCreationInputTokens
+	cacheCreationTokens := cUsage.GetCacheCreationTotalTokens()
+	usage.PromptTokensDetails.CachedWriteTokens = cacheCreationTokens
 	usage.PromptTokensDetails.CachedReadTokens = cUsage.CacheReadInputTokens
 
-	usage.PromptTokens = cUsage.InputTokens + cUsage.CacheCreationInputTokens + cUsage.CacheReadInputTokens
+	usage.PromptTokens = cUsage.InputTokens + cacheCreationTokens + cUsage.CacheReadInputTokens
 	usage.CompletionTokens = cUsage.OutputTokens
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 

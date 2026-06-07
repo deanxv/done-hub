@@ -161,13 +161,38 @@ type Tools struct {
 }
 
 type Usage struct {
-	InputTokens              int `json:"input_tokens,omitempty"`
-	OutputTokens             int `json:"output_tokens,omitempty"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
-	CacheCreation            any `json:"cache_creation,omitempty"`
+	InputTokens              int                 `json:"input_tokens,omitempty"`
+	OutputTokens             int                 `json:"output_tokens,omitempty"`
+	CacheCreationInputTokens int                 `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int                 `json:"cache_read_input_tokens,omitempty"`
+	CacheCreation            *CacheCreationUsage `json:"cache_creation,omitempty"`
 
 	ServerToolUse *ServerToolUse `json:"server_tool_use,omitempty"`
+}
+
+// CacheCreationUsage 对应 Anthropic usage.cache_creation 嵌套对象。
+// 上游按 TTL 拆分缓存时，扁平的 cache_creation_input_tokens 可能为 0，
+// 实际数值只在这两个字段里出现，必须读取以避免少计费。
+// 注意：Anthropic 后续若新增 TTL 桶（如 30s、1d），需同步更新 GetCacheCreationTotalTokens
+// 以及 UnmarshalJSON 里 cache_creation 的字段归一化列表，否则总数会静默漏算。
+type CacheCreationUsage struct {
+	Ephemeral5mInputTokens int `json:"ephemeral_5m_input_tokens,omitempty"`
+	Ephemeral1hInputTokens int `json:"ephemeral_1h_input_tokens,omitempty"`
+}
+
+// GetCacheCreationTotalTokens 返回缓存创建总 token 数。
+// 扁平字段优先，缺失或为 0 时回退到嵌套的 ephemeral_*_input_tokens 之和。
+func (u *Usage) GetCacheCreationTotalTokens() int {
+	if u == nil {
+		return 0
+	}
+	if u.CacheCreationInputTokens > 0 {
+		return u.CacheCreationInputTokens
+	}
+	if u.CacheCreation == nil {
+		return 0
+	}
+	return u.CacheCreation.Ephemeral5mInputTokens + u.CacheCreation.Ephemeral1hInputTokens
 }
 
 // UnmarshalJSON 自定义 JSON 解析，兼容浮点数 token 值
@@ -205,6 +230,21 @@ func (u *Usage) UnmarshalJSON(data []byte) error {
 		if v, ok := raw[field]; ok {
 			processedData[field] = convertToInt(v)
 		}
+	}
+
+	// 同样规则下沉到嵌套的 cache_creation：上游若把 ephemeral_*_input_tokens
+	// 序列化成浮点，标准 unmarshal 到 int 字段会整体失败，导致本请求的 usage 全部丢失。
+	if ccRaw, ok := raw["cache_creation"].(map[string]interface{}); ok {
+		ccNormalized := make(map[string]interface{}, len(ccRaw))
+		for k, v := range ccRaw {
+			ccNormalized[k] = v
+		}
+		for _, field := range []string{"ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens"} {
+			if v, ok := ccRaw[field]; ok {
+				ccNormalized[field] = convertToInt(v)
+			}
+		}
+		processedData["cache_creation"] = ccNormalized
 	}
 
 	// 将处理后的数据重新序列化
