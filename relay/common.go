@@ -13,6 +13,7 @@ import (
 	"done-hub/model"
 	"done-hub/providers"
 	providersBase "done-hub/providers/base"
+	"done-hub/providers/gemini"
 	"done-hub/types"
 	"encoding/json"
 	"errors"
@@ -594,7 +595,7 @@ func shouldRetry(c *gin.Context, apiErr *types.OpenAIErrorWithStatusCode, channe
 	case http.StatusRequestTimeout:
 		return false
 	case http.StatusBadRequest:
-		return shouldRetryBadRequest(channelType, apiErr)
+		return shouldRetryBadRequest(c, channelType, apiErr)
 	}
 
 	if apiErr.StatusCode/100 == 5 {
@@ -607,7 +608,7 @@ func shouldRetry(c *gin.Context, apiErr *types.OpenAIErrorWithStatusCode, channe
 	return true
 }
 
-func shouldRetryBadRequest(channelType int, apiErr *types.OpenAIErrorWithStatusCode) bool {
+func shouldRetryBadRequest(c *gin.Context, channelType int, apiErr *types.OpenAIErrorWithStatusCode) bool {
 	switch channelType {
 	case config.ChannelTypeAnthropic:
 		return strings.Contains(apiErr.OpenAIError.Message, "Your credit balance is too low")
@@ -626,6 +627,26 @@ func shouldRetryBadRequest(channelType int, apiErr *types.OpenAIErrorWithStatusC
 			if strings.Contains(msg, "api key not valid") ||
 				strings.Contains(msg, "api key not found") ||
 				strings.Contains(msg, "api key expired") {
+				return true
+			}
+			// Gemini 3 thoughtSignature 跨 channel 校验失败：原 channel 签发的签名
+			// 在 retry 到新 channel/key 后无法识别 → 400 INVALID_ARGUMENT
+			// "Thought signature is not valid"。
+			//
+			// 首次撞到（thought_signature_retried 未置）：在此置标志位并返回 true，
+			// 进入 retry 循环，retry 前由 relayGeminiOnly.handleThoughtSignatureFailure
+			// 将请求里的 thoughtSignature 替换为官方哨兵 skip_thought_signature_validator。
+			// 已剥过哨兵还挂说明上游有别的问题，不再死磕。
+			//
+			// 标志位置位由 shouldRetryBadRequest 集中负责（而非 handleX），保证：
+			//   - "决定是否重试" 与 "改写 body" 的责任分离
+			//   - 即使没有 bytes 缓存（如不带签名的请求误命中），也不会因 handleX 走空路径
+			//     而漏置标志位、退化为无限重试
+			if strings.Contains(msg, gemini.ThoughtSignatureInvalidMsg) {
+				if c.GetBool("thought_signature_retried") {
+					return false
+				}
+				c.Set("thought_signature_retried", true)
 				return true
 			}
 		}

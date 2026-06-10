@@ -311,6 +311,50 @@ func addExtraRatios() *gormigrate.Migration {
 	}
 }
 
+// addCachedWrite1hRatio 为已存在 ExtraRatios 的模型补全 1h 缓存写入倍率。
+// 仅作 UI 显示对齐：计费侧 defaultExtraPrice[cached_write_1h_tokens]=2.0 已能兜底，
+// 此处把数字落到 ExtraRatios 里是为了让前端表格显示明确数字而不是空白/默认。
+// 按 key 触发而非 channel_type，确保 Bedrock / Vertex 上跑的 Claude 渠道也覆盖到；
+// 仅在已配置 cached_write_tokens 且未配置 cached_write_1h_tokens 时按官方倍率 2.0 写入，
+// 不覆盖用户自定义值。
+// 副作用：非 Claude 模型若手配 cached_write_tokens 也会被塞入 1h，但其请求路径不上报
+// cached_write_1h_tokens，不会被计费，无害。
+func addCachedWrite1hRatio() *gormigrate.Migration {
+	return &gormigrate.Migration{
+		ID: "202606100001",
+		Migrate: func(tx *gorm.DB) error {
+			var prices []*Price
+			if err := tx.Find(&prices).Error; err != nil {
+				return err
+			}
+
+			for _, price := range prices {
+				if price.ExtraRatios == nil {
+					continue
+				}
+				ratios := price.ExtraRatios.Data()
+				if _, ok := ratios[config.UsageExtraCachedWrite]; !ok {
+					continue
+				}
+				if _, ok := ratios[config.UsageExtraCachedWrite1h]; ok {
+					continue
+				}
+				ratios[config.UsageExtraCachedWrite1h] = 2
+				jsonData := datatypes.NewJSONType(ratios)
+				if err := tx.Model(&Price{}).Where("model = ?", price.Model).Updates(map[string]interface{}{
+					"extra_ratios": jsonData,
+				}).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Rollback: func(tx *gorm.DB) error {
+			return tx.Rollback().Error
+		},
+	}
+}
+
 func migrateTokenLimitsStructure() *gormigrate.Migration {
 	return &gormigrate.Migration{
 		ID: "202510160002",
@@ -456,6 +500,7 @@ func migrationAfter(db *gorm.DB) error {
 		addOldTokenMaxId(),
 		addExtraRatios(),
 		migrateTokenLimitsStructure(),
+		addCachedWrite1hRatio(),
 	})
 	return m.Migrate()
 }

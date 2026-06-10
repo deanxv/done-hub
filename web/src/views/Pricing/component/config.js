@@ -5,8 +5,13 @@ const extraRatiosConfig = [
     isPrompt: true
   },
   {
-    name: '缓存写入令牌(claude)',
+    name: '缓存写入令牌(claude 5m)',
     key: 'cached_write_tokens',
+    isPrompt: true
+  },
+  {
+    name: '缓存写入令牌(claude 1h)',
+    key: 'cached_write_1h_tokens',
     isPrompt: true
   },
   {

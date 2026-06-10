@@ -498,7 +498,8 @@
     },
     "cachedReadTokens": "緩存讀取Tokens (* {{ ratio }})",
     "reasoningTokens": "推理Tokens (* {{ ratio }})",
-    "cachedWriteTokens": "緩存寫入 Tokens (* {{ ratio }})"
+    "cachedWriteTokens": "緩存寫入 Tokens (* {{ ratio }})",
+    "cachedWrite1hTokens": "緩存寫入(1h) Tokens (* {{ ratio }})"
   },
   "login": {
     "codeRequired": "驗證碼不能為空",
@@ -579,6 +580,7 @@
     "free": "免費",
     "cached_tokens": "快取倍率",
     "cached_write_tokens": "快取寫入倍率",
+    "cached_write_1h_tokens": "快取寫入(1h)倍率",
     "cached_read_tokens": "快取讀取倍率",
     "reasoning_tokens": "推理倍率",
     "input_text_tokens": "輸入文本倍率",

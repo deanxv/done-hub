@@ -493,6 +493,7 @@
     },
     "cachedReadTokens": "キャッシュからトークンを読み取ります（* {{ ratio }} )",
     "cachedWriteTokens": "トークンのキャッシュ書き込み（* {{ ratio }} ）",
+    "cachedWrite1hTokens": "トークンのキャッシュ書き込み 1h（* {{ ratio }} ）",
     "reasoningTokens": "推理トークン"
   },
   "login": {
@@ -575,6 +576,7 @@
     "free": "無料",
     "cached_tokens": "キャッシュ倍率",
     "cached_write_tokens": "キャッシュ書き込み倍率",
+    "cached_write_1h_tokens": "キャッシュ書き込み(1h)倍率",
     "cached_read_tokens": "キャッシュ読み取り倍率",
     "reasoning_tokens": "推論倍率",
     "input_text_tokens": "入力テキスト倍率",

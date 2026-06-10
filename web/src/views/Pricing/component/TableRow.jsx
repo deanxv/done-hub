@@ -79,6 +79,7 @@ const PricesTableRow = ({ item, onEdit, onDelete, ownedby, unit = 'K' }) => {
     const ratioNames = {
       cached_tokens: t('modelpricePage.cached_tokens'),
       cached_write_tokens: t('modelpricePage.cached_write_tokens'),
+      cached_write_1h_tokens: t('modelpricePage.cached_write_1h_tokens'),
       cached_read_tokens: t('modelpricePage.cached_read_tokens'),
       input_audio_tokens: t('modelpricePage.input_audio_tokens'),
       output_audio_tokens: t('modelpricePage.output_audio_tokens'),

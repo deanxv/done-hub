@@ -28,6 +28,7 @@ func GetIncreaseTokens(tokens int, ratio float64) int {
 var ExtraKeyIsPrompt = map[string]bool{
 	config.UsageExtraCache:             true,
 	config.UsageExtraCachedWrite:       true,
+	config.UsageExtraCachedWrite1h:     true,
 	config.UsageExtraCachedRead:        true,
 	config.UsageExtraInputAudio:        true,
 	config.UsageExtraOutputAudio:       false,
@@ -45,6 +46,7 @@ func GetExtraPriceIsPrompt(key string) bool {
 var defaultExtraPrice = map[string]float64{
 	config.UsageExtraCache:            1,
 	config.UsageExtraCachedWrite:      1.25,
+	config.UsageExtraCachedWrite1h:    2,
 	config.UsageExtraCachedRead:       0.1,
 	config.UsageExtraInputAudio:       1,
 	config.UsageExtraOutputAudio:      1,

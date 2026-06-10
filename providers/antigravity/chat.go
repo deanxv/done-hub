@@ -773,10 +773,9 @@ func generateRandomProjectID() string {
 	return adj + "-" + noun + "-" + randomPart
 }
 
-// skipThoughtSignatureValidator 用于绕过 Antigravity API 的 thoughtSignature 验证
-const skipThoughtSignatureValidator = "skip_thought_signature_validator"
-
 // applyThinkingSignatureSentinel 为 functionCall 添加 thoughtSignature sentinel 并移除 thinking blocks
+// 哨兵字符串复用 gemini.SkipThoughtSignatureValidator（Google 官方 escape hatch 之一），
+// 避免两处独立声明同一魔术值时出现漂移。
 func applyThinkingSignatureSentinel(requestMap map[string]interface{}) {
 	contents, ok := requestMap["contents"].([]interface{})
 	if !ok {
@@ -814,7 +813,7 @@ func applyThinkingSignatureSentinel(requestMap map[string]interface{}) {
 			if _, hasFunctionCall := partMap["functionCall"]; hasFunctionCall {
 				existingSig, _ := partMap["thoughtSignature"].(string)
 				if existingSig == "" || len(existingSig) < 50 {
-					partMap["thoughtSignature"] = skipThoughtSignatureValidator
+					partMap["thoughtSignature"] = gemini.SkipThoughtSignatureValidator
 				}
 			}
 		}

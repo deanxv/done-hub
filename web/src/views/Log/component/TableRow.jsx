@@ -329,6 +329,7 @@ function calculateTokens(item) {
 
   const cached_ratio = metadata?.cached_tokens_ratio || 1;
   const cached_write_ratio = metadata?.cached_write_tokens_ratio || 1;
+  const cached_write_1h_ratio = metadata?.cached_write_1h_tokens_ratio || 1;
   const cached_read_ratio = metadata?.cached_read_tokens_ratio || 1;
   const reasoning_tokens = metadata?.reasoning_tokens_ratio || 1;
   const input_text_tokens_ratio = metadata?.input_text_tokens_ratio || 1;
@@ -366,6 +367,12 @@ function calculateTokens(item) {
       rate: cached_write_ratio,
       labelParams: { ratio: cached_write_ratio }
     },
+    {
+      key: 'cached_write_1h_tokens',
+      label: 'logPage.cachedWrite1hTokens',
+      rate: cached_write_1h_ratio,
+      labelParams: { ratio: cached_write_1h_ratio }
+    },
     { key: 'cached_read_tokens', label: 'logPage.cachedReadTokens', rate: cached_read_ratio, labelParams: { ratio: cached_read_ratio } },
     { key: 'reasoning_tokens', label: 'logPage.reasoningTokens', rate: reasoning_tokens, labelParams: { ratio: reasoning_tokens } },
     {
@@ -392,6 +399,7 @@ function calculateTokens(item) {
         'input_audio_tokens',
         'cached_tokens',
         'cached_write_tokens',
+        'cached_write_1h_tokens',
         'cached_read_tokens',
         'input_image_tokens'
       ].includes(key);

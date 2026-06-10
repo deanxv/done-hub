@@ -32,6 +32,71 @@ func StripCachedContentMap(m map[string]interface{}) {
 	delete(m, "cached_content")
 }
 
+// SkipThoughtSignatureValidator 是 Google 官方文档列出的 thoughtSignature
+// 校验跳过哨兵之一（另一个是 context_engineering_is_the_way_to_go）。
+// 详见 https://ai.google.dev/gemini-api/docs/thought-signatures
+// "Escape Hatches for Missing Signatures" 一节。
+//
+// 仅在 retry / 跨 channel 切换场景下使用：原 channel 签发的签名在新 channel
+// 上无法识别 → 上游回 400 "Thought signature is not valid"。
+// 用此哨兵替换可绕过校验，代价是损失该 part 的 thinking reasoning 链。
+const SkipThoughtSignatureValidator = "skip_thought_signature_validator"
+
+// ThoughtSignatureInvalidMsg 是上游 400 错误信息中识别 thoughtSignature 校验失败
+// 的稳定子串，统一在此声明避免 relay 层硬编码。匹配时调用方应先 ToLower 再判子串，
+// 因为不同 backend 大小写不统一。
+const ThoughtSignatureInvalidMsg = "thought signature is not valid"
+
+// ReplaceThoughtSignaturesBytes 在字节层面把请求中所有 thoughtSignature 字段
+// 替换为 SkipThoughtSignatureValidator 哨兵字符串。
+//
+// 使用 gjson 找到所有匹配路径、sjson 批量替换，零反序列化、对含 base64 图片的
+// 大 body 同样安全。
+//
+// 仅应在 retry 时调用：首次请求必须完整透传客户端给出的签名，否则会主动降级
+// 所有用户的 thinking 体验。
+//
+// 返回值：替换后的 bytes，以及实际替换的字段数量（0 表示请求里本来就没有
+// thoughtSignature，此时调用方可跳过后续逻辑）。
+func ReplaceThoughtSignaturesBytes(data []byte) ([]byte, int) {
+	if len(data) == 0 {
+		return data, 0
+	}
+
+	contents := gjson.GetBytes(data, "contents")
+	if !contents.Exists() {
+		return data, 0
+	}
+
+	replaced := 0
+	for i, content := range contents.Array() {
+		parts := content.Get("parts")
+		if !parts.Exists() {
+			continue
+		}
+		for j, part := range parts.Array() {
+			sig := part.Get("thoughtSignature")
+			if !sig.Exists() {
+				continue
+			}
+			// 已经是哨兵则跳过，避免二次调用时 replaced 数字虚高、混淆日志。
+			// 这一情况只可能出现在调用方在同一请求生命周期内多次调用本函数；
+			// retry 链路里 shouldRetryBadRequest 通过 thought_signature_retried
+			// 标志保证最多调一次，所以这是防御性的——但比"靠 retried 标志间接保证"
+			// 更稳，本函数自身是幂等的。
+			if sig.Type == gjson.String && sig.String() == SkipThoughtSignatureValidator {
+				continue
+			}
+			path := fmt.Sprintf("contents.%d.parts.%d.thoughtSignature", i, j)
+			if newData, err := sjson.SetBytes(data, path, SkipThoughtSignatureValidator); err == nil {
+				data = newData
+				replaced++
+			}
+		}
+	}
+	return data, replaced
+}
+
 // CleanGeminiRequestBytes 在字节层面清理 Gemini 请求数据中的不兼容字段
 // 使用 gjson/sjson 直接操作字节，避免对含 base64 图片的大请求做完整 json.Unmarshal/Marshal
 func CleanGeminiRequestBytes(data []byte, isVertexAI bool) ([]byte, error) {
