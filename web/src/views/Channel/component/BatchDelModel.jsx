@@ -1,128 +1,105 @@
-import { useState } from 'react';
-import { Grid, TextField, InputAdornment, Checkbox, Button, FormControlLabel, IconButton, Alert } from '@mui/material';
-import { gridSpacing } from 'store/constant';
-import { IconSearch, IconTrash } from '@tabler/icons-react';
-import { fetchChannelData } from '../index';
+import { useCallback, useMemo, useState } from 'react';
+import { Button } from '@mui/material';
+import { IconTrash } from '@tabler/icons-react';
 import { API } from 'utils/api';
 import { showError, showSuccess } from 'utils/common';
 import { useTranslation } from 'react-i18next';
+import BatchChannelSelector from './BatchChannelSelector';
+import { splitCsv } from './batchHelpers';
 
 const BatchDelModel = () => {
-  const [value, setValue] = useState('');
-  const [data, setData] = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [loadding, setLoadding] = useState(false);
   const { t } = useTranslation();
+  const [keyword, setKeyword] = useState('');
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [loading, setLoading] = useState(false);
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
-  const handleSearch = async () => {
-    const data = await fetchChannelData(0, 100, { models: value }, 'desc', 'id');
-    if (data) {
-      // 遍历data 逗号分隔models， 检测是否只有一个model 如果是则排除
-      const newData = data.data.filter((item) => {
-        if (item.models.split(',').length > 1) {
-          return true;
-        }
-        return false;
-      });
+  const searchFilter = useCallback((kw) => {
+    const trimmed = (kw || '').trim();
+    if (!trimmed) return null;
+    return { models: trimmed };
+  }, []);
 
-      setData(newData);
-    }
-  };
+  const filterData = useCallback((rows, kw) => {
+    const target = (kw || '').trim();
+    if (!target) return [];
+    return rows.filter((row) => splitCsv(row.models).includes(target));
+  }, []);
 
-  const handleSelect = (id) => {
-    setSelected((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((i) => i !== id);
-      } else {
-        return [...prev, id];
+  const subtitleRender = useCallback((item) => `${t('channel_index.currentModels')}: ${item.models || t('channel_index.noModels')}`, [t]);
+
+  // 「只剩此模型」的处理：旧实现直接从列表过滤掉，新实现在列表中保留但 disabled+提示
+  // 是有意的 UX 升级——透明告知"为何不可删"，比凭空消失更清晰
+  const itemConflict = useMemo(() => {
+    const target = (keyword || '').trim();
+    if (!target) return null;
+    return (item) => {
+      const models = splitCsv(item.models);
+      if (models.length <= 1 && models.includes(target)) {
+        return { disabled: true, hint: t('channel_index.channelOnlyHasThisModel') };
       }
-    });
-  };
-
-  const handleSelectAll = () => {
-    if (selected.length === data.length) {
-      setSelected([]);
-    } else {
-      setSelected(data.map((item) => item.id));
-    }
-  };
+      return null;
+    };
+  }, [keyword, t]);
 
   const handleSubmit = async () => {
-    if (value === '' || selected.length === 0) {
-      return;
-    }
-    setLoadding(true);
+    const target = keyword.trim();
+    setLoading(true);
     try {
       const res = await API.put(`/api/channel/batch/del_model`, {
-        ids: selected,
-        value: value
+        ids: [...selectedIds],
+        value: target
       });
-
       const { success, message, data } = res.data;
       if (success) {
         showSuccess(t('channel_index.batchDeleteSuccess', { count: data }));
+        setSelectedIds(new Set());
+        setRefreshSignal((s) => s + 1);
       } else {
         showError(message);
       }
     } catch (error) {
-      console.error(error);
+      showError(error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoadding(false);
   };
 
+  const target = keyword.trim();
+
   return (
-    <Grid container spacing={gridSpacing}>
-      <Grid item xs={12}>
-        <Alert severity="info">{t('channel_index.batchDeleteTip')}</Alert>
-      </Grid>
-      <Grid item xs={12}>
-        <TextField
-          sx={{ ml: 1, flex: 1 }}
-          placeholder={t('channel_index.batchDeleteModel')}
-          inputProps={{ 'aria-label': t('channel_index.batchDeleteModel') }}
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-          }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton aria-label="toggle password visibility" onClick={handleSearch} edge="end">
-                  <IconSearch />
-                </IconButton>
-              </InputAdornment>
-            )
-          }}
-        />
-      </Grid>
-      {data.length === 0 ? (
-        <Grid item xs={12}>
-          {t('common.noData')}
-        </Grid>
-      ) : (
-        <>
-          <Grid item xs={12}>
-            <Button onClick={handleSelectAll}>
-              {selected.length === data.length ? t('channel_index.unselectAll') : t('channel_index.selectAll')}
-            </Button>
-          </Grid>
-          <Grid item xs={12}>
-            {data.map((item) => (
-              <FormControlLabel
-                key={item.id}
-                control={<Checkbox checked={selected.includes(item.id)} onChange={() => handleSelect(item.id)} />}
-                label={item.name}
-              />
-            ))}
-          </Grid>
-          <Grid item xs={12}>
-            <Button variant="contained" color="primary" startIcon={<IconTrash />} onClick={handleSubmit} disabled={loadding}>
-              {t('common.delete')}
-            </Button>
-          </Grid>
-        </>
-      )}
-    </Grid>
+    <BatchChannelSelector
+      tip={t('channel_index.batchDeleteTipV2')}
+      searchPlaceholder={t('channel_index.modelToDelete')}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchFilter={searchFilter}
+      filterData={filterData}
+      autoLoad={false}
+      clearSelectionOnSearch
+      emptyHint={t('channel_index.delModelEmptyHint')}
+      subtitleRender={subtitleRender}
+      itemConflict={itemConflict}
+      selectedIds={selectedIds}
+      onSelectedChange={setSelectedIds}
+      refreshSignal={refreshSignal}
+    >
+      <Button
+        variant="contained"
+        color="error"
+        onClick={handleSubmit}
+        disabled={loading || selectedIds.size === 0 || !target}
+        startIcon={<IconTrash />}
+        fullWidth
+      >
+        {loading
+          ? t('channel_index.deleting')
+          : t('channel_index.confirmDeleteModel', {
+              count: selectedIds.size,
+              model: target || '...'
+            })}
+      </Button>
+    </BatchChannelSelector>
   );
 };
 

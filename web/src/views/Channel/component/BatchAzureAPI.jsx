@@ -1,128 +1,87 @@
-import { useState } from 'react';
-import { Grid, TextField, InputAdornment, Checkbox, Button, FormControlLabel, IconButton } from '@mui/material';
-import { gridSpacing } from 'store/constant';
-import { IconSearch, IconSend } from '@tabler/icons-react';
-import { fetchChannelData } from '../index';
+import { useCallback, useState } from 'react';
+import { Button, TextField } from '@mui/material';
+import { IconSend } from '@tabler/icons-react';
 import { API } from 'utils/api';
 import { showError, showSuccess } from 'utils/common';
 import { useTranslation } from 'react-i18next';
+import BatchChannelSelector from './BatchChannelSelector';
+
+const AZURE_CHANNEL_TYPE = 3;
 
 const BatchAzureAPI = () => {
-  const [value, setValue] = useState('');
-  const [data, setData] = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [replaceValue, setReplaceValue] = useState('');
   const { t } = useTranslation();
+  const [keyword, setKeyword] = useState('');
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [replaceValue, setReplaceValue] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
-  const handleSearch = async () => {
-    const data = await fetchChannelData(0, 100, { other: value, type: 3 }, 'desc', 'id');
-    if (data) {
-      setData(data.data);
-    }
-  };
+  const searchFilter = useCallback((kw) => {
+    const trimmed = (kw || '').trim();
+    return trimmed ? { other: trimmed, type: AZURE_CHANNEL_TYPE } : { type: AZURE_CHANNEL_TYPE };
+  }, []);
 
-  const handleSelect = (id) => {
-    setSelected((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((i) => i !== id);
-      } else {
-        return [...prev, id];
-      }
-    });
-  };
-
-  const handleSelectAll = () => {
-    if (selected.length === data.length) {
-      setSelected([]);
-    } else {
-      setSelected(data.map((item) => item.id));
-    }
-  };
+  const subtitleRender = useCallback((item) => `${t('channel_index.currentAzureAPIVersion')}: ${item.other || '-'}`, [t]);
 
   const handleSubmit = async () => {
+    const target = replaceValue.trim();
+    setLoading(true);
     try {
       const res = await API.put(`/api/channel/batch/azure_api`, {
-        ids: selected,
-        value: replaceValue
+        ids: [...selectedIds],
+        value: target
       });
-
       const { success, message, data } = res.data;
       if (success) {
         showSuccess(t('channel_index.batchAzureAPISuccess', { count: data }));
-        return;
+        // 保留 replaceValue：用户常需要把同一新版本继续应用到别的渠道
+        // 但 keyword（旧版本号）要清：成功后这些渠道的 other 已变成 replaceValue，
+        // 沿用旧 keyword 刷新会让列表"突然空了"，体验断层
+        setSelectedIds(new Set());
+        setKeyword('');
+        setRefreshSignal((s) => s + 1);
       } else {
         showError(message);
       }
     } catch (error) {
-      console.error(error);
+      showError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Grid container spacing={gridSpacing}>
-      <Grid item xs={12}>
-        <TextField
-          sx={{ ml: 1, flex: 1 }}
-          placeholder={t('channel_index.inputAPIVersion')}
-          inputProps={{ 'aria-label': t('channel_index.inputAPIVersion') }}
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-          }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton aria-label="toggle password visibility" onClick={handleSearch} edge="end">
-                  <IconSearch />
-                </IconButton>
-              </InputAdornment>
-            )
-          }}
-        />
-      </Grid>
-      {data.length === 0 ? (
-        <Grid item xs={12}>
-          {t('common.noData')}
-        </Grid>
-      ) : (
-        <>
-          <Grid item xs={12}>
-            <Button onClick={handleSelectAll}>
-              {selected.length === data.length ? t('channel_index.unselectAll') : t('channel_index.selectAll')}
-            </Button>
-          </Grid>
-          <Grid item xs={12}>
-            {data.map((item) => (
-              <FormControlLabel
-                key={item.id}
-                control={<Checkbox checked={selected.includes(item.id)} onChange={() => handleSelect(item.id)} />}
-                label={item.name + '(' + item.other + ')'}
-              />
-            ))}
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              sx={{ ml: 1, flex: 1 }}
-              placeholder={t('channel_index.replaceValue')}
-              inputProps={{ 'aria-label': t('channel_index.replaceValue') }}
-              value={replaceValue}
-              onChange={(e) => {
-                setReplaceValue(e.target.value);
-              }}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton aria-label="toggle password visibility" onClick={handleSubmit} edge="end">
-                      <IconSend />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
-          </Grid>
-        </>
-      )}
-    </Grid>
+    <BatchChannelSelector
+      tip={t('channel_index.batchAzureAPITip')}
+      searchPlaceholder={t('channel_index.azureApiSearchPlaceholder')}
+      keyword={keyword}
+      onKeywordChange={setKeyword}
+      searchFilter={searchFilter}
+      clearSelectionOnSearch
+      subtitleRender={subtitleRender}
+      selectedIds={selectedIds}
+      onSelectedChange={setSelectedIds}
+      refreshSignal={refreshSignal}
+    >
+      <TextField
+        fullWidth
+        size="medium"
+        label={t('channel_index.newAzureAPIVersion')}
+        placeholder={t('channel_index.inputAPIVersion')}
+        value={replaceValue}
+        onChange={(e) => setReplaceValue(e.target.value)}
+        sx={{ '& .MuiInputBase-root': { height: '48px' } }}
+      />
+      <Button
+        variant="contained"
+        onClick={handleSubmit}
+        disabled={loading || selectedIds.size === 0 || !replaceValue.trim()}
+        startIcon={<IconSend />}
+        fullWidth
+      >
+        {loading ? t('channel_index.replacing') : t('channel_index.replaceAzureAPIVersion', { count: selectedIds.size })}
+      </Button>
+    </BatchChannelSelector>
   );
 };
 
