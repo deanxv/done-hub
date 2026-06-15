@@ -123,7 +123,7 @@ func (c *OAuth2Credentials) Refresh(ctx context.Context, proxyURL string, maxRet
 		}
 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("User-Agent", "codex_cli_rs/0.38.0 (Ubuntu 22.4.0; x86_64) WindowsTerminal")
+		req.Header.Set("User-Agent", DefaultCodexUserAgent)
 		req.Header.Set("Accept", "application/json, text/plain, */*")
 
 		resp, err := client.Do(req)

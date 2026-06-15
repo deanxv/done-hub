@@ -7,7 +7,7 @@ import (
 
 // 走 image generations 协议处理的模型清单。命中时 chat completions 入口会把请求降级到
 // /v1/images/generations，避免上游用 chat 协议返回 base64 时被本地 tokenize 当文本反算。
-// 与 new-api/common/model.go:12 ImageGenerationModels 同义，但分 exact / prefix 两组以避免误判。
+// 拆成 exact / prefix 两组以避免误判（例如 dall-e-2 vs dall-e-2-something）。
 var (
 	imageGenerationModelExact = []string{
 		"dall-e-2",

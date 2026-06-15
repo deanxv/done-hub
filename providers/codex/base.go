@@ -23,6 +23,11 @@ const TokenCacheKey = "api_token:codex"
 const (
 	DefaultClientID = "pdlLIX2Y72MIl2rhLhTE9VV9bN905kBh"
 	TokenEndpoint   = "https://auth0.openai.com/oauth/token"
+
+	// DefaultCodexUserAgent 是 Codex CLI 伪装 UA 的统一来源，
+	// 同时被 chat/responses 请求头、Token Refresh、OAuth 授权码换 token 三处复用，
+	// 避免单点升级时漏改导致 auth0 灰度场景下行为不一致。
+	DefaultCodexUserAgent = "codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
 )
 
 type CodexProviderFactory struct{}
@@ -105,10 +110,12 @@ type CodexProvider struct {
 
 func getConfig() base.ProviderConfig {
 	return base.ProviderConfig{
-		BaseURL:         "https://chatgpt.com",
-		ChatCompletions: "/backend-api/codex/responses",
-		Responses:       "/backend-api/codex/responses",
-		ModelList:       "/backend-api/models",
+		BaseURL:           "https://chatgpt.com",
+		ChatCompletions:   "/backend-api/codex/responses",
+		Responses:         "/backend-api/codex/responses",
+		ImagesGenerations: "/backend-api/codex/responses",
+		ImagesEdit:        "/backend-api/codex/responses",
+		ModelList:         "/backend-api/models",
 	}
 }
 

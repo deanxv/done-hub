@@ -45,7 +45,7 @@ func (u *Usage) GetExtraTokens() map[string]int {
 	// proxying Anthropic models). Only used as fallback when the standard
 	// prompt_tokens_details fields are not already populated.
 	// 顶层扁平字段不携带 5m/1h TTL 占比，全部计入 CachedWriteTokens 按 5m 倍率计费——
-	// 偏保守（少算 1h 部分的 0.75x），与 sub2api/new-api 兜底策略一致。
+	// 偏保守（少算 1h 部分的 0.75x）。
 	// 原生 Anthropic 路径在 providers/claude/common.go 按嵌套字段拆 1h 桶。
 	if u.CacheCreationInputTokens > 0 && u.PromptTokensDetails.CachedWriteTokens == 0 {
 		u.PromptTokensDetails.CachedWriteTokens = u.CacheCreationInputTokens

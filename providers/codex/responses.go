@@ -98,51 +98,28 @@ func (p *CodexProvider) CreateResponsesStream(request *types.OpenAIResponsesRequ
 	return requester.RequestNoTrimStream(p.Requester, resp, handler.HandlerResponsesStream)
 }
 
-// prepareCodexRequest 准备 Codex 请求参数
+// prepareCodexRequest 准备 Codex 请求参数。
+// 模型映射由 channel.ModelMapping 在 ModelMappingHandler 阶段处理，这里不再二次干预模型名，
+// 避免与渠道内部映射冲突（例如同一个 gpt-5-mini 不同部署期望映射到不同上游模型）。
 func (p *CodexProvider) prepareCodexRequest(request *types.OpenAIResponsesRequest) {
-	// 1. 模型名称规范化：gpt-5-* 系列统一为 gpt-5
-	if len(request.Model) > 6 && request.Model[:6] == "gpt-5-" && request.Model != "gpt-5-codex" {
-		request.Model = "gpt-5"
-	}
-
-	// 2. Codex API 要求 store 参数必须设置为 false
+	// Codex OAuth 上游强制 store=false，显式 true 也会被覆盖，避免 "Store must be set to false"。
 	storeFalse := false
 	request.Store = &storeFalse
 
-	// 3. 处理 temperature 和 top_p 冲突
-	// 当两者都存在时，优先保留 temperature，删除 top_p
-	// 这是因为某些 API 不允许同时设置这两个参数
-	if request.Temperature != nil && request.TopP != nil {
-		request.TopP = nil
-	}
-
-	// 4. 适配 Codex CLI 格式
-	// 注意：metadata 字段处理（参考 Demo 的 delete processedBody.metadata）
-	// Go 通过结构体定义自动过滤：OpenAIResponsesRequest 中未定义 metadata 字段，
-	// 因此在 JSON 序列化时会自动忽略，效果等同于 Demo 的显式删除
+	// 剥离 ChatGPT internal Codex 端点不接受的字段，补齐默认 instructions。
 	p.adaptCodexCLI(request)
 }
 
-// adaptCodexCLI 适配 Codex CLI 格式
+// adaptCodexCLI 对 Codex OAuth 端点做请求规整：
+//   - 无条件剥离 temperature / top_p / max_output_tokens —— Codex OAuth 端点会因为这些字段直接 400，
+//     不论客户端是否伪装成 Codex CLI 都必须清掉。
+//   - 仅在 instructions 为空时补默认 Codex CLI 提示词，不覆盖用户自带 instructions。
 func (p *CodexProvider) adaptCodexCLI(request *types.OpenAIResponsesRequest) {
-	// 检测是否为 Codex CLI 请求（通过 instructions 字段判断）
-	isCodexCLI := false
-	if request.Instructions != "" {
-		instructions := request.Instructions
-		isCodexCLI = len(instructions) > 50 && (len(instructions) >= len("You are a coding agent running in the Codex CLI") &&
-			instructions[:len("You are a coding agent running in the Codex CLI")] == "You are a coding agent running in the Codex CLI" ||
-			len(instructions) >= len("You are Codex") &&
-				instructions[:len("You are Codex")] == "You are Codex")
-	}
+	request.Temperature = nil
+	request.TopP = nil
+	request.MaxOutputTokens = 0
 
-	// 如果不是 Codex CLI 请求，则进行适配
-	if !isCodexCLI {
-		// 移除不兼容的请求体字段
-		request.Temperature = nil
-		request.TopP = nil
-		request.MaxOutputTokens = 0
-
-		// 设置固定的 Codex CLI instructions
+	if strings.TrimSpace(request.Instructions) == "" {
 		request.Instructions = CodexCLIInstructions
 	}
 }

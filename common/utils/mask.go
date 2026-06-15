@@ -74,8 +74,8 @@ func maskHostForPlainDomain(domain string) string {
 	return stars + "." + strings.Join(tail, ".")
 }
 
-// MaskSensitiveInfo 屏蔽错误消息中的 URL、域名、IP 与 api_key 字面量,
-// 用于将上游错误回写客户端前的最后一道脱敏。规则与 new-api 对齐。
+// MaskSensitiveInfo 屏蔽错误消息中的 URL、域名、IP 与 api_key 字面量，
+// 用于将上游错误回写客户端前的最后一道脱敏。
 func MaskSensitiveInfo(str string) string {
 	str = maskURLPattern.ReplaceAllStringFunc(str, func(urlStr string) string {
 		u, err := url.Parse(urlStr)

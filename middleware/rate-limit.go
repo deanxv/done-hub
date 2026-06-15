@@ -45,7 +45,7 @@ func getRateLimitTimeout() time.Duration {
 }
 
 // degradeAllow 把 rate-limit 路径上的 Redis 错误降级为放行，并过滤 context.Canceled 不打日志。
-// 限流只是辅助，鉴权/配额在后续 middleware；把瞬时 Redis 故障翻译成 500 会让上游（newapi 等）
+// 限流只是辅助，鉴权/配额在后续 middleware；把瞬时 Redis 故障翻译成 500 会让上游
 // 误以为模型挂了并触发重试，反而放大问题。
 // context.Canceled 是客户端中途断开（父 ctx 取消），不是 Redis 故障，过滤掉避免误告警；
 // context.DeadlineExceeded 保留为真 Redis 慢的信号。
