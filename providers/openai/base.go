@@ -18,6 +18,7 @@ type OpenAIProviderFactory struct{}
 
 type UsageHandler func(usage *types.Usage) (ForcedFormatting bool)
 type RequestHandleBefore func(request *types.ChatCompletionRequest) (errWithCode *types.OpenAIErrorWithStatusCode)
+type ResponsesBodyPatch func(model string, body []byte) []byte
 
 type OpenAIProvider struct {
 	base.BaseProvider
@@ -29,6 +30,7 @@ type OpenAIProvider struct {
 
 	UsageHandler        UsageHandler
 	RequestHandleBefore RequestHandleBefore
+	ResponsesBodyPatch  ResponsesBodyPatch
 }
 
 // 创建 OpenAIProvider

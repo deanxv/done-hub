@@ -150,6 +150,10 @@ func (p *OpenAIProvider) patchResponsesRequestBody(request *types.OpenAIResponse
 		out = patched
 	}
 
+	if p.ResponsesBodyPatch != nil {
+		out = p.ResponsesBodyPatch(request.Model, out)
+	}
+
 	return out, true
 }
 
