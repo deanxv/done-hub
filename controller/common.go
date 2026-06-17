@@ -52,6 +52,11 @@ var fileAccessPermissionRegex = regexp.MustCompile(`You do not have permission t
 // 模型限制为特定客户端使用的错误，这类错误不应该禁用渠道（渠道本身没问题，只是特定模型不可用）
 var modelRestrictedRegex = regexp.MustCompile(`(?i)restricted to .+ clients only`)
 
+// sub2api 等上游对"图像生成被分组拒绝"返回 permission_error，
+// 实际只是单次请求路由错（如文字模型打到 /v1/images/generations），
+// 渠道本身没坏，不应禁用
+var imageGenNotEnabledRegex = regexp.MustCompile(`(?i)image generation is not enabled for this group`)
+
 func shouldEnableChannel(err error, openAIErr *types.OpenAIErrorWithStatusCode) bool {
 	if !config.AutomaticEnableChannelEnabled {
 		return false
@@ -85,6 +90,11 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 
 	// 检查是否为模型限制为特定客户端的错误，这类错误不应该禁用渠道
 	if modelRestrictedRegex.MatchString(err.OpenAIError.Message) {
+		return false
+	}
+
+	// 上游因图像生成未开放返回的 permission_error 只是单次请求级别的能力限制，渠道本身没坏
+	if imageGenNotEnabledRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
