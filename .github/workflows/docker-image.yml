@@ -67,14 +67,11 @@ jobs:
       - name: Build Backend (amd64)
         run: |
           go mod download
-          go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(cat VERSION)' -extldflags '-static'" -o done-hub-amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(cat VERSION)'" -o done-hub-amd64
 
       - name: Build Backend (arm64)
         run: |
-          sudo rm /etc/apt/sources.list.d/microsoft-prod.list
-          sudo apt-get update
-          sudo apt-get install gcc-aarch64-linux-gnu
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(cat VERSION)' -extldflags '-static'" -o done-hub-arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'done-hub/common/config.Version=$(cat VERSION)'" -o done-hub-arm64
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
