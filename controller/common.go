@@ -59,6 +59,8 @@ var imageGenNotEnabledRegex = regexp.MustCompile(`(?i)image generation is not en
 
 var geminiUnrestrictedKeyWarningRegex = regexp.MustCompile(`(?i)accessing Gemini API with one or more unrestricted keys`)
 
+var geminiCallerNoPermissionRegex = regexp.MustCompile(`(?i)The caller does not have permission`)
+
 func shouldEnableChannel(err error, openAIErr *types.OpenAIErrorWithStatusCode) bool {
 	if !config.AutomaticEnableChannelEnabled {
 		return false
@@ -102,6 +104,11 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 
 	// Gemini 未限制 key 的过渡期预告警告（403），渠道本身没坏，不应禁用（必须放在 403 状态码规则之前）
 	if geminiUnrestrictedKeyWarningRegex.MatchString(err.OpenAIError.Message) {
+		return false
+	}
+
+	// Gemini/GCP 代理层抖动成片返回的 403 caller 权限错，多为 transient 级联，不应永久禁用（必须放在 403 状态码规则之前）
+	if geminiCallerNoPermissionRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
