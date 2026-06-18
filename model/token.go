@@ -10,6 +10,7 @@ import (
 	"done-hub/common/utils"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -130,8 +131,9 @@ func GetUserTokenGroupSymbols(userId int) ([]string, error) {
 // AdminSearchTokensParams 管理员搜索令牌的参数
 type AdminSearchTokensParams struct {
 	GenericParams
-	UserId  int `form:"user_id"`
-	TokenId int `form:"token_id"`
+	UserId  int    `form:"user_id"`
+	TokenId int    `form:"token_id"`
+	Key     string `form:"key"`
 }
 
 // TokenWithOwner 包含令牌信息和所属用户信息
@@ -151,6 +153,15 @@ func GetTokensListByAdmin(params *AdminSearchTokensParams) (*DataResult[TokenWit
 
 	if params.TokenId > 0 {
 		db = db.Where("id = ?", params.TokenId)
+	}
+
+	if params.Key != "" {
+		keyCol := "`key`"
+		if common.UsingPostgreSQL {
+			keyCol = `"key"`
+		}
+		key := strings.TrimPrefix(params.Key, "sk-")
+		db = db.Where(keyCol+" LIKE ?", key+"%")
 	}
 
 	if params.Keyword != "" {
@@ -384,6 +395,25 @@ func DeleteTokenById(id int, userId int) (err error) {
 
 	return err
 
+}
+
+// DeleteTokenByIdAdmin 管理员删除任意token（不限制所属用户）
+func DeleteTokenByIdAdmin(id int) (err error) {
+	if id == 0 {
+		return errors.New("id 为空！")
+	}
+	token := Token{Id: id}
+	err = DB.Where("id = ?", id).First(&token).Error
+	if err != nil {
+		return err
+	}
+	err = token.Delete()
+
+	if err == nil && config.RedisEnabled {
+		redis.RedisDel(fmt.Sprintf(UserTokensKey, token.Key))
+	}
+
+	return err
 }
 
 func IncreaseTokenQuota(id int, quota int) (err error) {

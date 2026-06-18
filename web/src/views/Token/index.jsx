@@ -53,7 +53,11 @@ export default function Token() {
   // 管理员搜索相关状态
   const [adminSearchEnabled, setAdminSearchEnabled] = useState(false);
   const [adminSearchUserId, setAdminSearchUserId] = useState('');
-  const [adminSearchTokenId, setAdminSearchTokenId] = useState('');
+  const [adminSearchKey, setAdminSearchKey] = useState('');
+  // 已提交的查询条件（点击查询按钮后才生效，避免输入即触发请求）
+  const [committedAdmin, setCommittedAdmin] = useState({ userId: '', key: '' });
+  // 当前是否处于管理员搜索结果态
+  const isAdminSearch = adminSearchEnabled && (committedAdmin.userId || committedAdmin.key);
 
   const handleSort = (event, id) => {
     const isAsc = orderBy === id && order === 'asc';
@@ -90,16 +94,16 @@ export default function Token() {
       }
 
       let res;
-      // 如果启用了管理员搜索模式且有搜索条件
-      if (adminSearchEnabled && (adminSearchUserId || adminSearchTokenId)) {
+      // 如果启用了管理员搜索模式且有已提交的搜索条件
+      if (isAdminSearch) {
         res = await API.get(`/api/token/admin/search`, {
           params: {
             page: page + 1,
             size: rowsPerPage,
             keyword: keyword,
             order: orderBy,
-            user_id: adminSearchUserId ? parseInt(adminSearchUserId, 10) : undefined,
-            token_id: adminSearchTokenId ? parseInt(adminSearchTokenId, 10) : undefined
+            user_id: committedAdmin.userId ? parseInt(committedAdmin.userId, 10) : undefined,
+            key: committedAdmin.key || undefined
           }
         });
       } else {
@@ -133,9 +137,27 @@ export default function Token() {
     setRefreshFlag(!refreshFlag);
   };
 
+  // 提交管理员查询条件（点击查询按钮才生效）
+  const handleAdminSearch = () => {
+    setPage(0);
+    setCommittedAdmin({ userId: adminSearchUserId, key: trims(adminSearchKey) });
+  };
+
+  // 清除管理员查询条件，并清空主搜索框
+  const handleAdminClear = () => {
+    setAdminSearchUserId('');
+    setAdminSearchKey('');
+    setCommittedAdmin({ userId: '', key: '' });
+    setSearchKeyword('');
+    const keywordInput = document.getElementById('keyword');
+    if (keywordInput) keywordInput.value = '';
+    setPage(0);
+  };
+
   useEffect(() => {
     fetchData(page, rowsPerPage, searchKeyword, order, orderBy);
-  }, [page, rowsPerPage, searchKeyword, order, orderBy, refreshFlag, adminSearchEnabled, adminSearchUserId, adminSearchTokenId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, rowsPerPage, searchKeyword, order, orderBy, refreshFlag, committedAdmin]);
 
   useEffect(() => {
     loadUserGroup();
@@ -150,19 +172,18 @@ export default function Token() {
   }, [userGroup]);
 
   const manageToken = async (id, action, value) => {
-    const url = '/api/token/';
-    let data = { id };
     let res;
     try {
       switch (action) {
         case 'delete':
-          res = await API.delete(url + id);
+          res = await API.delete((isAdminSearch ? '/api/token/admin/' : '/api/token/') + id);
           break;
         case 'status':
-          res = await API.put(url + `?status_only=true`, {
-            ...data,
-            status: value
-          });
+          if (isAdminSearch) {
+            res = await API.put('/api/token/admin?status_only=true', { id, status: value });
+          } else {
+            res = await API.put('/api/token/?status_only=true', { id, status: value });
+          }
           break;
       }
       const { success, message } = res.data;
@@ -307,7 +328,15 @@ export default function Token() {
                 backgroundColor: 'action.hover'
               }
             }}
-            onClick={() => setAdminSearchEnabled(!adminSearchEnabled)}
+            onClick={() => {
+              const next = !adminSearchEnabled;
+              setAdminSearchEnabled(next);
+              // 关闭面板时回到普通列表
+              if (!next) {
+                setCommittedAdmin({ userId: '', key: '' });
+                setPage(0);
+              }
+            }}
           >
             <Stack direction="row" alignItems="center" spacing={1}>
               <Icon icon="solar:shield-keyhole-bold-duotone" width={24} color={theme.palette.warning.main} />
@@ -332,9 +361,9 @@ export default function Token() {
                   id="admin-search-user-id"
                   type="number"
                   value={adminSearchUserId}
-                  onChange={(e) => {
-                    setAdminSearchUserId(e.target.value);
-                    setPage(0);
+                  onChange={(e) => setAdminSearchUserId(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAdminSearch();
                   }}
                   label={t('token_index.userId')}
                   placeholder={t('token_index.userIdPlaceholder')}
@@ -346,17 +375,16 @@ export default function Token() {
                 />
               </FormControl>
               <FormControl sx={{ flex: 1 }}>
-                <InputLabel htmlFor="admin-search-token-id">{t('token_index.tokenId')}</InputLabel>
+                <InputLabel htmlFor="admin-search-key">{t('token_index.tokenKeySearch')}</InputLabel>
                 <OutlinedInput
-                  id="admin-search-token-id"
-                  type="number"
-                  value={adminSearchTokenId}
-                  onChange={(e) => {
-                    setAdminSearchTokenId(e.target.value);
-                    setPage(0);
+                  id="admin-search-key"
+                  value={adminSearchKey}
+                  onChange={(e) => setAdminSearchKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAdminSearch();
                   }}
-                  label={t('token_index.tokenId')}
-                  placeholder={t('token_index.tokenIdPlaceholder')}
+                  label={t('token_index.tokenKeySearch')}
+                  placeholder={t('token_index.tokenKeySearchPlaceholder')}
                   startAdornment={
                     <InputAdornment position="start">
                       <Icon icon="solar:key-bold-duotone" width={20} color={grey500} />
@@ -365,13 +393,17 @@ export default function Token() {
                 />
               </FormControl>
               <Button
+                variant="contained"
+                color="primary"
+                onClick={handleAdminSearch}
+                startIcon={<Icon icon="solar:minimalistic-magnifer-bold-duotone" width={18} />}
+              >
+                {t('token_index.search')}
+              </Button>
+              <Button
                 variant="outlined"
                 color="secondary"
-                onClick={() => {
-                  setAdminSearchUserId('');
-                  setAdminSearchTokenId('');
-                  setPage(0);
-                }}
+                onClick={handleAdminClear}
                 startIcon={<Icon icon="solar:refresh-bold-duotone" width={18} />}
               >
                 {t('token_index.clearSearch')}
@@ -411,7 +443,6 @@ export default function Token() {
                 orderBy={orderBy}
                 onRequestSort={handleSort}
                 headLabel={(() => {
-                  const isAdminSearch = adminSearchEnabled && (adminSearchUserId || adminSearchTokenId);
                   if (isAdminSearch) {
                     return [
                       { id: 'owner', label: t('token_index.owner'), disableSort: true },
@@ -450,7 +481,7 @@ export default function Token() {
                     setModalTokenId={setEditTokenId}
                     userGroup={userGroup}
                     userIsReliable={userIsReliable}
-                    isAdminSearch={adminSearchEnabled && (adminSearchUserId || adminSearchTokenId)}
+                    isAdminSearch={isAdminSearch}
                   />
                 ))}
               </TableBody>
@@ -475,7 +506,7 @@ export default function Token() {
         onOk={handleOkModal}
         tokenId={editTokenId}
         userGroupOptions={userGroupOptions}
-        adminMode={adminSearchEnabled && (adminSearchUserId || adminSearchTokenId)}
+        adminMode={isAdminSearch}
       />
     </>
   );

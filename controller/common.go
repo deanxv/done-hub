@@ -87,33 +87,38 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 		return false
 	}
 
-	// 检查是否为特定的文件访问权限错误，这类错误不应该禁用渠道
-	if fileAccessPermissionRegex.MatchString(err.OpenAIError.Message) {
+	// 用户在禁用关键词里显式配置的文案，优先级高于下面所有"默认豁免"白名单：
+	// 既然用户明确要禁这类消息，启发式豁免就必须让位，否则用户配了也禁不掉。
+	// 注意：关键词匹配大小写敏感，用户须按上游原文大小写配置才能命中。
+	userKeywordHit := common.DisableChannelKeywordsInstance.IsContains(err.OpenAIError.Message)
+
+	// 检查是否为特定的文件访问权限错误，这类错误不应该禁用渠道（用户显式配置可覆盖）
+	if !userKeywordHit && fileAccessPermissionRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
-	// 检查是否为模型限制为特定客户端的错误，这类错误不应该禁用渠道
-	if modelRestrictedRegex.MatchString(err.OpenAIError.Message) {
+	// 检查是否为模型限制为特定客户端的错误，这类错误不应该禁用渠道（用户显式配置可覆盖）
+	if !userKeywordHit && modelRestrictedRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
-	// 上游因图像生成未开放返回的 permission_error 只是单次请求级别的能力限制，渠道本身没坏
-	if imageGenNotEnabledRegex.MatchString(err.OpenAIError.Message) {
+	// 上游因图像生成未开放返回的 permission_error 只是单次请求级别的能力限制，渠道本身没坏（用户显式配置可覆盖）
+	if !userKeywordHit && imageGenNotEnabledRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
-	// Gemini 未限制 key 的过渡期预告警告（403），渠道本身没坏，不应禁用（必须放在 403 状态码规则之前）
-	if geminiUnrestrictedKeyWarningRegex.MatchString(err.OpenAIError.Message) {
+	// Gemini 未限制 key 的过渡期预告警告（403），渠道本身没坏，不应禁用（必须放在 403 状态码规则之前；用户显式配置可覆盖）
+	if !userKeywordHit && geminiUnrestrictedKeyWarningRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
-	// Gemini/GCP 代理层抖动成片返回的 403 caller 权限错，多为 transient 级联，不应永久禁用（必须放在 403 状态码规则之前）
-	if geminiCallerNoPermissionRegex.MatchString(err.OpenAIError.Message) {
+	// Gemini/GCP 代理层抖动成片返回的 403 caller 权限错，多为 transient 级联，默认不永久禁用（必须放在 403 状态码规则之前；用户显式配置可覆盖）
+	if !userKeywordHit && geminiCallerNoPermissionRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
-	// CachedContent 引用失效，渠道本身没坏，不应禁用（必须放在 403 状态码规则之前）
-	if strings.Contains(err.OpenAIError.Message, gemini.CachedContentNotFoundMsg) {
+	// CachedContent 引用失效，渠道本身没坏，不应禁用（必须放在 403 状态码规则之前；用户显式配置可覆盖）
+	if !userKeywordHit && strings.Contains(err.OpenAIError.Message, gemini.CachedContentNotFoundMsg) {
 		return false
 	}
 
@@ -129,8 +134,8 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 		}
 	}
 
-	// 禁用关键词检查
-	if common.DisableChannelKeywordsInstance.IsContains(err.OpenAIError.Message) {
+	// 禁用关键词检查（命中结果已在前面白名单判定时算过，直接复用）
+	if userKeywordHit {
 		return true
 	}
 

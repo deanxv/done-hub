@@ -350,6 +350,23 @@ func UpdateToken(c *gin.Context) {
 	})
 }
 
+// DeleteTokenByAdmin 管理员删除任意token
+func DeleteTokenByAdmin(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	err := model.DeleteTokenByIdAdmin(id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
 // UpdateTokenByAdmin 管理员更新任意token（支持转移用户）
 func UpdateTokenByAdmin(c *gin.Context) {
 	statusOnly := c.Query("status_only")
