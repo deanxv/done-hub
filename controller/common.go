@@ -57,6 +57,8 @@ var modelRestrictedRegex = regexp.MustCompile(`(?i)restricted to .+ clients only
 // 渠道本身没坏，不应禁用
 var imageGenNotEnabledRegex = regexp.MustCompile(`(?i)image generation is not enabled for this group`)
 
+var geminiUnrestrictedKeyWarningRegex = regexp.MustCompile(`(?i)accessing Gemini API with one or more unrestricted keys`)
+
 func shouldEnableChannel(err error, openAIErr *types.OpenAIErrorWithStatusCode) bool {
 	if !config.AutomaticEnableChannelEnabled {
 		return false
@@ -95,6 +97,11 @@ func ShouldDisableChannel(channelType int, err *types.OpenAIErrorWithStatusCode)
 
 	// 上游因图像生成未开放返回的 permission_error 只是单次请求级别的能力限制，渠道本身没坏
 	if imageGenNotEnabledRegex.MatchString(err.OpenAIError.Message) {
+		return false
+	}
+
+	// Gemini 未限制 key 的过渡期预告警告（403），渠道本身没坏，不应禁用（必须放在 403 状态码规则之前）
+	if geminiUnrestrictedKeyWarningRegex.MatchString(err.OpenAIError.Message) {
 		return false
 	}
 
