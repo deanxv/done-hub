@@ -82,6 +82,9 @@
     "testDisabled": "テスト無効",
     "tokensStatistics": "トークン統計",
     "totalUserBalance": "ユーザーの総残高",
+    "totalUsedQuota": "総消費",
+    "totalRequestCount": "リクエスト数",
+    "totalTokens": "総トークン数",
     "totalUserSpending": "ユーザーの総消費額",
     "totalUsers": "ユーザーの総数",
     "unused": "未使用",
@@ -91,6 +94,8 @@
     "order": "注文",
     "realTimeTraffic": "リアルタイム流量",
     "tpmDescription": "TPM (Token/分)",
+    "cpmDescription": "CPM",
+    "ppmDescription": "PPM",
     "last60SecondsStats": "最近60秒の統計"
   },
   "auth": {
@@ -202,6 +207,7 @@
     "updateEnabledBalance": "有効残高を更新",
     "usedBalance": "使用済み/残高",
     "weight": "ウェイト",
+    "costRatio": "コスト倍率",
     "onlyTags": "タグのみ表示",
     "batchAddUserGroup": "ユーザーグループを一括追加",
     "batchAddUserGroupTip": "チャネルを選択してユーザーグループを追加します。すでに該当グループを持つチャネルはスキップされます。",
@@ -311,6 +317,8 @@
     "tagChannelsSuccess": "タグチャネル{{action}}が成功しました",
     "weightUpdateError": "重みの更新に失敗しました：{{message}}",
     "weightUpdateSuccess": "重みが更新されました",
+    "costRatioUpdateSuccess": "コスト倍率が更新されました",
+    "costRatioUpdateError": "コスト倍率の更新に失敗しました：{{message}}",
     "key": "鍵",
     "keyRequired": "キーを入力してください。"
   },

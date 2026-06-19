@@ -703,14 +703,30 @@ func GetUserInviteCount(userId int) (int64, error) {
 }
 
 type StatisticsUser struct {
-	TotalQuota       int64 `json:"total_quota"`
-	TotalUsedQuota   int64 `json:"total_used_quota"`
-	TotalUser        int64 `json:"total_user"`
-	TotalInviterUser int64 `json:"total_inviter_user"`
+	TotalQuota        int64 `json:"total_quota"`
+	TotalUsedQuota    int64 `json:"total_used_quota"`
+	TotalUser         int64 `json:"total_user"`
+	TotalInviterUser  int64 `json:"total_inviter_user"`
+	TotalRequestCount int64 `json:"total_request_count"`
+	TotalTokens       int64 `json:"total_tokens"`
 }
 
 func GetStatisticsUser() (statisticsUser *StatisticsUser, err error) {
 	err = DB.Model(&User{}).Select("sum(quota) as total_quota, sum(used_quota) as total_used_quota, count(*) as total_user, count(CASE WHEN inviter_id != 0 THEN 1 END) as total_inviter_user").Scan(&statisticsUser).Error
+	if err != nil {
+		return statisticsUser, err
+	}
+
+	// 全站请求总次数与总 token 数，从 statistics 表聚合（比扫 logs 高效）
+	var logStat struct {
+		TotalRequestCount int64 `gorm:"column:total_request_count"`
+		TotalTokens       int64 `gorm:"column:total_tokens"`
+	}
+	if e := DB.Model(&Statistics{}).Select("COALESCE(sum(request_count),0) as total_request_count, COALESCE(sum(prompt_tokens + completion_tokens),0) as total_tokens").Scan(&logStat).Error; e == nil {
+		statisticsUser.TotalRequestCount = logStat.TotalRequestCount
+		statisticsUser.TotalTokens = logStat.TotalTokens
+	}
+
 	return statisticsUser, err
 }
 

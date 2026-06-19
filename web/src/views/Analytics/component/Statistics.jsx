@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Grid } from '@mui/material';
 import DataCard from 'ui-component/cards/DataCard';
 import { gridSpacing } from 'store/constant';
-import { renderQuota, showError } from 'utils/common';
+import { renderQuota, renderNumber, showError } from 'utils/common';
 import { API } from 'utils/api';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
@@ -35,7 +35,8 @@ export default function Overview() {
   const [rpmTpmStatistics, setRpmTpmStatistics] = useState({
     rpm: 0,
     tpm: 0,
-    cpm: 0
+    cpm: 0,
+    ppm: 0
   });
 
   const [rechargeTimeFilter, setRechargeTimeFilter] = useState('month');
@@ -167,9 +168,15 @@ export default function Overview() {
       <Grid item lg={2.4} md={4} xs={12}>
         <DataCard
           isLoading={userLoading}
-          title={t('analytics_index.totalUserSpending')}
-          content={userStatistics?.total_used_quota || '0'}
-          subContent={t('analytics_index.totalUserBalance') + '：' + (userStatistics?.total_quota || '0')}
+          title={t('analytics_index.totalUserBalance')}
+          content={userStatistics?.total_quota || '0'}
+          subContent={
+            <>
+              {t('analytics_index.totalUsedQuota')}：{userStatistics?.total_used_quota || '0'} <br />
+              {t('analytics_index.totalRequestCount')}：{(userStatistics?.total_request_count || 0).toLocaleString()} <br />
+              {t('analytics_index.totalTokens')}：{renderNumber(userStatistics?.total_tokens || 0)}
+            </>
+          }
         />
       </Grid>
       <Grid item lg={2.4} md={4} xs={12}>
@@ -226,6 +233,9 @@ export default function Overview() {
               {t('analytics_index.tpmDescription')}: {rpmTpmStatistics.tpm.toLocaleString()} <br />
               {t('analytics_index.cpmDescription')}: ${rpmTpmStatistics.cpm.toFixed(4)}{' '}
               {siteInfo.PaymentUSDRate ? ` / ¥${(rpmTpmStatistics.cpm * siteInfo.PaymentUSDRate).toFixed(4)}` : ''}
+              <br />
+              {t('analytics_index.ppmDescription')}: ${rpmTpmStatistics.ppm.toFixed(4)}{' '}
+              {siteInfo.PaymentUSDRate ? ` / ¥${(rpmTpmStatistics.ppm * siteInfo.PaymentUSDRate).toFixed(4)}` : ''}
             </>
           }
         />

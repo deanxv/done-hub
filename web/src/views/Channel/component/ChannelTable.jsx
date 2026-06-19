@@ -100,6 +100,15 @@ export default function ChannelTable({ tag }) {
             weight: parseInt(value)
           });
           break;
+        case 'cost_ratio':
+          if (value === '') {
+            return;
+          }
+          res = await API.put(url, {
+            ...data,
+            cost_ratio: Number(value)
+          });
+          break;
         case 'test':
           res = await API.get(url + `test/${id}`, {
             params: { model: value }
@@ -160,6 +169,7 @@ export default function ChannelTable({ tag }) {
                 { id: 'used', label: t('channel_index.usedBalance'), disableSort: false },
                 { id: 'priority', label: t('channel_index.priority'), disableSort: false, width: '80px' },
                 { id: 'weight', label: t('channel_index.weight'), disableSort: false, width: '80px' },
+                { id: 'cost_ratio', label: t('channel_index.costRatio'), disableSort: false, width: '90px' },
                 { id: 'action', label: t('userPage.action'), disableSort: true, sticky: true }
               ]}
             />

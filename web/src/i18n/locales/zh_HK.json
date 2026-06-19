@@ -85,6 +85,9 @@
     "testDisabled": "測試禁用",
     "tokensStatistics": "Tokens統計",
     "totalUserBalance": "用戶總餘額",
+    "totalUsedQuota": "總消耗",
+    "totalRequestCount": "請求總次數",
+    "totalTokens": "請求總Token",
     "totalUserSpending": "用戶總消費金額",
     "totalUsers": "用戶總數",
     "unused": "未使用",
@@ -94,6 +97,8 @@
     "order": "訂單",
     "realTimeTraffic": "實時流量",
     "tpmDescription": "TPM (Token/分鐘)",
+    "cpmDescription": "CPM",
+    "ppmDescription": "PPM",
     "last60SecondsStats": "最近60秒統計"
   },
   "auth": {
@@ -206,6 +211,7 @@
     "updateEnabledBalance": "更新啟用餘額",
     "usedBalance": "已使用/餘額",
     "weight": "權重",
+    "costRatio": "成本倍率",
     "onlyTags": "僅顯示標籤",
     "batchAddUserGroup": "批量添加用戶分組",
     "batchAddUserGroupTip": "選擇渠道並添加用戶分組。如果渠道已有該分組，將跳過該渠道。",
@@ -315,6 +321,8 @@
     "tagChannelsSuccess": "標籤渠道{{action}}成功",
     "weightUpdateError": "權重更新失敗: {{message}}",
     "weightUpdateSuccess": "權重更新成功",
+    "costRatioUpdateSuccess": "成本倍率更新成功",
+    "costRatioUpdateError": "成本倍率更新失敗: {{message}}",
     "key": "密鑰",
     "keyRequired": "請輸入密鑰"
   },

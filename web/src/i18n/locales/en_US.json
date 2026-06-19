@@ -94,6 +94,9 @@
     "testDisabled": "Test Disabled",
     "tokensStatistics": "Tokens Statistics",
     "totalUserBalance": "Total User Balance",
+    "totalUsedQuota": "Total Used",
+    "totalRequestCount": "Requests",
+    "totalTokens": "Total Tokens",
     "totalUserSpending": "Total User Spending",
     "totalUsers": "Total Users",
     "unused": "Unused",
@@ -103,6 +106,8 @@
     "order": "Order",
     "realTimeTraffic": "Real-time Traffic",
     "tpmDescription": "TPM (Token/min)",
+    "cpmDescription": "CPM",
+    "ppmDescription": "PPM",
     "last60SecondsStats": "Last 60 seconds statistics",
     "timeFilter": {
       "all": "All",
@@ -230,6 +235,7 @@
     "updateEnabledBalance": "Update Enabled Balance",
     "usedBalance": "Used Balance/Remaining Balance",
     "weight": "Weight",
+    "costRatio": "Cost Ratio",
     "onlyTags": "Display tags only",
     "batchAddUserGroup": "Batch Add User Group",
     "batchAddUserGroupTip": "Select channels and add user groups. If a channel already has the group, it will be skipped.",
@@ -340,7 +346,9 @@
     "tagChannelsError": "Channel {{action}} failed: {{message}}",
     "tagChannelsSuccess": "The tag channel {{action}} is successful.",
     "weightUpdateError": "Weight update failed: {{message}}",
-    "weightUpdateSuccess": "Weight update successful"
+    "weightUpdateSuccess": "Weight update successful",
+    "costRatioUpdateSuccess": "Cost ratio update successful",
+    "costRatioUpdateError": "Cost ratio update failed: {{message}}"
   },
   "common": {
     "again": "Retry ({{count}})",

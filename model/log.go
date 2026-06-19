@@ -441,6 +441,7 @@ type RpmTpmStatistics struct {
 	RPM int64   `json:"rpm"`
 	TPM int64   `json:"tpm"`
 	CPM float64 `json:"cpm"`
+	PPM float64 `json:"ppm"` // Profit Per Minute (美元)：每分钟利润 = (收入 - 成本) / QuotaPerUnit
 }
 
 func GetRpmTpmStatistics() (*RpmTpmStatistics, error) {
@@ -448,6 +449,7 @@ func GetRpmTpmStatistics() (*RpmTpmStatistics, error) {
 		RPM        int64 `gorm:"column:rpm"`
 		TPM        int64 `gorm:"column:tpm"`
 		TotalQuota int64 `gorm:"column:total_quota"`
+		CostQuota  int64 `gorm:"column:cost_quota"`
 	}
 
 	// 获取最近60秒的统计数据
@@ -455,7 +457,7 @@ func GetRpmTpmStatistics() (*RpmTpmStatistics, error) {
 	startTime := now - 60
 
 	err := DB.Table("logs").
-		Select("COUNT(*) as rpm, COALESCE(SUM(prompt_tokens + completion_tokens), 0) as tpm, COALESCE(SUM(quota), 0) as total_quota").
+		Select("COUNT(*) as rpm, COALESCE(SUM(prompt_tokens + completion_tokens), 0) as tpm, COALESCE(SUM(quota), 0) as total_quota, COALESCE(SUM(cost_quota), 0) as cost_quota").
 		Where("type = ? AND created_at >= ?", LogTypeConsume, startTime).
 		Scan(&result).Error
 
@@ -466,10 +468,13 @@ func GetRpmTpmStatistics() (*RpmTpmStatistics, error) {
 	// 计算每分钟消费金额 (美元)
 	// total_quota 是系统内部的配额单位，需要转换为美元
 	cpm := float64(result.TotalQuota) / float64(config.QuotaPerUnit)
+	// 每分钟利润 = (收入 - 成本) / QuotaPerUnit
+	ppm := float64(result.TotalQuota-result.CostQuota) / float64(config.QuotaPerUnit)
 
 	return &RpmTpmStatistics{
 		RPM: result.RPM,
 		TPM: result.TPM,
 		CPM: cpm,
+		PPM: ppm,
 	}, nil
 }

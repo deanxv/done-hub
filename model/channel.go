@@ -71,6 +71,7 @@ var allowedChannelOrderFields = map[string]bool{
 	"balance":       true,
 	"priority":      true,
 	"weight":        true,
+	"cost_ratio":    true,
 }
 
 type SearchChannelsParams struct {

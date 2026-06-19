@@ -129,6 +129,7 @@ export default function ChannelTableRow({
 
   const [priority, setPriority] = useState(item.priority)
   const [weight, setWeight] = useState(item.weight)
+  const [costRatio, setCostRatio] = useState(item.cost_ratio)
   const tagDeleteConfirm = useBoolean()
   const quickEdit = useBoolean()
   const simpleChannelEdit = useBoolean()
@@ -346,6 +347,7 @@ export default function ChannelTableRow({
     setStatusSwitch(item.status)
     setPriority(item.priority)
     setWeight(item.weight)
+    setCostRatio(item.cost_ratio)
     setItemBalance(item.balance)
     setResponseTimeData({ test_time: item.test_time, response_time: item.response_time })
   }, [item])
@@ -490,7 +492,7 @@ export default function ChannelTableRow({
           )}
         </TableCell>
 
-        <TableCell colSpan={item.tag ? 2 : 1}>
+        <TableCell colSpan={item.tag ? 3 : 1}>
           <Box sx={{ display: 'flex' }}>
             <TextField
               id={`priority-${item.id}`}
@@ -570,6 +572,54 @@ export default function ChannelTableRow({
                               })
                               .catch((error) => {
                                 showError(t('channel_row.weightUpdateError', { message: error.message }))
+                              })
+                          }
+                        }}
+                      >
+                        <Icon icon="mdi:check"/>
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Box>
+          </TableCell>
+        )}
+
+        {!item.tag && (
+          <TableCell>
+            <Box sx={{ display: 'flex' }}>
+              <TextField
+                id={`cost-ratio-${item.id}`}
+                type="number"
+                label={t('channel_index.costRatio')}
+                variant="outlined"
+                size="small"
+                value={costRatio}
+                onChange={(e) => setCostRatio(Number(e.target.value))}
+                inputProps={{
+                  min: '0',
+                  step: '0.1'
+                }}
+                sx={{ width: '100px' }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => {
+                          // 确保在提交时检查是否有变化
+                          if (costRatio !== item.cost_ratio) {
+                            manageChannel(item.id, 'cost_ratio', costRatio)
+                              .then(({ success }) => {
+                                if (success) {
+                                  item.cost_ratio = costRatio
+                                  showInfo(t('channel_row.costRatioUpdateSuccess'))
+                                }
+                              })
+                              .catch((error) => {
+                                showError(t('channel_row.costRatioUpdateError', { message: error.message }))
                               })
                           }
                         }}

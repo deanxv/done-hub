@@ -31,7 +31,7 @@ export default function DataCard({
   );
 
   return (
-    <SubCard sx={{ height: '170px' }}>
+    <SubCard sx={{ height: '190px' }} contentSX={{ py: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '32px' }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
           {title}
@@ -63,7 +63,7 @@ export default function DataCard({
       </Box>
       {renderContent(content, tip)}
       <Divider />
-      <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+      <Typography variant="subtitle2" sx={{ mt: 2 }}>
         {subContent}
       </Typography>
     </SubCard>

@@ -252,12 +252,12 @@ export function generateBarChartOptions(xaxis, data, unit = '', decimal = 0) {
             // 鼠标精确压在某个块上：只显示该块
             rows = row(hoverState.seriesIndex);
           } else {
-            // 在该列空白处：显示该列各块，按值降序，最多 5 条，避免块过多铺满屏幕
+            // 在该列空白处：显示该列各块，按值降序，最多 10 条，避免块过多铺满屏幕
             const top = series
               .map((s, i) => ({ i, value: s[dataPointIndex] || 0 }))
               .filter((item) => item.value > 0)
               .sort((a, b) => b.value - a.value)
-              .slice(0, 5);
+              .slice(0, 10);
             rows = top.map((item) => row(item.i)).join('');
           }
 

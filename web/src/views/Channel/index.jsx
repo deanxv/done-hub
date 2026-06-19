@@ -209,6 +209,7 @@ export default function ChannelList() {
           break
         case 'priority':
         case 'weight':
+        case 'cost_ratio':
           if (value === '') {
             return { success: false, message: '值不能为空' }
           }
@@ -771,6 +772,7 @@ export default function ChannelList() {
                   { id: 'used', label: t('channel_index.usedBalance'), disableSort: true },
                   { id: 'priority', label: t('channel_index.priority'), disableSort: false, width: '80px' },
                   { id: 'weight', label: t('channel_index.weight'), disableSort: false, width: '80px' },
+                  { id: 'cost_ratio', label: t('channel_index.costRatio'), disableSort: false, width: '90px' },
                   { id: 'action', label: t('channel_index.actions'), disableSort: true, sticky: true }
                 ]}
               />
