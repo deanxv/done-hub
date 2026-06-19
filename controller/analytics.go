@@ -36,6 +36,8 @@ func GetStatisticsByPeriod(c *gin.Context) {
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	groupType := c.Query("group_type")
 	userID, _ := strconv.Atoi(c.Query("user_id"))
+	modelName := c.Query("model_name")
+	channelID, _ := strconv.Atoi(c.Query("channel_id"))
 
 	statisticsByPeriod := &StatisticsByPeriod{}
 
@@ -48,7 +50,7 @@ func GetStatisticsByPeriod(c *gin.Context) {
 	endTime := time.Unix(endTimestamp, 0)
 	startDate := startTime.Format("2006-01-02")
 	endDate := endTime.Format("2006-01-02")
-	channelStatistics, err := model.GetChannelExpensesStatisticsByPeriod(startDate, endDate, groupType, userID)
+	channelStatistics, err := model.GetChannelExpensesStatisticsByPeriod(startDate, endDate, groupType, userID, modelName, channelID)
 
 	if err == nil {
 		statisticsByPeriod.ChannelStatistics = channelStatistics

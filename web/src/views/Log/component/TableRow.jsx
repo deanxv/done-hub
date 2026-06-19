@@ -204,6 +204,7 @@ export default function LogTableRow({ item, userIsAdmin, userGroup, columnVisibi
               <QuotaWithDetailContent
                 item={item}
                 userGroup={userGroup}
+                userIsAdmin={userIsAdmin}
                 t={t}
                 totalInputTokens={totalInputTokens}
                 totalOutputTokens={totalOutputTokens}

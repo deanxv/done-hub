@@ -33,12 +33,14 @@ export function calculatePrice(ratio, groupDiscount, isTimes) {
 }
 
 // QuotaWithDetailContent is responsible for rendering the detailed content
-export default function QuotaWithDetailContent({ item, userGroup, totalInputTokens, totalOutputTokens }) {
-  console.log(item);
+export default function QuotaWithDetailContent({ item, userGroup, userIsAdmin, totalInputTokens, totalOutputTokens }) {
   const { t } = useTranslation();
   // Calculate the original quota based on the formula
   const originalQuota = calculateOriginalQuota(item);
   const quota = item.quota || 0;
+  // 成本/利润仅管理员可见，且仅在记录了上游成本时展示
+  const showCost = userIsAdmin && item.cost_quota > 0;
+  const costQuota = item.cost_quota || 0;
 
   const priceType = item.metadata?.price_type || 'tokens';
   const extraBilling = item?.metadata?.extra_billing || {};
@@ -231,6 +233,34 @@ export default function QuotaWithDetailContent({ item, userGroup, totalInputToke
           >
             {t('logPage.quotaDetail.actualBilling')}: {renderQuota(quota, 6)}
           </Typography>
+          {showCost && (
+            <>
+              <Typography
+                sx={{
+                  fontSize: 13,
+                  color: (theme) => theme.palette.warning.main,
+                  fontWeight: 500,
+                  mr: 2,
+                  mb: { xs: 0.5, sm: 0 },
+                  textAlign: 'left'
+                }}
+              >
+                {t('logPage.quotaDetail.cost')}: {renderQuota(costQuota, 6)}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 13,
+                  color: (theme) => theme.palette.primary.main,
+                  fontWeight: 500,
+                  mr: 2,
+                  mb: { xs: 0.5, sm: 0 },
+                  textAlign: 'left'
+                }}
+              >
+                {t('logPage.quotaDetail.profit')}: {renderQuota(quota - costQuota, 6)}
+              </Typography>
+            </>
+          )}
           {/* 注释掉节省百分比的显示 */}
           {/* {savePercent && (
             <Box
@@ -260,6 +290,7 @@ export default function QuotaWithDetailContent({ item, userGroup, totalInputToke
 QuotaWithDetailContent.propTypes = {
   item: PropTypes.shape({
     quota: PropTypes.number,
+    cost_quota: PropTypes.number,
     prompt_tokens: PropTypes.number,
     completion_tokens: PropTypes.number,
     metadata: PropTypes.shape({
@@ -281,5 +312,6 @@ QuotaWithDetailContent.propTypes = {
   }).isRequired,
   totalInputTokens: PropTypes.number.isRequired,
   totalOutputTokens: PropTypes.number.isRequired,
-  userGroup: PropTypes.object
+  userGroup: PropTypes.object,
+  userIsAdmin: PropTypes.bool
 };

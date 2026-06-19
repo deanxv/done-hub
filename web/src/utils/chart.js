@@ -97,6 +97,9 @@ export function generateLineChartOptions(data, unit) {
 }
 
 export function generateBarChartOptions(xaxis, data, unit = '', decimal = 0) {
+  // 记录鼠标当前悬停的堆叠块（seriesIndex），离开块时置空。
+  // 用于 tooltip 区分「压在块上」与「在该列空白处」两种交互。
+  const hoverState = { seriesIndex: null };
   return {
     height: 480,
     type: 'bar',
@@ -141,7 +144,15 @@ export function generateBarChartOptions(xaxis, data, unit = '', decimal = 0) {
         zoom: {
           enabled: true
         },
-        background: 'transparent'
+        background: 'transparent',
+        events: {
+          dataPointMouseEnter: (event, ctx, config) => {
+            hoverState.seriesIndex = config.seriesIndex;
+          },
+          dataPointMouseLeave: () => {
+            hoverState.seriesIndex = null;
+          }
+        }
       },
       responsive: [
         {
@@ -208,16 +219,54 @@ export function generateBarChartOptions(xaxis, data, unit = '', decimal = 0) {
       },
       tooltip: {
         theme: 'dark',
+        shared: true,
+        intersect: false,
         fixed: {
           enabled: false
         },
-        marker: {
-          show: false
-        },
-        y: {
-          formatter: function (val) {
-            return renderChartNumber(val, decimal) + ` ${unit}`;
+        // 压在某块上：显示「总计 + 该块」；在该列空白处：显示「总计 + 该列各块（按值降序取前若干）」。
+        custom: function ({ series, dataPointIndex, w }) {
+          const format = (val) => renderChartNumber(val, decimal) + (unit ? ` ${unit}` : '');
+          const label = w.globals.labels[dataPointIndex];
+
+          let total = 0;
+          for (let i = 0; i < series.length; i++) {
+            total += series[i][dataPointIndex] || 0;
           }
+
+          const row = (seriesIndex) => {
+            const name = w.globals.seriesNames[seriesIndex];
+            const value = series[seriesIndex][dataPointIndex] || 0;
+            const color = w.globals.colors[seriesIndex];
+            return (
+              `<div style="display:flex;align-items:center;gap:8px;">` +
+              `<span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span>` +
+              `<span style="font-size:12px;">${name}</span>` +
+              `<span style="font-size:12px;font-weight:600;margin-left:auto;">${format(value)}</span>` +
+              `</div>`
+            );
+          };
+
+          let rows;
+          if (hoverState.seriesIndex !== null) {
+            // 鼠标精确压在某个块上：只显示该块
+            rows = row(hoverState.seriesIndex);
+          } else {
+            // 在该列空白处：显示该列各块，按值降序，最多 5 条，避免块过多铺满屏幕
+            const top = series
+              .map((s, i) => ({ i, value: s[dataPointIndex] || 0 }))
+              .filter((item) => item.value > 0)
+              .sort((a, b) => b.value - a.value)
+              .slice(0, 5);
+            rows = top.map((item) => row(item.i)).join('');
+          }
+
+          return (
+            `<div style="padding:8px 12px;">` +
+            `<div style="font-size:12px;opacity:0.7;margin-bottom:6px;">${label} · 总计: ${format(total)}</div>` +
+            `<div style="display:flex;flex-direction:column;gap:4px;">${rows}</div>` +
+            `</div>`
+          );
         }
       }
     },

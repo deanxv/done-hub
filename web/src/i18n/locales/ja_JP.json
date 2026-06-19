@@ -68,6 +68,8 @@
     "averageLatency": "平均遅延",
     "channelCount": "チャネル数",
     "consumptionStatistics": "消費統計",
+    "costStatistics": "コスト統計",
+    "profitStatistics": "利益統計",
     "directRegistration": "直接登録",
     "disabled": "無効",
     "endTime": "終了時間",
@@ -539,6 +541,8 @@
       "finalCalculation": "最終計算",
       "originalBilling": "元の請求",
       "actualBilling": "実際の請求",
+      "cost": "コスト",
+      "profit": "利益",
       "calculationNote": "PS：このシステムはポイントに基づいて計算され、すべての金額はポイント換算であり、1ポイント＝$0.000002です。最低消費額は1ポイントであり、この計算手順は参考用として提供されます。実際の料金が優先されます。",
       "times": "倍"
     },

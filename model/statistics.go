@@ -15,6 +15,7 @@ type Statistics struct {
 	ModelName        string    `json:"model_name" gorm:"primary_key;type:varchar(255)"`
 	RequestCount     int       `json:"request_count"`
 	Quota            int       `json:"quota"`
+	CostQuota        int       `json:"cost_quota"`
 	PromptTokens     int       `json:"prompt_tokens"`
 	CompletionTokens int       `json:"completion_tokens"`
 	RequestTime      int       `json:"request_time"`
@@ -133,7 +134,7 @@ func GetModelUsageByUser(usernames []string, startTime, endTime string) ([]*Mode
 	return usage, nil
 }
 
-func GetChannelExpensesStatisticsByPeriod(startTime, endTime, groupType string, userID int) (LogStatistics []*LogStatisticGroupChannel, err error) {
+func GetChannelExpensesStatisticsByPeriod(startTime, endTime, groupType string, userID int, modelName string, channelID int) (LogStatistics []*LogStatisticGroupChannel, err error) {
 
 	var whereClause strings.Builder
 	whereClause.WriteString("WHERE date BETWEEN ? AND ?")
@@ -142,6 +143,16 @@ func GetChannelExpensesStatisticsByPeriod(startTime, endTime, groupType string, 
 	if userID > 0 {
 		whereClause.WriteString(" AND user_id = ?")
 		args = append(args, userID)
+	}
+
+	if channelID > 0 {
+		whereClause.WriteString(" AND channel_id = ?")
+		args = append(args, channelID)
+	}
+
+	if modelName != "" {
+		whereClause.WriteString(" AND model_name = ?")
+		args = append(args, modelName)
 	}
 
 	dateStr := "date"
@@ -158,6 +169,7 @@ func GetChannelExpensesStatisticsByPeriod(startTime, endTime, groupType string, 
         SELECT ` + dateStr + `,
         sum(request_count) as request_count,
         sum(quota) as quota,
+        sum(cost_quota) as cost_quota,
         sum(prompt_tokens) as prompt_tokens,
         sum(completion_tokens) as completion_tokens,
         sum(request_time) as request_time,`
@@ -209,14 +221,15 @@ const (
 
 func UpdateStatistics(updateType StatisticsUpdateType) error {
 	sql := `
-	%s statistics (date, user_id, channel_id, model_name, request_count, quota, prompt_tokens, completion_tokens, request_time)
-	SELECT 
+	%s statistics (date, user_id, channel_id, model_name, request_count, quota, cost_quota, prompt_tokens, completion_tokens, request_time)
+	SELECT
 		%s as date,
 		user_id,
 		channel_id,
-		model_name, 
+		model_name,
 		count(1) as request_count,
 		sum(quota) as quota,
+		sum(cost_quota) as cost_quota,
 		sum(prompt_tokens) as prompt_tokens,
 		sum(completion_tokens) as completion_tokens,
 		sum(request_time) as request_time
@@ -276,6 +289,7 @@ func UpdateStatistics(updateType StatisticsUpdateType) error {
 		sqlSuffix = `ON CONFLICT (date, user_id, channel_id, model_name) DO UPDATE SET
 		request_count = EXCLUDED.request_count,
 		quota = EXCLUDED.quota,
+		cost_quota = EXCLUDED.cost_quota,
 		prompt_tokens = EXCLUDED.prompt_tokens,
 		completion_tokens = EXCLUDED.completion_tokens,
 		request_time = EXCLUDED.request_time`
@@ -300,6 +314,7 @@ func UpdateStatistics(updateType StatisticsUpdateType) error {
 		sqlSuffix = `ON DUPLICATE KEY UPDATE
 		request_count = VALUES(request_count),
 		quota = VALUES(quota),
+		cost_quota = VALUES(cost_quota),
 		prompt_tokens = VALUES(prompt_tokens),
 		completion_tokens = VALUES(completion_tokens),
 		request_time = VALUES(request_time)`

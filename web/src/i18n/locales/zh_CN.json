@@ -124,6 +124,8 @@
     "startTime": "开始时间",
     "endTime": "结束时间",
     "consumptionStatistics": "消费统计",
+    "costStatistics": "成本统计",
+    "profitStatistics": "利润统计",
     "tokensStatistics": "Tokens统计",
     "averageLatency": "平均延迟",
     "requestsCount": "请求数",
@@ -522,6 +524,8 @@
       "finalCalculation": "最终计算",
       "originalBilling": "原始计费",
       "actualBilling": "实际计费",
+      "cost": "成本",
+      "profit": "利润",
       "calculationNote": "PS：本系统按照积分计算，所有金额均为积分换算而来，1积分=$0.000002，最低消费为1积分，本计算步骤仅供参考，以实际扣费为准",
       "times": "倍"
     }

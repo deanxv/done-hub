@@ -23,6 +23,7 @@ type Log struct {
 	TokenName        string                             `json:"token_name" gorm:"index;default:''"`
 	ModelName        string                             `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
 	Quota            int                                `json:"quota" gorm:"default:0"`
+	CostQuota        int                                `json:"cost_quota" gorm:"default:0"`
 	PromptTokens     int                                `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens int                                `json:"completion_tokens" gorm:"default:0"`
 	ChannelId        int                                `json:"channel_id" gorm:"index"`
@@ -118,6 +119,7 @@ func RecordConsumeLog(
 	modelName string,
 	tokenName string,
 	quota int,
+	costQuota int,
 	content string,
 	requestTime int,
 	isStream bool,
@@ -141,6 +143,7 @@ func RecordConsumeLog(
 		TokenName:        tokenName,
 		ModelName:        modelName,
 		Quota:            quota,
+		CostQuota:        costQuota,
 		ChannelId:        channelId,
 		RequestTime:      requestTime,
 		IsStream:         isStream,
@@ -280,7 +283,7 @@ func GetAllLogsList(params *LogsListParams) ([]*Log, error) {
 func GetUserLogsList(userId int, params *LogsListParams) (*DataResult[Log], error) {
 	var logs []*Log
 
-	tx := DB.Where("user_id = ?", userId).Omit("id")
+	tx := DB.Where("user_id = ?", userId).Omit("id", "cost_quota")
 
 	if params.LogType != LogTypeUnknown {
 		tx = tx.Where("type = ?", params.LogType)
@@ -316,7 +319,7 @@ func GetUserLogsList(userId int, params *LogsListParams) (*DataResult[Log], erro
 func GetAllUserLogsList(userId int, params *LogsListParams) ([]*Log, error) {
 	var logs []*Log
 
-	tx := DB.Where("user_id = ?", userId).Omit("id")
+	tx := DB.Where("user_id = ?", userId).Omit("id", "cost_quota")
 
 	if params.LogType != LogTypeUnknown {
 		tx = tx.Where("type = ?", params.LogType)
@@ -376,7 +379,7 @@ func SearchAllLogs(keyword string) (logs []*Log, err error) {
 }
 
 func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
-	err = DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(config.MaxRecentItems).Omit("id").Find(&logs).Error
+	err = DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(config.MaxRecentItems).Omit("id", "cost_quota").Find(&logs).Error
 	return logs, err
 }
 
@@ -418,6 +421,7 @@ type LogStatistic struct {
 	Date             string `gorm:"column:date"`
 	RequestCount     int64  `gorm:"column:request_count"`
 	Quota            int64  `gorm:"column:quota"`
+	CostQuota        int64  `gorm:"column:cost_quota"`
 	PromptTokens     int64  `gorm:"column:prompt_tokens"`
 	CompletionTokens int64  `gorm:"column:completion_tokens"`
 	RequestTime      int64  `gorm:"column:request_time"`

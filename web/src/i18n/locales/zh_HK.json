@@ -71,6 +71,8 @@
     "averageLatency": "平均延遲",
     "channelCount": "渠道數量",
     "consumptionStatistics": "消費統計",
+    "costStatistics": "成本統計",
+    "profitStatistics": "利潤統計",
     "directRegistration": "直接註冊",
     "disabled": "禁用",
     "endTime": "結束時間",
@@ -544,6 +546,8 @@
       "finalCalculation": "最終計算",
       "originalBilling": "原始計費",
       "actualBilling": "實際計費",
+      "cost": "成本",
+      "profit": "利潤",
       "calculationNote": "PS：本系統按照積分計算，所有金額均為積分換算而來，1積分=$0.000002，最低消費為1積分，本計算步驟僅供參考，以實際扣費為準。",
       "times": "倍"
     },

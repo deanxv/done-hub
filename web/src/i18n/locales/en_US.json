@@ -80,6 +80,8 @@
     "averageLatency": "Average Latency",
     "channelCount": "Channel Count",
     "consumptionStatistics": "Consumption Statistics",
+    "costStatistics": "Cost Statistics",
+    "profitStatistics": "Profit Statistics",
     "directRegistration": "Direct Registration",
     "disabled": "Disabled",
     "endTime": "End Time",
@@ -571,6 +573,8 @@
       "finalCalculation": "Final Calculation",
       "originalBilling": "Original Billing",
       "actualBilling": "Actual Billing",
+      "cost": "Cost",
+      "profit": "Profit",
       "calculationNote": "PS: This system calculates based on points, and all amounts are converted from points. 1 point = $0.000002, with a minimum spending of 1 point. This calculation is for reference only; actual charges may vary.",
       "times": "times"
     },

@@ -833,6 +833,12 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
     const modelsStr = allUniqueModelIds.join(',')
     values.group = values.groups.join(',')
 
+    // cost_ratio 经 type=number 输入后为字符串，后端字段为 *float64，需转回数字；未配置或非法值按 0 处理（不计成本）
+    values.cost_ratio = parseFloat(values.cost_ratio)
+    if (isNaN(values.cost_ratio) || values.cost_ratio <= 0) {
+      values.cost_ratio = 0
+    }
+
     let baseApiUrl = '/api/channel/'
 
     if (isTag) {
@@ -959,6 +965,7 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
         }
 
         data.base_url = data.base_url ?? ''
+        data.cost_ratio = data.cost_ratio ?? 0
         data.is_edit = true
         if (data.plugin === null) {
           data.plugin = {}
@@ -1975,6 +1982,32 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     />
                     <FormHelperText
                       id="helper-tex-allow_extra_body-label">{customizeT(inputPrompt.allow_extra_body)}</FormHelperText>
+                  </FormControl>
+                )}
+                {inputPrompt.cost_ratio && (
+                  <FormControl fullWidth error={Boolean(touched.cost_ratio && errors.cost_ratio)}
+                               sx={{ ...theme.typography.otherInput }}>
+                    <InputLabel htmlFor="channel-cost_ratio-label">{customizeT(inputLabel.cost_ratio)}</InputLabel>
+                    <OutlinedInput
+                      id="channel-cost_ratio-label"
+                      label={customizeT(inputLabel.cost_ratio)}
+                      type="number"
+                      value={values.cost_ratio}
+                      name="cost_ratio"
+                      disabled={hasTag}
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      inputProps={{ step: 0.1, min: 0 }}
+                      aria-describedby="helper-text-channel-cost_ratio-label"
+                    />
+                    {touched.cost_ratio && errors.cost_ratio ? (
+                      <FormHelperText error id="helper-tex-channel-cost_ratio-label">
+                        {errors.cost_ratio}
+                      </FormHelperText>
+                    ) : (
+                      <FormHelperText
+                        id="helper-tex-channel-cost_ratio-label"> {customizeT(inputPrompt.cost_ratio)} </FormHelperText>
+                    )}
                   </FormControl>
                 )}
                 {pluginList[values.type] &&

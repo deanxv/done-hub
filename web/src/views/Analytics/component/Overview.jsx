@@ -24,16 +24,18 @@ export default function Overview() {
 
   const [groupType, setGroupType] = useState('model_type');
   const [userId, setUserId] = useState(0);
+  const [modelName, setModelName] = useState('');
+  const [channelId, setChannelId] = useState('');
 
   const handleSearch = () => {
-    fetchData(dateRange, groupType, userId);
+    fetchData(dateRange, groupType, userId, modelName, channelId);
   };
 
   const handleDateRangeChange = (value) => {
     setDateRange(value);
   };
 
-  const fetchData = async (date, gType, uId) => {
+  const fetchData = async (date, gType, uId, mName, cId) => {
     setUsersLoading(true);
     setChannelLoading(true);
     setRedemptionLoading(true);
@@ -44,7 +46,9 @@ export default function Overview() {
           start_timestamp: date.start.unix(),
           end_timestamp: date.end.unix(),
           group_type: gType,
-          user_id: uId
+          user_id: uId,
+          model_name: mName,
+          channel_id: cId
         }
       });
       const { success, message, data } = res.data;
@@ -72,7 +76,7 @@ export default function Overview() {
   };
 
   useEffect(() => {
-    fetchData(dateRange, groupType, userId);
+    fetchData(dateRange, groupType, userId, modelName, channelId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,6 +107,14 @@ export default function Overview() {
             </Grid>
 
             <Grid item xs={12} sm={6}>
+              <TextField label="模型名称" value={modelName} onChange={(e) => setModelName(e.target.value)} fullWidth />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField type="number" label="渠道ID" value={channelId} onChange={(e) => setChannelId(e.target.value)} fullWidth />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
               <Button variant="contained" style={{ height: '100%' }} onClick={handleSearch} fullWidth>
                 搜索
               </Button>
@@ -124,6 +136,24 @@ export default function Overview() {
           isLoading={channelLoading}
           chartDatas={channelData?.costs || {}}
           title={t('analytics_index.consumptionStatistics')}
+          decimal={3}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <ApexCharts
+          id="cost_amount"
+          isLoading={channelLoading}
+          chartDatas={channelData?.cost || {}}
+          title={t('analytics_index.costStatistics')}
+          decimal={3}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <ApexCharts
+          id="profit"
+          isLoading={channelLoading}
+          chartDatas={channelData?.profit || {}}
+          title={t('analytics_index.profitStatistics')}
           decimal={3}
         />
       </Grid>
@@ -187,6 +217,8 @@ function calculateDailyData(item, dateMap) {
   return {
     name: item.Channel,
     costs: calculateQuota(item.Quota, 3),
+    cost: calculateQuota(item.CostQuota, 3),
+    profit: calculateQuota(item.Quota - item.CostQuota, 3),
     tokens: item.PromptTokens + item.CompletionTokens,
     requests: item.RequestCount,
     latency: Number(item.RequestTime / 1000 / item.RequestCount).toFixed(3),
@@ -199,6 +231,8 @@ function getBarDataGroup(data, dates) {
 
   const result = {
     costs: { total: 0, data: new Map() },
+    cost: { total: 0, data: new Map() },
+    profit: { total: 0, data: new Map() },
     tokens: { total: 0, data: new Map() },
     requests: { total: 0, data: new Map() },
     latency: { total: 0, data: new Map() }
@@ -230,6 +264,12 @@ function getBarChartOptions(data, dateRange) {
 
   channelData.costs = generateBarChartOptions(dates, Array.from(result.costs.data.values()), '美元', 3);
   channelData.costs.options.title.text = '总消费：$' + renderChartNumber(result.costs.total, 3);
+
+  channelData.cost = generateBarChartOptions(dates, Array.from(result.cost.data.values()), '美元', 3);
+  channelData.cost.options.title.text = '总成本：$' + renderChartNumber(result.cost.total, 3);
+
+  channelData.profit = generateBarChartOptions(dates, Array.from(result.profit.data.values()), '美元', 3);
+  channelData.profit.options.title.text = '总利润：$' + renderChartNumber(result.profit.total, 3);
 
   channelData.tokens = generateBarChartOptions(dates, Array.from(result.tokens.data.values()), '', 0);
   channelData.tokens.options.title.text = '总Tokens：' + renderChartNumber(result.tokens.total, 0);
