@@ -35,6 +35,7 @@ type Channel struct {
 	UsedQuota          int64    `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string  `json:"model_mapping" gorm:"type:text"`
 	ModelHeaders       *string  `json:"model_headers" gorm:"type:varchar(1024);default:''"`
+	HeaderOverride     *string  `json:"header_override" gorm:"type:text"`
 	CustomParameter    *string  `json:"custom_parameter" gorm:"type:text"`
 	Priority           *int64   `json:"priority" gorm:"bigint;default:0"`
 	Proxy              *string  `json:"proxy" gorm:"type:varchar(255);default:''"`
@@ -43,6 +44,7 @@ type Channel struct {
 	PreCost            int      `json:"pre_cost" form:"pre_cost" gorm:"default:1"`
 	CompatibleResponse bool     `json:"compatible_response" gorm:"default:false"`
 	AllowExtraBody     bool     `json:"allow_extra_body" form:"allow_extra_body" gorm:"default:false"`
+	PassThroughBody    bool     `json:"pass_through_body" form:"pass_through_body" gorm:"default:false"`
 	CostRatio          *float64 `json:"cost_ratio" form:"cost_ratio" gorm:"type:decimal(10,4);default:0"`
 
 	DisabledStream *datatypes.JSONSlice[string] `json:"disabled_stream,omitempty" gorm:"type:json"`

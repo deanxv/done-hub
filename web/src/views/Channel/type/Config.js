@@ -9,6 +9,7 @@ const defaultConfig = {
     test_model: '',
     model_mapping: [],
     model_headers: [],
+    header_override: [],
     custom_parameter: '',
     models: [],
     groups: ['default'],
@@ -19,6 +20,7 @@ const defaultConfig = {
     disabled_stream: [],
     compatible_response: false,
     allow_extra_body: false,
+    pass_through_body: false,
     cost_ratio: 0
   },
   inputLabel: {
@@ -32,6 +34,7 @@ const defaultConfig = {
     models: '模型',
     model_mapping: '模型映射关系',
     model_headers: '自定义模型请求头',
+    header_override: '请求头透传',
     custom_parameter: '额外参数',
     groups: '用户组',
     only_chat: '仅支持聊天',
@@ -41,6 +44,7 @@ const defaultConfig = {
     disabled_stream: '禁用流式的模型',
     compatible_response: '兼容Response API',
     allow_extra_body: '允许额外字段透传',
+    pass_through_body: '请求体完整透传',
     cost_ratio: '成本倍率'
   },
   prompt: {
@@ -56,6 +60,8 @@ const defaultConfig = {
       '请选择该渠道所支持的模型,你也可以输入通配符*来匹配模型，例如：gpt-3.5*，表示支持所有gpt-3.5开头的模型，*号只能在最后一位使用，前面必须有字符，例如：gpt-3.5*是正确的，*gpt-3.5是错误的',
     model_mapping: '模型映射关系：例如用户请求A模型，实际转发给渠道的模型为B。在B模型加前缀+，表示使用传入模型计费，例如：+gpt-3.5-turbo',
     model_headers: '自定义模型请求头，例如：{"key": "value"}',
+    header_override:
+      '将客户端请求头透传至上游。值支持固定值、{api_key}（渠道密钥）、{client_header:X-Request-Id}（取客户端同名请求头）；键填 * 透传全部客户端请求头，键以 re: 或 regex: 开头按正则透传匹配的请求头。注意：鉴权头由渠道自身处理，不会被覆盖；键名建议使用标准 Header 大小写（如 X-Request-Id），避免同名头大小写不一致。',
     custom_parameter:
       '支持通过 JSON 注入额外参数（可嵌套）。可用控制项：overwrite：设为 true 覆盖同名字段，未设置或 false 时仅补充缺失字段；per_model：设为 true 后按模型名进行参数覆盖，如 {"per_model":true,"gpt-3.5-turbo":{"temperature": 0.7},"gpt-4":{"temperature": 0.5}}；pre_add：设为 true 时在请求入口即完成参数覆盖，否则会在发送请求前再进行参数覆盖，适用于所有渠道（含 Claude、Gemini），如 {"pre_add":true,"overwrite":true,"stream":false}。',
     groups: '请选择该渠道所支持的用户组',
@@ -67,6 +73,8 @@ const defaultConfig = {
     disabled_stream: '这里填写禁用流式的模型，注意：如果填写了禁用流式的模型，那么这些模型在流式请求时会跳过该渠道',
     compatible_response: '兼容Response API',
     allow_extra_body: '开启后，将会透传用户请求中的额外字段（如OpenAI SDK的extra_body参数），适用于需要传递自定义参数到上游API的场景',
+    pass_through_body:
+      '开启后，将客户端请求体原样转发至上游，仅改写映射后的模型名，保留未知字段与原始字节；适用于同协议透明代理场景。注意：仅对 OpenAI 协议渠道生效（Claude、Gemini 等自建请求体的渠道不读取该项）；开启后将跳过额外字段合并（仅渠道额外参数仍以字节方式生效）。',
     cost_ratio: '上游成本倍率，相对模型基础价的折扣，例如 0.5 表示成本为基础价的 5 折。仅用于成本与利润统计，不影响用户扣费。未配置或为 0 时不计成本。'
   },
   modelGroup: 'OpenAI'

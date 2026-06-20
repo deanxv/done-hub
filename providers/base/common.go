@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -121,6 +123,145 @@ func (p *BaseProvider) CommonRequestHeaders(headers map[string]string) {
 			}
 		}
 	}
+	// 请求头透传
+	p.applyHeaderOverride(headers)
+}
+
+// passthroughSkipHeaders 是通配(*)/正则透传时禁止转发的请求头：
+// hop-by-hop 头、底层连接控制头、以及不应按名匹配透传的凭证头
+var passthroughSkipHeaders = map[string]struct{}{
+	"connection":               {},
+	"keep-alive":               {},
+	"proxy-authenticate":       {},
+	"proxy-authorization":      {},
+	"te":                       {},
+	"trailer":                  {},
+	"transfer-encoding":        {},
+	"upgrade":                  {},
+	"cookie":                   {},
+	"host":                     {},
+	"content-length":           {},
+	"accept-encoding":          {},
+	"authorization":            {},
+	"x-api-key":                {},
+	"x-goog-api-key":           {},
+	"sec-websocket-key":        {},
+	"sec-websocket-version":    {},
+	"sec-websocket-extensions": {},
+}
+
+var headerPassthroughRegexCache sync.Map // map[string]*regexp.Regexp
+
+// applyHeaderOverride 处理渠道请求头透传配置 HeaderOverride（JSON 对象）：
+//   - 固定值：{"X-Foo":"bar"} 直接写入
+//   - {api_key} 占位符：替换为渠道密钥
+//   - {client_header:X-Name} 占位符：整段取客户端请求头 X-Name 的值
+//   - "*"：透传全部客户端请求头；"re:"/"regex:" 前缀：按正则透传匹配的客户端请求头
+//
+// 透传时会跳过 passthroughSkipHeaders 中的敏感头；显式规则在透传之后应用、优先级更高。
+// 注意：本方法在 provider 写入 Authorization 之前调用，与 ModelHeaders 一致，不用于覆盖鉴权头。
+func (p *BaseProvider) applyHeaderOverride(headers map[string]string) {
+	if p.Channel == nil || p.Channel.HeaderOverride == nil || *p.Channel.HeaderOverride == "" {
+		return
+	}
+	var override map[string]string
+	if err := json.Unmarshal([]byte(*p.Channel.HeaderOverride), &override); err != nil || len(override) == 0 {
+		return
+	}
+
+	// 第一步：解析透传规则并把命中的客户端请求头透传到上游
+	passAll := false
+	var passRegexps []*regexp.Regexp
+	for key := range override {
+		k := strings.ToLower(strings.TrimSpace(key))
+		switch {
+		case k == "*":
+			passAll = true
+		case strings.HasPrefix(k, "re:"):
+			if re := getPassthroughRegex(strings.TrimSpace(key[len("re:"):])); re != nil {
+				passRegexps = append(passRegexps, re)
+			}
+		case strings.HasPrefix(k, "regex:"):
+			if re := getPassthroughRegex(strings.TrimSpace(key[len("regex:"):])); re != nil {
+				passRegexps = append(passRegexps, re)
+			}
+		}
+	}
+
+	if (passAll || len(passRegexps) > 0) && p.Context != nil {
+		for name := range p.Context.Request.Header {
+			if _, skip := passthroughSkipHeaders[strings.ToLower(name)]; skip {
+				continue
+			}
+			if !passAll && !matchAnyRegex(passRegexps, name) {
+				continue
+			}
+			if value := strings.TrimSpace(p.Context.Request.Header.Get(name)); value != "" {
+				headers[name] = value
+			}
+		}
+	}
+
+	// 第二步：应用显式规则（固定值/占位符），覆盖透传结果
+	for key, tmpl := range override {
+		if isPassthroughRuleKey(key) {
+			continue
+		}
+		if value, ok := p.resolveHeaderTemplate(tmpl); ok {
+			headers[key] = value
+		}
+	}
+}
+
+// resolveHeaderTemplate 解析请求头模板值，返回 (值, 是否设置)
+func (p *BaseProvider) resolveHeaderTemplate(tmpl string) (string, bool) {
+	if name, ok := strings.CutPrefix(strings.TrimSpace(tmpl), "{client_header:"); ok {
+		name, ok = strings.CutSuffix(name, "}")
+		name = strings.TrimSpace(name)
+		if !ok || name == "" || p.Context == nil {
+			return "", false
+		}
+		// 安全边界：不在客户端提供的内容里再插值 {api_key}
+		value := strings.TrimSpace(p.Context.Request.Header.Get(name))
+		return value, value != ""
+	}
+
+	if strings.Contains(tmpl, "{api_key}") {
+		tmpl = strings.ReplaceAll(tmpl, "{api_key}", p.Channel.Key)
+	}
+	return tmpl, strings.TrimSpace(tmpl) != ""
+}
+
+func isPassthroughRuleKey(key string) bool {
+	k := strings.ToLower(strings.TrimSpace(key))
+	return k == "*" || strings.HasPrefix(k, "re:") || strings.HasPrefix(k, "regex:")
+}
+
+func matchAnyRegex(regexps []*regexp.Regexp, name string) bool {
+	for _, re := range regexps {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// getPassthroughRegex 编译并缓存正则，编译失败时缓存空结果避免重复编译
+// HTTP 请求头名大小写不敏感，匹配统一加 (?i)，避免用户写 ^x- 这类小写规则静默匹配不到
+func getPassthroughRegex(pattern string) *regexp.Regexp {
+	if pattern == "" {
+		return nil
+	}
+	if v, ok := headerPassthroughRegexCache.Load(pattern); ok {
+		re, _ := v.(*regexp.Regexp)
+		return re
+	}
+	re, err := regexp.Compile("(?i)" + pattern)
+	if err != nil {
+		re = nil
+	}
+	headerPassthroughRegexCache.Store(pattern, re)
+	return re
 }
 
 func (p *BaseProvider) GetUsage() *types.Usage {

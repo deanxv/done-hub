@@ -12,7 +12,6 @@ import {
   ButtonGroup,
   Checkbox,
   Chip,
-  Collapse,
   Container,
   Dialog,
   DialogActions,
@@ -46,6 +45,7 @@ import { PreCostType } from '../type/other'
 import MapInput from './MapInput'
 import ListInput from './ListInput'
 import ModelSelectorModal from './ModelSelectorModal'
+import CollapsibleSection from './CollapsibleSection'
 import pluginList from '../type/Plugin.json'
 import { Icon } from '@iconify/react'
 import Editor from '@monaco-editor/react'
@@ -73,6 +73,7 @@ const getValidationSchema = (t) =>
     }),
     model_mapping: Yup.array(),
     model_headers: Yup.array(),
+    header_override: Yup.array(),
     custom_parameter: Yup.string().nullable()
   })
 
@@ -87,7 +88,6 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
   const [inputPrompt, setInputPrompt] = useState(defaultConfig.prompt)
   const [batchAdd, setBatchAdd] = useState(false)
   const [hasTag, setHasTag] = useState(false)
-  const [expanded, setExpanded] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [parameterFocused, setParameterFocused] = useState(false)
   const parameterInputRef = useRef(null)
@@ -806,6 +806,20 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
       }
     }
 
+    if (values.header_override) {
+      try {
+        const headerOverride = values.header_override.reduce((acc, item) => {
+          if (item.key && item.value && !(item.key in acc)) {
+            acc[item.key] = item.value
+          }
+          return acc
+        }, {})
+        values.header_override = JSON.stringify(headerOverride, null, 2)
+      } catch (error) {
+        showError('Error parsing header_override:' + error.message)
+      }
+    }
+
     if (values.custom_parameter) {
       try {
         // Validate that the custom_parameter is valid JSON
@@ -951,6 +965,15 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
             : []
         // }
 
+        data.header_override =
+          data.header_override
+            ? Object.entries(JSON.parse(data.header_override)).map(([key, value], index) => ({
+              index,
+              key,
+              value
+            }))
+            : []
+
         // Format the custom_parameter JSON for better readability if it's not empty
         if (data.custom_parameter !== '') {
           try {
@@ -1024,6 +1047,7 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
 
             return (
               <form noValidate onSubmit={handleSubmit}>
+                <CollapsibleSection title={t('channel_edit.sectionBasic')} defaultExpanded>
                 {!isTag && (
                   <FormControl fullWidth error={Boolean(touched.type && errors.type)}
                                sx={{ ...theme.typography.otherInput }}>
@@ -1066,29 +1090,6 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                   </FormControl>
                 )}
 
-                <FormControl fullWidth error={Boolean(touched.tag && errors.tag)}
-                             sx={{ ...theme.typography.otherInput }}>
-                  <InputLabel htmlFor="channel-tag-label">{customizeT(inputLabel.tag)}</InputLabel>
-                  <OutlinedInput
-                    id="channel-tag-label"
-                    label={customizeT(inputLabel.tag)}
-                    type="text"
-                    value={values.tag}
-                    name="tag"
-                    onBlur={handleBlur}
-                    onChange={handleChange}
-                    inputProps={{}}
-                    aria-describedby="helper-text-channel-tag-label"
-                  />
-                  {touched.tag && errors.tag ? (
-                    <FormHelperText error id="helper-tex-channel-tag-label">
-                      {errors.tag}
-                    </FormHelperText>
-                  ) : (
-                    <FormHelperText id="helper-tex-channel-tag-label"> {customizeT(inputPrompt.tag)} </FormHelperText>
-                  )}
-                </FormControl>
-
                 {!isTag && (
                   <FormControl fullWidth error={Boolean(touched.name && errors.name)}
                                sx={{ ...theme.typography.otherInput }}>
@@ -1114,6 +1115,30 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     )}
                   </FormControl>
                 )}
+
+                <FormControl fullWidth error={Boolean(touched.tag && errors.tag)}
+                             sx={{ ...theme.typography.otherInput }}>
+                  <InputLabel htmlFor="channel-tag-label">{customizeT(inputLabel.tag)}</InputLabel>
+                  <OutlinedInput
+                    id="channel-tag-label"
+                    label={customizeT(inputLabel.tag)}
+                    type="text"
+                    value={values.tag}
+                    name="tag"
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    inputProps={{}}
+                    aria-describedby="helper-text-channel-tag-label"
+                  />
+                  {touched.tag && errors.tag ? (
+                    <FormHelperText error id="helper-tex-channel-tag-label">
+                      {errors.tag}
+                    </FormHelperText>
+                  ) : (
+                    <FormHelperText id="helper-tex-channel-tag-label"> {customizeT(inputPrompt.tag)} </FormHelperText>
+                  )}
+                </FormControl>
+
                 {inputPrompt.base_url && (
                   <FormControl fullWidth error={Boolean(touched.base_url && errors.base_url)}
                                sx={{ ...theme.typography.otherInput }}>
@@ -1700,7 +1725,9 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     </Dialog>
                   </Box>
                 )}
+                </CollapsibleSection>
 
+                <CollapsibleSection title={t('channel_edit.sectionAdvanced')}>
                 {inputPrompt.model_mapping && (
                   <FormControl
                     fullWidth
@@ -1732,6 +1759,57 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     )}
                   </FormControl>
                 )}
+
+                <FormControl fullWidth error={Boolean(touched.proxy && errors.proxy)}
+                             sx={{ ...theme.typography.otherInput }}>
+                  <InputLabel htmlFor="channel-proxy-label">{customizeT(inputLabel.proxy)}</InputLabel>
+                  <OutlinedInput
+                    id="channel-proxy-label"
+                    label={customizeT(inputLabel.proxy)}
+                    disabled={hasTag}
+                    type="text"
+                    value={values.proxy}
+                    name="proxy"
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    inputProps={{}}
+                    aria-describedby="helper-text-channel-proxy-label"
+                  />
+                  {touched.proxy && errors.proxy ? (
+                    <FormHelperText error id="helper-tex-channel-proxy-label">
+                      {errors.proxy}
+                    </FormHelperText>
+                  ) : (
+                    <FormHelperText
+                      id="helper-tex-channel-proxy-label"> {customizeT(inputPrompt.proxy)} </FormHelperText>
+                  )}
+                </FormControl>
+                {inputPrompt.test_model && (
+                  <FormControl fullWidth error={Boolean(touched.test_model && errors.test_model)}
+                               sx={{ ...theme.typography.otherInput }}>
+                    <InputLabel htmlFor="channel-test_model-label">{customizeT(inputLabel.test_model)}</InputLabel>
+                    <OutlinedInput
+                      id="channel-test_model-label"
+                      label={customizeT(inputLabel.test_model)}
+                      type="text"
+                      disabled={hasTag}
+                      value={values.test_model}
+                      name="test_model"
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      inputProps={{}}
+                      aria-describedby="helper-text-channel-test_model-label"
+                    />
+                    {touched.test_model && errors.test_model ? (
+                      <FormHelperText error id="helper-tex-channel-test_model-label">
+                        {errors.test_model}
+                      </FormHelperText>
+                    ) : (
+                      <FormHelperText
+                        id="helper-tex-channel-test_model-label"> {customizeT(inputPrompt.test_model)} </FormHelperText>
+                    )}
+                  </FormControl>
+                )}
                 {inputPrompt.model_headers && (
                   <FormControl
                     fullWidth
@@ -1758,6 +1836,35 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     ) : (
                       <FormHelperText
                         id="helper-tex-channel-model_headers-label">{customizeT(inputPrompt.model_headers)}</FormHelperText>
+                    )}
+                  </FormControl>
+                )}
+                {inputPrompt.header_override && (
+                  <FormControl
+                    fullWidth
+                    error={Boolean(touched.header_override && errors.header_override)}
+                    sx={{ ...theme.typography.otherInput }}
+                  >
+                    <MapInput
+                      mapValue={values.header_override}
+                      onChange={(newValue) => {
+                        setFieldValue('header_override', newValue)
+                      }}
+                      disabled={hasTag}
+                      error={Boolean(touched.header_override && errors.header_override)}
+                      label={{
+                        keyName: customizeT(inputLabel.header_override),
+                        valueName: customizeT(inputPrompt.header_override),
+                        name: customizeT(inputLabel.header_override)
+                      }}
+                    />
+                    {touched.header_override && errors.header_override ? (
+                      <FormHelperText error id="helper-tex-channel-header_override-label">
+                        {errors.header_override}
+                      </FormHelperText>
+                    ) : (
+                      <FormHelperText
+                        id="helper-tex-channel-header_override-label">{customizeT(inputPrompt.header_override)}</FormHelperText>
                     )}
                   </FormControl>
                 )}
@@ -1840,59 +1947,11 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     />
                   </FormControl>
                 )}
+                </CollapsibleSection>
 
-                <FormControl fullWidth error={Boolean(touched.proxy && errors.proxy)}
-                             sx={{ ...theme.typography.otherInput }}>
-                  <InputLabel htmlFor="channel-proxy-label">{customizeT(inputLabel.proxy)}</InputLabel>
-                  <OutlinedInput
-                    id="channel-proxy-label"
-                    label={customizeT(inputLabel.proxy)}
-                    disabled={hasTag}
-                    type="text"
-                    value={values.proxy}
-                    name="proxy"
-                    onBlur={handleBlur}
-                    onChange={handleChange}
-                    inputProps={{}}
-                    aria-describedby="helper-text-channel-proxy-label"
-                  />
-                  {touched.proxy && errors.proxy ? (
-                    <FormHelperText error id="helper-tex-channel-proxy-label">
-                      {errors.proxy}
-                    </FormHelperText>
-                  ) : (
-                    <FormHelperText
-                      id="helper-tex-channel-proxy-label"> {customizeT(inputPrompt.proxy)} </FormHelperText>
-                  )}
-                </FormControl>
-                {inputPrompt.test_model && (
-                  <FormControl fullWidth error={Boolean(touched.test_model && errors.test_model)}
-                               sx={{ ...theme.typography.otherInput }}>
-                    <InputLabel htmlFor="channel-test_model-label">{customizeT(inputLabel.test_model)}</InputLabel>
-                    <OutlinedInput
-                      id="channel-test_model-label"
-                      label={customizeT(inputLabel.test_model)}
-                      type="text"
-                      disabled={hasTag}
-                      value={values.test_model}
-                      name="test_model"
-                      onBlur={handleBlur}
-                      onChange={handleChange}
-                      inputProps={{}}
-                      aria-describedby="helper-text-channel-test_model-label"
-                    />
-                    {touched.test_model && errors.test_model ? (
-                      <FormHelperText error id="helper-tex-channel-test_model-label">
-                        {errors.test_model}
-                      </FormHelperText>
-                    ) : (
-                      <FormHelperText
-                        id="helper-tex-channel-test_model-label"> {customizeT(inputPrompt.test_model)} </FormHelperText>
-                    )}
-                  </FormControl>
-                )}
+                <CollapsibleSection title={t('channel_edit.sectionBilling')}>
                 {inputPrompt.only_chat && (
-                  <FormControl fullWidth>
+                  <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
                     <FormControlLabel
                       control={
                         <Switch
@@ -1909,7 +1968,60 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                       id="helper-tex-only_chat_model-label"> {customizeT(inputPrompt.only_chat)} </FormHelperText>
                   </FormControl>
                 )}
-
+                {inputPrompt.compatible_response && (
+                  <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          disabled={hasTag}
+                          checked={Boolean(values.compatible_response)}
+                          onChange={(event) => {
+                            setFieldValue('compatible_response', event.target.checked)
+                          }}
+                        />
+                      }
+                      label={customizeT(inputLabel.compatible_response)}
+                    />
+                    <FormHelperText
+                      id="helper-tex-compatible_response-label">{customizeT(inputPrompt.compatible_response)}</FormHelperText>
+                  </FormControl>
+                )}
+                {inputPrompt.allow_extra_body && (
+                  <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          disabled={hasTag}
+                          checked={Boolean(values.allow_extra_body)}
+                          onChange={(event) => {
+                            setFieldValue('allow_extra_body', event.target.checked)
+                          }}
+                        />
+                      }
+                      label={customizeT(inputLabel.allow_extra_body)}
+                    />
+                    <FormHelperText
+                      id="helper-tex-allow_extra_body-label">{customizeT(inputPrompt.allow_extra_body)}</FormHelperText>
+                  </FormControl>
+                )}
+                {inputPrompt.pass_through_body && (
+                  <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          disabled={hasTag}
+                          checked={Boolean(values.pass_through_body)}
+                          onChange={(event) => {
+                            setFieldValue('pass_through_body', event.target.checked)
+                          }}
+                        />
+                      }
+                      label={customizeT(inputLabel.pass_through_body)}
+                    />
+                    <FormHelperText
+                      id="helper-tex-pass_through_body-label">{customizeT(inputPrompt.pass_through_body)}</FormHelperText>
+                  </FormControl>
+                )}
                 {inputPrompt.pre_cost && (
                   <FormControl fullWidth error={Boolean(touched.pre_cost && errors.pre_cost)}
                                sx={{ ...theme.typography.otherInput }}>
@@ -1948,42 +2060,6 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     )}
                   </FormControl>
                 )}
-                {inputPrompt.compatible_response && (
-                  <FormControl fullWidth>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          disabled={hasTag}
-                          checked={Boolean(values.compatible_response)}
-                          onChange={(event) => {
-                            setFieldValue('compatible_response', event.target.checked)
-                          }}
-                        />
-                      }
-                      label={customizeT(inputLabel.compatible_response)}
-                    />
-                    <FormHelperText
-                      id="helper-tex-compatible_response-label">{customizeT(inputPrompt.compatible_response)}</FormHelperText>
-                  </FormControl>
-                )}
-                {inputPrompt.allow_extra_body && (
-                  <FormControl fullWidth>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          disabled={hasTag}
-                          checked={Boolean(values.allow_extra_body)}
-                          onChange={(event) => {
-                            setFieldValue('allow_extra_body', event.target.checked)
-                          }}
-                        />
-                      }
-                      label={customizeT(inputLabel.allow_extra_body)}
-                    />
-                    <FormHelperText
-                      id="helper-tex-allow_extra_body-label">{customizeT(inputPrompt.allow_extra_body)}</FormHelperText>
-                  </FormControl>
-                )}
                 {inputPrompt.cost_ratio && (
                   <FormControl fullWidth error={Boolean(touched.cost_ratio && errors.cost_ratio)}
                                sx={{ ...theme.typography.otherInput }}>
@@ -2010,94 +2086,59 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                     )}
                   </FormControl>
                 )}
+                </CollapsibleSection>
+
                 {pluginList[values.type] &&
                   Object.keys(pluginList[values.type]).map((pluginId) => {
                     const plugin = pluginList[values.type][pluginId]
                     return (
-                      <>
-                        <Box
-                          sx={{
-                            border: '1px solid #e0e0e0',
-                            borderRadius: 2,
-                            marginTop: 2,
-                            marginBottom: 2,
-                            overflow: 'hidden'
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              padding: 2
-                            }}
-                          >
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="h3">{customizeT(plugin.name)}</Typography>
-                              <Typography variant="caption">{customizeT(plugin.description)}</Typography>
-                            </Box>
-                            <Button
-                              onClick={() => setExpanded(!expanded)}
-                              endIcon={
-                                expanded ? (
-                                  <Icon icon="solar:alt-arrow-up-line-duotone"/>
-                                ) : (
-                                  <Icon icon="solar:alt-arrow-down-line-duotone"/>
-                                )
-                              }
-                              sx={{ textTransform: 'none', marginLeft: 2 }}
-                            >
-                              {expanded ? t('channel_edit.collapse') : t('channel_edit.expand')}
-                            </Button>
-                          </Box>
-
-                          <Collapse in={expanded}>
-                            <Box sx={{ padding: 2, marginTop: -3 }}>
-                              {Object.keys(plugin.params).map((paramId) => {
-                                const param = plugin.params[paramId]
-                                const name = `plugin.${pluginId}.${paramId}`
-                                return param.type === 'bool' ? (
-                                  <FormControl key={name} fullWidth sx={{ ...theme.typography.otherInput }}>
-                                    <FormControlLabel
-                                      key={name}
-                                      required
-                                      control={
-                                        <Switch
-                                          key={name}
-                                          name={name}
-                                          disabled={hasTag}
-                                          checked={values.plugin?.[pluginId]?.[paramId] || false}
-                                          onChange={(event) => {
-                                            setFieldValue(name, event.target.checked)
-                                          }}
-                                        />
-                                      }
-                                      label={t('channel_edit.isEnable')}
-                                    />
-                                    <FormHelperText
-                                      id="helper-tex-channel-key-label"> {customizeT(param.description)} </FormHelperText>
-                                  </FormControl>
-                                ) : (
-                                  <FormControl key={name} fullWidth sx={{ ...theme.typography.otherInput }}>
-                                    <TextField
-                                      multiline
-                                      key={name}
-                                      name={name}
-                                      disabled={hasTag}
-                                      value={values.plugin?.[pluginId]?.[paramId] || ''}
-                                      label={customizeT(param.name)}
-                                      placeholder={customizeT(param.description)}
-                                      onChange={handleChange}
-                                    />
-                                    <FormHelperText
-                                      id="helper-tex-channel-key-label"> {customizeT(param.description)} </FormHelperText>
-                                  </FormControl>
-                                )
-                              })}
-                            </Box>
-                          </Collapse>
-                        </Box>
-                      </>
+                      <CollapsibleSection
+                        key={pluginId}
+                        title={customizeT(plugin.name)}
+                        description={customizeT(plugin.description)}
+                      >
+                        {Object.keys(plugin.params).map((paramId) => {
+                          const param = plugin.params[paramId]
+                          const name = `plugin.${pluginId}.${paramId}`
+                          return param.type === 'bool' ? (
+                            <FormControl key={name} fullWidth sx={{ ...theme.typography.otherInput }}>
+                              <FormControlLabel
+                                key={name}
+                                required
+                                control={
+                                  <Switch
+                                    key={name}
+                                    name={name}
+                                    disabled={hasTag}
+                                    checked={values.plugin?.[pluginId]?.[paramId] || false}
+                                    onChange={(event) => {
+                                      setFieldValue(name, event.target.checked)
+                                    }}
+                                  />
+                                }
+                                label={t('channel_edit.isEnable')}
+                              />
+                              <FormHelperText
+                                id="helper-tex-channel-key-label"> {customizeT(param.description)} </FormHelperText>
+                            </FormControl>
+                          ) : (
+                            <FormControl key={name} fullWidth sx={{ ...theme.typography.otherInput }}>
+                              <TextField
+                                multiline
+                                key={name}
+                                name={name}
+                                disabled={hasTag}
+                                value={values.plugin?.[pluginId]?.[paramId] || ''}
+                                label={customizeT(param.name)}
+                                placeholder={customizeT(param.description)}
+                                onChange={handleChange}
+                              />
+                              <FormHelperText
+                                id="helper-tex-channel-key-label"> {customizeT(param.description)} </FormHelperText>
+                            </FormControl>
+                          )
+                        })}
+                      </CollapsibleSection>
                     )
                   })}
                 <DialogActions>

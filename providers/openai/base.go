@@ -12,6 +12,9 @@ import (
 	"strings"
 
 	"done-hub/providers/base"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type OpenAIProviderFactory struct{}
@@ -318,6 +321,33 @@ func (p *OpenAIProvider) mergeExtraBodyFromRawRequest(requestMap map[string]inte
 	return rawRequest
 }
 
+// patchPassThroughBody 读取 gin 缓存的原始请求体，仅对 model 做字段级最小修改
+// （模型映射会改写 ModelName），其余一律按字节保留。
+// 返回 (字节, true) 表示透传可用；返回 (nil, false) 表示应回退结构体序列化路径。
+func (p *OpenAIProvider) patchPassThroughBody(modelName string) ([]byte, bool) {
+	if p.Context == nil {
+		return nil, false
+	}
+	rawBody, err := common.ReadBodyRaw(p.Context)
+	if err != nil || len(rawBody) == 0 {
+		return nil, false
+	}
+
+	out := rawBody
+	// 模型重写：仅在 body 中已有 model 且与映射目标不一致时回写
+	if modelName != "" {
+		if current := gjson.GetBytes(out, "model"); current.Exists() && current.String() != modelName {
+			patched, err := sjson.SetBytes(out, "model", modelName)
+			if err != nil {
+				return nil, false
+			}
+			out = patched
+		}
+	}
+
+	return out, true
+}
+
 // 修改GetRequestTextBody函数中的对应部分
 func (p *OpenAIProvider) GetRequestTextBody(relayMode int, ModelName string, request any) (*http.Request, *types.OpenAIErrorWithStatusCode) {
 	url, errWithCode := p.GetSupportedAPIUri(relayMode)
@@ -329,6 +359,13 @@ func (p *OpenAIProvider) GetRequestTextBody(relayMode int, ModelName string, req
 
 	// 获取请求头
 	headers := p.GetRequestHeaders()
+
+	// 请求体完整透传：以原始字节为基础，仅改写映射后的模型名，其余字节原样保留
+	if p.Channel.PassThroughBody {
+		if patched, ok := p.patchPassThroughBody(ModelName); ok {
+			return p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, patched, headers, ModelName)
+		}
+	}
 
 	// 处理额外参数
 	customParams, err := p.CustomParameterHandler()
