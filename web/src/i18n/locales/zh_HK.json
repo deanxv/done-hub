@@ -941,7 +941,15 @@
   "theme": {
     "auto": "跟隨系統",
     "light": "淺色模式",
-    "dark": "深色模式"
+    "dark": "深色模式",
+    "color": "主題色",
+    "colors": {
+      "default": "默認",
+      "blue": "藍色",
+      "cyan": "青色",
+      "purple": "紫色",
+      "red": "紅色"
+    }
   },
   "setting_index": {
     "operationSettings": {

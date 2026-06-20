@@ -8,12 +8,7 @@ import componentStyleOverrides from './compStyleOverride';
 import themePalette from './palette';
 import themeTypography from './typography';
 import { varAlpha, createGradient } from './utils';
-
-// 创建自定义渐变背景色
-const customGradients = {
-  primary: createGradient(colors.primaryMain, colors.primaryDark),
-  secondary: createGradient(colors.secondaryMain, colors.secondaryDark)
-};
+import { getPrimaryColors } from './presets';
 
 /**
  * Represent theme style and structure as per Material-UI
@@ -21,8 +16,14 @@ const customGradients = {
  */
 
 export const theme = (customization) => {
-  const color = colors;
-  const options = customization.theme === 'light' ? GetLightOption() : GetDarkOption();
+  // 用用户选择的主题色覆盖默认主色
+  const color = { ...colors, ...getPrimaryColors(customization.primaryColor) };
+  // 创建自定义渐变背景色
+  const customGradients = {
+    primary: createGradient(color.primaryMain, color.primaryDark),
+    secondary: createGradient(color.secondaryMain, color.secondaryDark)
+  };
+  const options = customization.theme === 'light' ? GetLightOption(color) : GetDarkOption(color);
   const themeOption = {
     colors: color,
     gradients: customGradients,
@@ -73,8 +74,7 @@ export const theme = (customization) => {
 
 export default theme;
 
-function GetDarkOption() {
-  const color = colors;
+function GetDarkOption(color) {
   return {
     mode: 'dark',
     heading: '#FFFFFF',
@@ -98,8 +98,7 @@ function GetDarkOption() {
   };
 }
 
-function GetLightOption() {
-  const color = colors;
+function GetLightOption(color) {
   return {
     mode: 'light',
     heading: color.grey800,

@@ -16,6 +16,7 @@ import {
   Tooltip,
   Grid,
   Pagination,
+  Skeleton,
   ToggleButton,
   ToggleButtonGroup as MuiToggleButtonGroup,
   Table,
@@ -35,6 +36,7 @@ import { useTheme } from '@mui/material/styles';
 import CustomToggleButtonGroup from 'ui-component/ToggleButton';
 import { alpha } from '@mui/material/styles';
 import ModelCard from './component/ModelCard';
+import ModelCardSkeleton from './component/ModelCardSkeleton';
 import ModelDetailModal from './component/ModelDetailModal';
 import { MODALITY_OPTIONS } from 'constants/Modality';
 import Label from 'ui-component/Label';
@@ -49,6 +51,7 @@ export default function ModelPrice() {
   const [availableModels, setAvailableModels] = useState({});
   const [modelInfoMap, setModelInfoMap] = useState({});
   const [userGroupMap, setUserGroupMap] = useState({});
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedOwnedBy, setSelectedOwnedBy] = useState('all');
@@ -256,9 +259,7 @@ export default function ModelPrice() {
   }, [availableModels, parsedInfo, passesExcept]);
 
   useEffect(() => {
-    fetchAvailableModels();
-    fetchModelInfo();
-    fetchUserGroupMap();
+    Promise.all([fetchAvailableModels(), fetchModelInfo(), fetchUserGroupMap()]).finally(() => setLoading(false));
   }, [fetchAvailableModels, fetchModelInfo, fetchUserGroupMap]);
 
   // 标签选项「全集」：来自所有启用渠道模型（不随筛选隐藏）
@@ -1283,10 +1284,22 @@ export default function ModelPrice() {
 
       {/* 模型卡片网格 */}
       <Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {t('modelpricePage.totalModels', { count: filteredModels.length })}
-        </Typography>
-        {filteredModels.length > 0 ? (
+        {loading ? (
+          <Skeleton variant="text" width={120} sx={{ mb: 2 }} />
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t('modelpricePage.totalModels', { count: filteredModels.length })}
+          </Typography>
+        )}
+        {loading ? (
+          <Grid container spacing={3}>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
+                <ModelCardSkeleton />
+              </Grid>
+            ))}
+          </Grid>
+        ) : filteredModels.length > 0 ? (
           <>
             {viewMode === 'card' ? (
               <Grid container spacing={3}>

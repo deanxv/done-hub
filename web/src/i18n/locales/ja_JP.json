@@ -1,4 +1,17 @@
 {
+  "theme": {
+    "auto": "システムに従う",
+    "light": "ライトモード",
+    "dark": "ダークモード",
+    "color": "テーマカラー",
+    "colors": {
+      "default": "デフォルト",
+      "blue": "ブルー",
+      "cyan": "シアン",
+      "purple": "パープル",
+      "red": "レッド"
+    }
+  },
   "System Logs": "システムログ",
   "view_more_logs_on_server": "より多くのシステムログを表示するには、サーバーにアクセスしてください",
   "systemInfo": "システム情報",

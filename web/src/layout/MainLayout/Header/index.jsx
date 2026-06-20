@@ -11,6 +11,7 @@ import { Box, IconButton, Stack, useMediaQuery } from '@mui/material';
 import LogoSection from '../LogoSection';
 import Profile from './Profile';
 import ThemeButton from 'ui-component/ThemeButton';
+import ThemeColorButton from 'ui-component/ThemeColorButton';
 import I18nButton from 'ui-component/i18nButton';
 import { NoticeButton } from 'ui-component/notice';
 import { drawerWidth, miniDrawerWidth } from 'store/constant';
@@ -79,6 +80,7 @@ const Header = ({ handleLeftDrawerToggle, toggleProfileDrawer }) => {
       <Stack direction="row" spacing={1} alignItems="center">
         <NoticeButton />
         <ThemeButton />
+        <ThemeColorButton />
         <I18nButton />
         {isConsoleRoute && <Profile toggleProfileDrawer={toggleProfileDrawer} />}
       </Stack>
