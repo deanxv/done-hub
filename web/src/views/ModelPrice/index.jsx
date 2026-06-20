@@ -50,7 +50,7 @@ export default function ModelPrice() {
   const [modelInfoMap, setModelInfoMap] = useState({});
   const [userGroupMap, setUserGroupMap] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedOwnedBy, setSelectedOwnedBy] = useState('all');
   const [unit, setUnit] = useState('M');
   const [onlyShowAvailable, setOnlyShowAvailable] = useState(true);
@@ -113,10 +113,6 @@ export default function ModelPrice() {
       const { success, message, data } = res.data;
       if (success) {
         setUserGroupMap(data);
-        const firstKey = Object.entries(data)
-          .filter(([, g]) => !g.inaccessible)
-          .sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0))[0]?.[0];
-        setSelectedGroup(firstKey);
       } else {
         showError(message);
       }
@@ -125,14 +121,139 @@ export default function ModelPrice() {
     }
   }, []);
 
-  // 按倍率升序排序的用户组列表
-  const sortedUserGroupEntries = useMemo(
+  // 当前可访问的全部分组 key（不参与级联，用于「全部分组」可用性判断的基准）
+  const accessibleGroupKeys = useMemo(
     () =>
       Object.entries(userGroupMap)
         .filter(([, group]) => !group.inaccessible)
-        .sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0)),
+        .map(([key]) => key),
     [userGroupMap]
   );
+
+  // 预解析每个模型的 tags / 模态（input+output 合并去重），各 match*/count 复用，避免重复 JSON.parse
+  const parsedInfo = useMemo(() => {
+    const safe = (s) => {
+      try {
+        return JSON.parse(s || '[]');
+      } catch (e) {
+        return [];
+      }
+    };
+    const map = {};
+    Object.entries(modelInfoMap).forEach(([name, info]) => {
+      map[name] = {
+        tags: [...new Set(safe(info.tags))],
+        modalities: new Set([...safe(info.input_modalities), ...safe(info.output_modalities)])
+      };
+    });
+    return map;
+  }, [modelInfoMap]);
+
+  // 各筛选维度的独立匹配函数
+  const matchOwnedBy = useCallback((model) => selectedOwnedBy === 'all' || model.owned_by === selectedOwnedBy, [selectedOwnedBy]);
+
+  const matchGroup = useCallback(
+    (model) => {
+      if (!onlyShowAvailable) return true;
+      return selectedGroup === 'all' ? accessibleGroupKeys.some((key) => model.groups.includes(key)) : model.groups.includes(selectedGroup);
+    },
+    [onlyShowAvailable, selectedGroup, accessibleGroupKeys]
+  );
+
+  const matchSearch = useCallback(
+    (modelName) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      const info = modelInfoMap[modelName];
+      return modelName.toLowerCase().includes(query) || !!info?.description?.toLowerCase().includes(query);
+    },
+    [searchQuery, modelInfoMap]
+  );
+
+  const matchModality = useCallback(
+    (modelName) => {
+      if (selectedModality === 'all') return true;
+      return parsedInfo[modelName]?.modalities.has(selectedModality) ?? false;
+    },
+    [selectedModality, parsedInfo]
+  );
+
+  const matchTag = useCallback(
+    (modelName) => {
+      if (selectedTag === 'all') return true;
+      return parsedInfo[modelName]?.tags.includes(selectedTag) ?? false;
+    },
+    [selectedTag, parsedInfo]
+  );
+
+  // 级联核心：对某个模型应用「除指定维度外」的全部筛选条件
+  const passesExcept = useCallback(
+    (modelName, model, exclude) => {
+      if (exclude !== 'ownedBy' && !matchOwnedBy(model)) return false;
+      if (exclude !== 'group' && !matchGroup(model)) return false;
+      if (exclude !== 'search' && !matchSearch(modelName)) return false;
+      if (exclude !== 'modality' && !matchModality(modelName)) return false;
+      if (exclude !== 'tag' && !matchTag(modelName)) return false;
+      return true;
+    },
+    [matchOwnedBy, matchGroup, matchSearch, matchModality, matchTag]
+  );
+
+  // 分组选项「全集」：可访问且被任意启用渠道模型归属的分组，按倍率升序（不随筛选隐藏）
+  const sortedUserGroupEntries = useMemo(() => {
+    const usedGroups = new Set();
+    Object.values(availableModels).forEach((model) => {
+      (model.groups || []).forEach((g) => usedGroups.add(g));
+    });
+    return Object.entries(userGroupMap)
+      .filter(([key, group]) => !group.inaccessible && usedGroups.has(key))
+      .sort(([, a], [, b]) => (a.ratio ?? 0) - (b.ratio ?? 0));
+  }, [userGroupMap, availableModels]);
+
+  // 各维度「在其他已选条件下」每个值的命中模型数 —— 用于显示数量徽标与置灰
+  const ownedByCounts = useMemo(() => {
+    const counts = {};
+    Object.entries(availableModels).forEach(([modelName, model]) => {
+      if (passesExcept(modelName, model, 'ownedBy')) {
+        counts[model.owned_by] = (counts[model.owned_by] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [availableModels, passesExcept]);
+
+  const groupCounts = useMemo(() => {
+    const counts = {};
+    Object.entries(availableModels).forEach(([modelName, model]) => {
+      if (passesExcept(modelName, model, 'group')) {
+        (model.groups || []).forEach((g) => {
+          counts[g] = (counts[g] || 0) + 1;
+        });
+      }
+    });
+    return counts;
+  }, [availableModels, passesExcept]);
+
+  const modalityCounts = useMemo(() => {
+    const counts = {};
+    Object.entries(availableModels).forEach(([modelName, model]) => {
+      if (!passesExcept(modelName, model, 'modality')) return;
+      parsedInfo[modelName]?.modalities.forEach((m) => {
+        counts[m] = (counts[m] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [availableModels, parsedInfo, passesExcept]);
+
+  const tagCounts = useMemo(() => {
+    const counts = {};
+    Object.entries(availableModels).forEach(([modelName, model]) => {
+      if (!passesExcept(modelName, model, 'tag')) return;
+      parsedInfo[modelName]?.tags.forEach((tag) => {
+        counts[tag] = (counts[tag] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [availableModels, parsedInfo, passesExcept]);
 
   useEffect(() => {
     fetchAvailableModels();
@@ -140,18 +261,20 @@ export default function ModelPrice() {
     fetchUserGroupMap();
   }, [fetchAvailableModels, fetchModelInfo, fetchUserGroupMap]);
 
-  // 提取所有唯一标签
-  const allTags = [
-    ...new Set(
-      Object.values(modelInfoMap).flatMap((info) => {
-        try {
-          return JSON.parse(info.tags || '[]');
-        } catch (e) {
-          return [];
-        }
-      })
-    )
-  ];
+  // 标签选项「全集」：来自所有启用渠道模型（不随筛选隐藏）
+  const allTags = useMemo(
+    () => [...new Set(Object.keys(availableModels).flatMap((modelName) => parsedInfo[modelName]?.tags || []))],
+    [availableModels, parsedInfo]
+  );
+
+  // 模态选项「全集」：来自所有启用渠道模型（不随筛选隐藏），保持 MODALITY_OPTIONS 的顺序与样式
+  const availableModalities = useMemo(() => {
+    const present = new Set();
+    Object.keys(availableModels).forEach((modelName) => {
+      parsedInfo[modelName]?.modalities.forEach((m) => present.add(m));
+    });
+    return Object.entries(MODALITY_OPTIONS).filter(([key]) => present.has(key));
+  }, [availableModels, parsedInfo]);
 
   // 格式化价格
   const formatPrice = (value, type) => {
@@ -172,67 +295,8 @@ export default function ModelPrice() {
   // 过滤模型
   const filteredModels = useMemo(() => {
     return Object.entries(availableModels)
-      .filter(([modelName, model]) => {
-        // 供应商筛选
-        if (selectedOwnedBy !== 'all' && model.owned_by !== selectedOwnedBy) return false;
-
-        // 仅显示可用
-        if (onlyShowAvailable && !model.groups.includes(selectedGroup)) return false;
-
-        // 搜索
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const modelInfo = modelInfoMap[modelName];
-          const matchModel = modelName.toLowerCase().includes(query);
-          const matchDescription = modelInfo?.description?.toLowerCase().includes(query);
-          if (!matchModel && !matchDescription) return false;
-        }
-
-        // 模态筛选
-        if (selectedModality !== 'all') {
-          const modelInfo = modelInfoMap[modelName];
-          if (modelInfo) {
-            try {
-              const inputModalities = JSON.parse(modelInfo.input_modalities || '[]');
-              const outputModalities = JSON.parse(modelInfo.output_modalities || '[]');
-              if (!inputModalities.includes(selectedModality) && !outputModalities.includes(selectedModality)) {
-                return false;
-              }
-            } catch (e) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-
-        // 标签筛选
-        if (selectedTag !== 'all') {
-          const modelInfo = modelInfoMap[modelName];
-          if (modelInfo) {
-            try {
-              const tags = JSON.parse(modelInfo.tags || '[]');
-              if (!tags.includes(selectedTag)) return false;
-            } catch (e) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-
-        return true;
-      })
+      .filter(([modelName, model]) => passesExcept(modelName, model, null))
       .map(([modelName, model]) => {
-        const group = userGroupMap[selectedGroup];
-        const hasAccess = model.groups.includes(selectedGroup);
-        const price = hasAccess
-          ? {
-            input: group.ratio * model.price.input,
-            output: group.ratio * model.price.output
-          }
-          : { input: t('modelpricePage.noneGroup'), output: t('modelpricePage.noneGroup') };
-
         // 计算所有用户组的价格 - 只包含模型实际存在的分组
         const allGroupPrices = sortedUserGroupEntries
           .filter(([key]) => model.groups.includes(key))
@@ -244,19 +308,48 @@ export default function ModelPrice() {
               output: grp.ratio * model.price.output,
               type: model.price.type,
               ratio: grp.ratio,
-              extraRatios:
-                model.price.extra_ratios
-                  ? Object.fromEntries(Object.entries(model.price.extra_ratios).map(([k, v]) => [k, (grp.ratio * v).toFixed(6)]))
-                  : null
+              extraRatios: model.price.extra_ratios
+                ? Object.fromEntries(Object.entries(model.price.extra_ratios).map(([k, v]) => [k, (grp.ratio * v).toFixed(6)]))
+                : null
             };
           });
+
+        let price;
+        let group;
+        if (selectedGroup === 'all') {
+          // 全部分组：展示该模型在所有可访问分组下的价格区间
+          group = null;
+          if (allGroupPrices.length > 0) {
+            const inputs = allGroupPrices.map((g) => g.input);
+            const outputs = allGroupPrices.map((g) => g.output);
+            price = {
+              input: Math.min(...inputs),
+              inputMax: Math.max(...inputs),
+              output: Math.min(...outputs),
+              outputMax: Math.max(...outputs),
+              isRange: true
+            };
+          } else {
+            price = { input: t('modelpricePage.noneGroup'), output: t('modelpricePage.noneGroup') };
+          }
+        } else {
+          const grp = userGroupMap[selectedGroup];
+          const hasAccess = model.groups.includes(selectedGroup);
+          group = hasAccess ? grp : null;
+          price = hasAccess
+            ? {
+                input: grp.ratio * model.price.input,
+                output: grp.ratio * model.price.output
+              }
+            : { input: t('modelpricePage.noneGroup'), output: t('modelpricePage.noneGroup') };
+        }
 
         return {
           model: modelName,
           provider: model.owned_by,
           modelInfo: modelInfoMap[modelName],
           price,
-          group: hasAccess ? group : null,
+          group,
           type: model.price.type,
           priceData: {
             price: model.price,
@@ -269,7 +362,7 @@ export default function ModelPrice() {
         const ownerB = ownedby?.find((item) => item.name === b.provider);
         return (ownerA?.id || 0) - (ownerB?.id || 0);
       });
-  }, [availableModels, selectedOwnedBy, onlyShowAvailable, selectedGroup, searchQuery, modelInfoMap, selectedModality, selectedTag, userGroupMap, sortedUserGroupEntries, ownedby, t, unit]);
+  }, [availableModels, passesExcept, selectedGroup, userGroupMap, sortedUserGroupEntries, modelInfoMap, ownedby, t]);
 
   // 分页处理
   const paginatedModels = useMemo(() => {
@@ -298,14 +391,6 @@ export default function ModelPrice() {
     }
   };
 
-  const handleOwnedByChange = (newValue) => {
-    setSelectedOwnedBy(newValue);
-  };
-
-  const handleGroupChange = (groupKey) => {
-    setSelectedGroup(groupKey);
-  };
-
   const handleSearchChange = (event) => {
     setSearchQuery(event.target.value);
   };
@@ -320,14 +405,32 @@ export default function ModelPrice() {
     setOnlyShowAvailable((prev) => !prev);
   };
 
-  const uniqueOwnedBy = [
-    'all',
-    ...[...new Set(Object.values(availableModels).map((model) => model.owned_by))].sort((a, b) => {
-      const ownerA = ownedby?.find((item) => item.name === a);
-      const ownerB = ownedby?.find((item) => item.name === b);
-      return (ownerA?.id || 0) - (ownerB?.id || 0);
-    })
-  ];
+  // 统一筛选项点击：last-action-wins —— 点了在当前组合下无结果（置灰）的值时，自动放开其他冲突筛选，保证有结果
+  const handleSelectFilter = (dimension, value, disabled) => {
+    if (disabled) {
+      if (dimension !== 'ownedBy') setSelectedOwnedBy('all');
+      if (dimension !== 'group') setSelectedGroup('all');
+      if (dimension !== 'modality') setSelectedModality('all');
+      if (dimension !== 'tag') setSelectedTag('all');
+    }
+    if (dimension === 'ownedBy') setSelectedOwnedBy(value);
+    else if (dimension === 'group') setSelectedGroup(value);
+    else if (dimension === 'modality') setSelectedModality(value);
+    else if (dimension === 'tag') setSelectedTag(value);
+  };
+
+  // 供应商选项「全集」：来自所有启用渠道模型（不随筛选隐藏）
+  const uniqueOwnedBy = useMemo(
+    () => [
+      'all',
+      ...[...new Set(Object.values(availableModels).map((model) => model.owned_by))].sort((a, b) => {
+        const ownerA = ownedby?.find((item) => item.name === a);
+        const ownerB = ownedby?.find((item) => item.name === b);
+        return (ownerA?.id || 0) - (ownerB?.id || 0);
+      })
+    ],
+    [availableModels, ownedby]
+  );
 
   const getIconByName = (name) => {
     if (name === 'all') return null;
@@ -508,15 +611,18 @@ export default function ModelPrice() {
           >
             {uniqueOwnedBy.map((ownedBy, index) => {
               const isSelected = selectedOwnedBy === ownedBy;
+              const count = ownedBy === 'all' ? null : ownedByCounts[ownedBy] || 0;
+              const disabled = count === 0;
               return (
                 <ButtonBase
                   key={index}
-                  onClick={() => handleOwnedByChange(ownedBy)}
+                  onClick={() => handleSelectFilter('ownedBy', ownedBy, disabled)}
                   sx={{
                     borderRadius: '6px',
                     overflow: 'hidden',
                     position: 'relative',
                     transition: 'all 0.2s ease',
+                    opacity: disabled ? 0.45 : 1,
                     transform: isSelected ? 'translateY(-1px)' : 'none',
                     '&:hover': {
                       transform: 'translateY(-1px)'
@@ -576,6 +682,19 @@ export default function ModelPrice() {
                     >
                       {ownedBy === 'all' ? t('modelpricePage.all') : ownedBy}
                     </Typography>
+                    {count != null && (
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          color: isSelected ? theme.palette.primary.main : theme.palette.text.secondary,
+                          fontSize: '0.6875rem',
+                          opacity: 0.8
+                        }}
+                      >
+                        {count}
+                      </Typography>
+                    )}
                   </Box>
                 </ButtonBase>
               );
@@ -584,127 +703,149 @@ export default function ModelPrice() {
         </Box>
 
         {/* 模态类型筛选 */}
-        <Box sx={{ mb: 3 }}>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              mb: 1.5,
-              fontWeight: 600,
-              color: theme.palette.text.primary,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1
-            }}
-          >
-            <Icon icon="eva:layers-outline" width={18} height={18} />
-            {t('modelpricePage.modalityType')}
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            <ButtonBase
-              onClick={() => setSelectedModality('all')}
+        {availableModalities.length > 0 && (
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              variant="subtitle1"
               sx={{
-                borderRadius: '6px',
-                transition: 'all 0.2s ease',
-                transform: selectedModality === 'all' ? 'translateY(-1px)' : 'none',
-                '&:hover': { transform: 'translateY(-1px)' }
+                mb: 1.5,
+                fontWeight: 600,
+                color: theme.palette.text.primary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
               }}
             >
-              <Box
+              <Icon icon="eva:layers-outline" width={18} height={18} />
+              {t('modelpricePage.modalityType')}
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <ButtonBase
+                onClick={() => handleSelectFilter('modality', 'all', false)}
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  py: 0.75,
-                  px: 1.5,
                   borderRadius: '6px',
-                  backgroundColor:
-                    selectedModality === 'all'
-                      ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.25 : 0.1)
-                      : theme.palette.mode === 'dark'
-                        ? alpha(theme.palette.background.default, 0.5)
-                        : theme.palette.background.default,
-                  border: `1px solid ${
-                    selectedModality === 'all'
-                      ? theme.palette.primary.main
-                      : theme.palette.mode === 'dark'
-                        ? alpha('#fff', 0.08)
-                        : alpha('#000', 0.05)
-                  }`,
-                  boxShadow: selectedModality === 'all' ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
+                  transition: 'all 0.2s ease',
+                  transform: selectedModality === 'all' ? 'translateY(-1px)' : 'none',
+                  '&:hover': { transform: 'translateY(-1px)' }
                 }}
               >
-                <Icon
-                  icon="eva:grid-outline"
-                  width={16}
-                  height={16}
-                  color={selectedModality === 'all' ? theme.palette.primary.main : theme.palette.text.secondary}
-                />
-                <Typography
-                  variant="body2"
+                <Box
                   sx={{
-                    fontWeight: selectedModality === 'all' ? 600 : 500,
-                    color: selectedModality === 'all' ? theme.palette.primary.main : theme.palette.text.primary,
-                    fontSize: '0.8125rem'
-                  }}
-                >
-                  {t('modelpricePage.allModality')}
-                </Typography>
-              </Box>
-            </ButtonBase>
-            {Object.entries(MODALITY_OPTIONS).map(([key, option]) => {
-              const isSelected = selectedModality === key;
-              return (
-                <ButtonBase
-                  key={key}
-                  onClick={() => setSelectedModality(key)}
-                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    py: 0.75,
+                    px: 1.5,
                     borderRadius: '6px',
-                    transition: 'all 0.2s ease',
-                    transform: isSelected ? 'translateY(-1px)' : 'none',
-                    '&:hover': { transform: 'translateY(-1px)' }
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.75,
-                      py: 0.75,
-                      px: 1.5,
-                      borderRadius: '6px',
-                      backgroundColor: isSelected
-                        ? alpha(theme.palette[option.color]?.main || theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.25 : 0.1)
+                    backgroundColor:
+                      selectedModality === 'all'
+                        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.25 : 0.1)
                         : theme.palette.mode === 'dark'
                           ? alpha(theme.palette.background.default, 0.5)
                           : theme.palette.background.default,
-                      border: `1px solid ${
-                        isSelected
-                          ? theme.palette[option.color]?.main || theme.palette.primary.main
-                          : theme.palette.mode === 'dark'
-                            ? alpha('#fff', 0.08)
-                            : alpha('#000', 0.05)
-                      }`,
-                      boxShadow: isSelected
-                        ? `0 2px 8px ${alpha(theme.palette[option.color]?.main || theme.palette.primary.main, 0.2)}`
-                        : 'none'
+                    border: `1px solid ${
+                      selectedModality === 'all'
+                        ? theme.palette.primary.main
+                        : theme.palette.mode === 'dark'
+                          ? alpha('#fff', 0.08)
+                          : alpha('#000', 0.05)
+                    }`,
+                    boxShadow: selectedModality === 'all' ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
+                  }}
+                >
+                  <Icon
+                    icon="eva:grid-outline"
+                    width={16}
+                    height={16}
+                    color={selectedModality === 'all' ? theme.palette.primary.main : theme.palette.text.secondary}
+                  />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: selectedModality === 'all' ? 600 : 500,
+                      color: selectedModality === 'all' ? theme.palette.primary.main : theme.palette.text.primary,
+                      fontSize: '0.8125rem'
                     }}
                   >
-                    <Typography
-                      variant="body2"
+                    {t('modelpricePage.allModality')}
+                  </Typography>
+                </Box>
+              </ButtonBase>
+              {availableModalities.map(([key, option]) => {
+                const isSelected = selectedModality === key;
+                const count = modalityCounts[key] || 0;
+                const disabled = count === 0;
+                return (
+                  <ButtonBase
+                    key={key}
+                    onClick={() => handleSelectFilter('modality', key, disabled)}
+                    sx={{
+                      borderRadius: '6px',
+                      transition: 'all 0.2s ease',
+                      opacity: disabled ? 0.45 : 1,
+                      transform: isSelected ? 'translateY(-1px)' : 'none',
+                      '&:hover': { transform: 'translateY(-1px)' }
+                    }}
+                  >
+                    <Box
                       sx={{
-                        fontWeight: isSelected ? 600 : 500,
-                        color: isSelected ? theme.palette[option.color]?.main || theme.palette.primary.main : theme.palette.text.primary,
-                        fontSize: '0.8125rem'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.75,
+                        py: 0.75,
+                        px: 1.5,
+                        borderRadius: '6px',
+                        backgroundColor: isSelected
+                          ? alpha(
+                              theme.palette[option.color]?.main || theme.palette.primary.main,
+                              theme.palette.mode === 'dark' ? 0.25 : 0.1
+                            )
+                          : theme.palette.mode === 'dark'
+                            ? alpha(theme.palette.background.default, 0.5)
+                            : theme.palette.background.default,
+                        border: `1px solid ${
+                          isSelected
+                            ? theme.palette[option.color]?.main || theme.palette.primary.main
+                            : theme.palette.mode === 'dark'
+                              ? alpha('#fff', 0.08)
+                              : alpha('#000', 0.05)
+                        }`,
+                        boxShadow: isSelected
+                          ? `0 2px 8px ${alpha(theme.palette[option.color]?.main || theme.palette.primary.main, 0.2)}`
+                          : 'none'
                       }}
                     >
-                      {option.text}
-                    </Typography>
-                  </Box>
-                </ButtonBase>
-              );
-            })}
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: isSelected ? 600 : 500,
+                          color: isSelected ? theme.palette[option.color]?.main || theme.palette.primary.main : theme.palette.text.primary,
+                          fontSize: '0.8125rem'
+                        }}
+                      >
+                        {option.text}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          ml: 0.5,
+                          color: isSelected
+                            ? theme.palette[option.color]?.main || theme.palette.primary.main
+                            : theme.palette.text.secondary,
+                          fontSize: '0.6875rem',
+                          opacity: 0.8
+                        }}
+                      >
+                        {count}
+                      </Typography>
+                    </Box>
+                  </ButtonBase>
+                );
+              })}
+            </Box>
           </Box>
-        </Box>
+        )}
 
         {/* 标签筛选 */}
         {allTags.length > 0 && (
@@ -725,7 +866,7 @@ export default function ModelPrice() {
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               <ButtonBase
-                onClick={() => setSelectedTag('all')}
+                onClick={() => handleSelectFilter('tag', 'all', false)}
                 sx={{
                   borderRadius: '6px',
                   transition: 'all 0.2s ease',
@@ -777,13 +918,16 @@ export default function ModelPrice() {
               </ButtonBase>
               {allTags.map((tag) => {
                 const isSelected = selectedTag === tag;
+                const count = tagCounts[tag] || 0;
+                const disabled = count === 0;
                 return (
                   <ButtonBase
                     key={tag}
-                    onClick={() => setSelectedTag(tag)}
+                    onClick={() => handleSelectFilter('tag', tag, disabled)}
                     sx={{
                       borderRadius: '6px',
                       transition: 'all 0.2s ease',
+                      opacity: disabled ? 0.45 : 1,
                       transform: isSelected ? 'translateY(-1px)' : 'none',
                       '&:hover': { transform: 'translateY(-1px)' }
                     }}
@@ -816,6 +960,18 @@ export default function ModelPrice() {
                         }}
                       >
                         {tag}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          ml: 0.5,
+                          color: isSelected ? theme.palette.info.main : theme.palette.text.secondary,
+                          fontSize: '0.6875rem',
+                          opacity: 0.8
+                        }}
+                      >
+                        {count}
                       </Typography>
                     </Box>
                   </ButtonBase>
@@ -941,8 +1097,66 @@ export default function ModelPrice() {
               gap: 1
             }}
           >
+            <ButtonBase
+              key="all"
+              onClick={() => handleSelectFilter('group', 'all', false)}
+              sx={{
+                position: 'relative',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                transition: 'all 0.2s ease',
+                transform: selectedGroup === 'all' ? 'translateY(-1px)' : 'none',
+                '&:hover': {
+                  transform: 'translateY(-1px)'
+                }
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  py: 0.75,
+                  px: 1.5,
+                  borderRadius: '6px',
+                  backgroundColor:
+                    selectedGroup === 'all'
+                      ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.25 : 0.1)
+                      : theme.palette.mode === 'dark'
+                        ? alpha(theme.palette.background.default, 0.5)
+                        : theme.palette.background.default,
+                  border: `1px solid ${
+                    selectedGroup === 'all'
+                      ? theme.palette.primary.main
+                      : theme.palette.mode === 'dark'
+                        ? alpha('#fff', 0.08)
+                        : alpha('#000', 0.05)
+                  }`,
+                  boxShadow: selectedGroup === 'all' ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}` : 'none'
+                }}
+              >
+                <Icon
+                  icon="eva:grid-outline"
+                  width={16}
+                  height={16}
+                  color={selectedGroup === 'all' ? theme.palette.primary.main : theme.palette.text.secondary}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: selectedGroup === 'all' ? 600 : 500,
+                    color: selectedGroup === 'all' ? theme.palette.primary.main : theme.palette.text.primary,
+                    fontSize: '0.8125rem'
+                  }}
+                >
+                  {t('modelpricePage.all')}
+                </Typography>
+              </Box>
+            </ButtonBase>
             {sortedUserGroupEntries.map(([key, group]) => {
               const isSelected = selectedGroup === key;
+              const count = groupCounts[key] || 0;
+              const disabled = count === 0;
               return (
                 <Tooltip
                   key={key}
@@ -955,12 +1169,13 @@ export default function ModelPrice() {
                   arrow
                 >
                   <ButtonBase
-                    onClick={() => handleGroupChange(key)}
+                    onClick={() => handleSelectFilter('group', key, disabled)}
                     sx={{
                       position: 'relative',
                       borderRadius: '6px',
                       overflow: 'hidden',
                       transition: 'all 0.2s ease',
+                      opacity: disabled ? 0.45 : 1,
                       transform: isSelected ? 'translateY(-1px)' : 'none',
                       '&:hover': {
                         transform: 'translateY(-1px)'
@@ -1005,6 +1220,17 @@ export default function ModelPrice() {
                         }}
                       >
                         {group.name}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          color: isSelected ? theme.palette.primary.main : theme.palette.text.secondary,
+                          fontSize: '0.6875rem',
+                          opacity: 0.8
+                        }}
+                      >
+                        {count}
                       </Typography>
                       {group.ratio > 0 ? (
                         <Box
@@ -1172,11 +1398,7 @@ export default function ModelPrice() {
                                 <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>
                                   {groupPrice.groupName}:
                                 </Typography>
-                                <Typography
-                                  variant="body2"
-                                  color='success.main'
-                                  fontWeight="bold"
-                                >
+                                <Typography variant="body2" color="success.main" fontWeight="bold">
                                   {groupPrice.input > 0
                                     ? formatPrice(groupPrice.input, model.type === 'tokens' ? 'tokens' : 'times')
                                     : t('modelpricePage.free')}
@@ -1197,11 +1419,7 @@ export default function ModelPrice() {
                                 <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>
                                   {groupPrice.groupName}:
                                 </Typography>
-                                <Typography
-                                  variant="body2"
-                                  color= 'success.main'
-                                  fontWeight="bold"
-                                >
+                                <Typography variant="body2" color="success.main" fontWeight="bold">
                                   {groupPrice.output > 0
                                     ? formatPrice(groupPrice.output, model.type === 'tokens' ? 'tokens' : 'times')
                                     : t('modelpricePage.free')}

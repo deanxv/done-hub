@@ -241,7 +241,9 @@ export default function ModelCard({ model, provider, modelInfo, price, group, ow
                   {t('modelpricePage.inputMultiplier')}
                 </Typography>
                 <Label color="success" variant="outlined" sx={{ fontSize: '0.75rem', py: 0.25, px: 0.75, fontWeight: 600 }}>
-                  {formatPrice(price.input, type)}
+                  {price.isRange && price.inputMax !== price.input
+                    ? `${formatPrice(price.input, type)} ~ ${formatPrice(price.inputMax, type)}`
+                    : formatPrice(price.input, type)}
                 </Label>
               </Stack>
               <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -249,7 +251,9 @@ export default function ModelCard({ model, provider, modelInfo, price, group, ow
                   {t('modelpricePage.outputMultiplier')}
                 </Typography>
                 <Label color="warning" variant="outlined" sx={{ fontSize: '0.75rem', py: 0.25, px: 0.75, fontWeight: 600 }}>
-                  {formatPrice(price.output, type)}
+                  {price.isRange && price.outputMax !== price.output
+                    ? `${formatPrice(price.output, type)} ~ ${formatPrice(price.outputMax, type)}`
+                    : formatPrice(price.output, type)}
                 </Label>
               </Stack>
             </Stack>
@@ -271,7 +275,7 @@ export default function ModelCard({ model, provider, modelInfo, price, group, ow
           )}
 
           {/* 用户组信息 */}
-          {group && (
+          {group ? (
             <Box sx={{ mt: 1.5 }}>
               <Stack direction="row" alignItems="center" justifyContent="space-between">
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
@@ -289,7 +293,18 @@ export default function ModelCard({ model, provider, modelInfo, price, group, ow
                 </Stack>
               </Stack>
             </Box>
-          )}
+          ) : price.isRange ? (
+            <Box sx={{ mt: 1.5 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  {t('modelpricePage.currentUserGroup')}
+                </Typography>
+                <Label color="primary" sx={{ fontSize: '0.7rem', py: 0.25, px: 0.75 }}>
+                  {t('modelpricePage.all')}
+                </Label>
+              </Stack>
+            </Box>
+          ) : null}
         </Box>
 
         {/* 操作按钮 */}
