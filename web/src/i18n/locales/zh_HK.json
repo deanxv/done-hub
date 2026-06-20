@@ -432,7 +432,66 @@
     "sourceCode": "源代碼遵循"
   },
   "home": {
-    "loadingErr": "加載首頁內容失敗..."
+    "loadingErr": "加載首頁內容失敗...",
+    "hero": {
+      "title": "所有模型，一個介面",
+      "subtitle": "聚合 OpenAI、Claude、Gemini、DeepSeek 等數十家模型供應商，統一為 OpenAI 相容介面。替換 base_url 即可接入，金鑰、計費與日誌集中管理。",
+      "getStarted": "開始使用",
+      "console": "進入控制台",
+      "viewPricing": "查看價格"
+    },
+    "stats": {
+      "channels": "通道類型",
+      "protocols": "原生協議",
+      "openSource": "完全開源"
+    },
+    "code": {
+      "title": "三種協議，同一入口",
+      "subtitle": "OpenAI、Claude、Gemini 協議原生轉發，不作改寫。",
+      "reply": "你好,我是 {{model}},經 Done Hub 接入。"
+    },
+    "providers": {
+      "title": "覆蓋數十家模型供應商",
+      "subtitle": "海內外主流模型均已接入，統一為 OpenAI 相容格式，新供應商持續更新。"
+    },
+    "features": {
+      "title": "不止於接入",
+      "subtitle": "通道調度、計費分組、用量日誌、客戶端接入，集中在同一套後台。",
+      "items": {
+        "routing": {
+          "title": "通道調度",
+          "desc": "按優先級與權重分配流量，異常自動切換並冷卻恢復。"
+        },
+        "billing": {
+          "title": "計費分組",
+          "desc": "令牌、使用者組、定價、額度、帳單，成本可追溯。"
+        },
+        "observability": {
+          "title": "日誌用量",
+          "desc": "RPM／TPM、消費明細、請求日誌，可按使用者統計匯出。"
+        },
+        "clients": {
+          "title": "客戶端接入",
+          "desc": "Claude Code、Gemini CLI、Codex 等客戶端直接指向，按原生協議轉發。"
+        }
+      }
+    },
+    "howItWorks": {
+      "title": "四步完成接入",
+      "subtitle": "從部署到客戶端接入，對應真實的請求路徑。",
+      "s1Title": "部署",
+      "s1Desc": "用 Docker 啟動 Done Hub，完成基礎配置。",
+      "s2Title": "配置通道",
+      "s2Desc": "啟用 OpenAI、Claude、Gemini 等通道，填入上游金鑰。",
+      "s3Title": "接入客戶端",
+      "s3Desc": "OpenAI 用 /v1，Claude 用 /claude/v1，Gemini 用 /gemini。",
+      "s4Title": "營運",
+      "s4Desc": "查看儀表板與日誌，管理計費與通道狀態。"
+    },
+    "cta": {
+      "title": "完全開源，歡迎 Star 與貢獻",
+      "github": "前往 GitHub"
+    }
   },
   "inviteCard": {
     "copyButton": {

@@ -459,7 +459,66 @@
     "sourceCode": "Source code under"
   },
   "home": {
-    "loadingErr": "Failed to load homepage content..."
+    "loadingErr": "Failed to load homepage content...",
+    "hero": {
+      "title": "Every model, one API",
+      "subtitle": "Aggregate OpenAI, Claude, Gemini, DeepSeek and dozens of providers behind one OpenAI-compatible API. Swap the base URL to connect; manage keys, billing, and logs in one place.",
+      "getStarted": "Get started",
+      "console": "Open console",
+      "viewPricing": "View pricing"
+    },
+    "stats": {
+      "channels": "Channel types",
+      "protocols": "Native protocols",
+      "openSource": "Open source"
+    },
+    "code": {
+      "title": "Three protocols, one address",
+      "subtitle": "OpenAI, Claude, and Gemini requests are proxied as-is.",
+      "reply": "Hi! I'm {{model}}, reached through Done Hub."
+    },
+    "providers": {
+      "title": "Dozens of providers, one API",
+      "subtitle": "Major models worldwide are wired in and normalized to an OpenAI-compatible format, with new providers added over time."
+    },
+    "features": {
+      "title": "More than a gateway",
+      "subtitle": "Channel routing, billing, usage logs, and native clients, all in one backend.",
+      "items": {
+        "routing": {
+          "title": "Channel routing",
+          "desc": "Split traffic by priority and weight; failed upstreams cool down and retry."
+        },
+        "billing": {
+          "title": "Billing & groups",
+          "desc": "Tokens, groups, pricing, quotas, and invoices keep costs traceable."
+        },
+        "observability": {
+          "title": "Logs & usage",
+          "desc": "RPM/TPM, spend, and request logs, with per-user CSV export."
+        },
+        "clients": {
+          "title": "Native clients",
+          "desc": "Point Claude Code, Gemini CLI, and Codex straight at it; each proxied on its native protocol."
+        }
+      }
+    },
+    "howItWorks": {
+      "title": "Up and running in four steps",
+      "subtitle": "From deploy to client, each step follows the real request path.",
+      "s1Title": "Deploy",
+      "s1Desc": "Run Done Hub with Docker and set the basics.",
+      "s2Title": "Add channels",
+      "s2Desc": "Enable OpenAI, Claude, Gemini and add upstream keys.",
+      "s3Title": "Connect clients",
+      "s3Desc": "OpenAI uses /v1, Claude /claude/v1, Gemini /gemini.",
+      "s4Title": "Operate",
+      "s4Desc": "Watch dashboards and logs; manage billing and channels."
+    },
+    "cta": {
+      "title": "Fully open source. Stars and contributions welcome.",
+      "github": "View on GitHub"
+    }
   },
   "inviteCard": {
     "copyButton": {

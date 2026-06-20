@@ -13,6 +13,7 @@
     "@fontsource/barlow": "^5.2.8",
     "@iconify/react": "^5.0.2",
     "@lobehub/i18n-cli": "^1.20.3",
+    "@lobehub/icons": "^5.10.0",
     "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^5.15.7",
     "@mui/lab": "^5.0.0-alpha.163",

@@ -1,42 +1,30 @@
-import { Box, Typography, Button, Container, Stack } from '@mui/material';
-import Grid from '@mui/material/Unstable_Grid2';
-import { GitHub } from '@mui/icons-material';
-import { useTranslation } from 'react-i18next';
+import { Box } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import AmbientBackground from './components/AmbientBackground';
+import Hero from './components/Hero';
+import Stats from './components/Stats';
+import Features from './components/Features';
+import HowItWorks from './components/HowItWorks';
+import CTA from './components/CTA';
 
+// Default visitor landing page (shown when no custom home_page_content is set).
+// Sections are transparent and float over a single shared AmbientBackground so
+// the page reads as one continuous surface rather than stacked cards. Everything
+// follows the active preset color and light/dark mode. The site Footer is
+// rendered by MinimalLayout — not here.
 const BaseIndex = () => {
-  const { t } = useTranslation();
+  const theme = useTheme();
+
   return (
-    <Box
-      sx={{
-        minHeight: 'calc(100vh - 136px)',
-        backgroundImage: 'linear-gradient(to right, #ff9966, #ff5e62)',
-        color: 'white',
-        p: 4
-      }}
-    >
-      <Container maxWidth="lg">
-        <Grid container columns={12} wrap="nowrap" alignItems="center" sx={{ minHeight: 'calc(100vh - 230px)' }}>
-          <Grid md={7} lg={6}>
-            <Stack spacing={3}>
-              <Typography variant="h1" sx={{ fontSize: '4rem', color: '#fff', lineHeight: 1.5 }}>
-                Done Hub
-              </Typography>
-              <Typography variant="h4" sx={{ fontSize: '1.5rem', color: '#fff', lineHeight: 1.5 }}>
-                {t('description')}
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<GitHub />}
-                href="https://github.com/deanxv/done-hub"
-                target="_blank"
-                sx={{ backgroundColor: '#24292e', color: '#fff', width: 'fit-content', boxShadow: '0 3px 5px 2px rgba(255, 105, 135, .3)' }}
-              >
-                GitHub
-              </Button>
-            </Stack>
-          </Grid>
-        </Grid>
-      </Container>
+    <Box sx={{ position: 'relative', overflowX: 'clip', backgroundColor: theme.palette.background.default }}>
+      <AmbientBackground />
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        <Hero />
+        <Stats />
+        <Features />
+        <HowItWorks />
+        <CTA />
+      </Box>
     </Box>
   );
 };

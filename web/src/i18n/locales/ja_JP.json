@@ -441,7 +441,66 @@
     "sourceCode": "ソースコードは"
   },
   "home": {
-    "loadingErr": "ホームページのコンテンツを読み込めませんでした..."
+    "loadingErr": "ホームページのコンテンツを読み込めませんでした...",
+    "hero": {
+      "title": "すべてのモデルを、ひとつの API で",
+      "subtitle": "OpenAI、Claude、Gemini、DeepSeek など数十のプロバイダーを OpenAI 互換 API に統一。base URL を差し替えるだけで接続でき、キー・課金・ログを一元管理。",
+      "getStarted": "今すぐ始める",
+      "console": "コンソールへ",
+      "viewPricing": "料金を見る"
+    },
+    "stats": {
+      "channels": "チャネル種別",
+      "protocols": "ネイティブプロトコル",
+      "openSource": "オープンソース"
+    },
+    "code": {
+      "title": "3 つのプロトコル、ひとつのアドレス",
+      "subtitle": "OpenAI・Claude・Gemini のリクエストをそのままプロキシ。",
+      "reply": "こんにちは。{{model}} です。Done Hub 経由で接続しています。"
+    },
+    "providers": {
+      "title": "数十のプロバイダーを、ひとつの API で",
+      "subtitle": "国内外の主要モデルを接続済み、OpenAI 互換に統一。新しいプロバイダーも順次追加。"
+    },
+    "features": {
+      "title": "つなぐだけでは終わらない",
+      "subtitle": "チャネル振り分け、課金、ログ、クライアント接続。運用に必要な機能をひとつの管理画面に。",
+      "items": {
+        "routing": {
+          "title": "チャネル振り分け",
+          "desc": "優先度と重みで振り分け、落ちた上流はクールダウン後に再試行。"
+        },
+        "billing": {
+          "title": "課金とグループ",
+          "desc": "トークン、グループ、価格、上限、請求。コストを追跡できます。"
+        },
+        "observability": {
+          "title": "ログと使用量",
+          "desc": "RPM／TPM、消費、リクエストログ。ユーザー別 CSV 出力も。"
+        },
+        "clients": {
+          "title": "クライアント接続",
+          "desc": "Claude Code、Gemini CLI、Codex などをそのまま接続。各クライアントのネイティブプロトコルで転送。"
+        }
+      }
+    },
+    "howItWorks": {
+      "title": "4 ステップで稼働",
+      "subtitle": "デプロイから接続まで、各ステップが実際のリクエストパスに沿います。",
+      "s1Title": "デプロイ",
+      "s1Desc": "Docker で Done Hub を起動し、基本設定。",
+      "s2Title": "チャネル追加",
+      "s2Desc": "OpenAI、Claude、Gemini を有効化し、上流キーを登録。",
+      "s3Title": "クライアント接続",
+      "s3Desc": "OpenAI は /v1、Claude は /claude/v1、Gemini は /gemini。",
+      "s4Title": "運用",
+      "s4Desc": "ダッシュボードとログを見て、課金とチャネルを管理。"
+    },
+    "cta": {
+      "title": "完全オープンソース。Star・コントリビュート歓迎。",
+      "github": "GitHub を見る"
+    }
   },
   "inviteCard": {
     "copyButton": {
