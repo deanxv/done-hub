@@ -193,17 +193,10 @@ func (p *ClaudeProvider) getClaudeNativeRequest(request *ClaudeRequest) (*http.R
 // 注意事项：
 //   - thinking 字段只支持"移除/保留"，不支持 done-hub 主动添加（当前业务无此路径）。
 func (p *ClaudeProvider) patchClaudeRequestBody(request *ClaudeRequest) ([]byte, bool) {
-	if p.Context == nil {
-		return nil, false
-	}
-	rawBody, err := common.ReadBodyRaw(p.Context)
-	if err != nil || len(rawBody) == 0 {
-		return nil, false
-	}
-
 	// 必须看起来像 Claude 原生 /v1/messages 请求（含 messages 字段），
 	// 否则可能是 OpenAI→Claude 转换路径走错了入口，直接放弃透传。
-	if !gjson.GetBytes(rawBody, "messages").Exists() {
+	rawBody, ok := p.ReadNativeRawBody("messages")
+	if !ok {
 		return nil, false
 	}
 

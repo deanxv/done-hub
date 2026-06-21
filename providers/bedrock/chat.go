@@ -46,7 +46,7 @@ func (p *BedrockProvider) Send(request *types.ChatCompletionRequest) (*http.Resp
 
 func (p *BedrockProvider) getChatRequest(request *types.ChatCompletionRequest) (*http.Request, *types.OpenAIErrorWithStatusCode) {
 	var err error
-	p.Category, err = category.GetCategory(request.Model)
+	p.Category, err = category.GetCategory(request.Model, p.Region)
 	if err != nil || p.Category.ChatComplete == nil || p.Category.ResponseChatComplete == nil {
 		return nil, common.StringErrorWrapperLocal("bedrock provider not found", "bedrock_err", http.StatusInternalServerError)
 	}

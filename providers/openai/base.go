@@ -325,11 +325,8 @@ func (p *OpenAIProvider) mergeExtraBodyFromRawRequest(requestMap map[string]inte
 // （模型映射会改写 ModelName），其余一律按字节保留。
 // 返回 (字节, true) 表示透传可用；返回 (nil, false) 表示应回退结构体序列化路径。
 func (p *OpenAIProvider) patchPassThroughBody(modelName string) ([]byte, bool) {
-	if p.Context == nil {
-		return nil, false
-	}
-	rawBody, err := common.ReadBodyRaw(p.Context)
-	if err != nil || len(rawBody) == 0 {
+	rawBody, ok := p.ReadNativeRawBody("")
+	if !ok {
 		return nil, false
 	}
 

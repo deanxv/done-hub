@@ -615,6 +615,23 @@ func (p *BaseProvider) GetRawBody() ([]byte, bool) {
 	return nil, false
 }
 
+// ReadNativeRawBody 读取并缓存客户端原始请求字节，作为原生路径字节级透传的基础。
+// mustHave 非空时要求 body 含该顶层字段（用于排除走错入口的转换请求）。
+// context 缺失 / 读取失败 / body 为空 / 缺 mustHave 字段时返回 (nil,false)，调用方应回退结构体序列化。
+func (p *BaseProvider) ReadNativeRawBody(mustHave string) ([]byte, bool) {
+	if p.Context == nil {
+		return nil, false
+	}
+	rawBody, err := common.ReadBodyRaw(p.Context)
+	if err != nil || len(rawBody) == 0 {
+		return nil, false
+	}
+	if mustHave != "" && !gjson.GetBytes(rawBody, mustHave).Exists() {
+		return nil, false
+	}
+	return rawBody, true
+}
+
 // ClearRawBody 清理缓存的请求体以释放内存
 // 应在请求体不再需要后调用（如已发送到上游后）
 func (p *BaseProvider) ClearRawBody() {

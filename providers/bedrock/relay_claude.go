@@ -8,6 +8,9 @@ import (
 	"done-hub/providers/claude"
 	"done-hub/types"
 	"net/http"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*claude.ClaudeResponse, *types.OpenAIErrorWithStatusCode) {
@@ -24,7 +27,11 @@ func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*clau
 		return nil, openaiErr
 	}
 
-	claude.ClaudeUsageToOpenaiUsage(&claudeResponse.Usage, p.GetUsage())
+	usage := p.GetUsage()
+	if isOk := claude.ClaudeUsageToOpenaiUsage(&claudeResponse.Usage, usage); !isOk {
+		usage.CompletionTokens = claude.ClaudeOutputUsage(claudeResponse)
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
 
 	return claudeResponse, nil
 }
@@ -59,7 +66,7 @@ func (p *BedrockProvider) CreateClaudeChatStream(request *claude.ClaudeRequest) 
 
 func (p *BedrockProvider) getClaudeRequest(request *claude.ClaudeRequest) (*http.Request, *types.OpenAIErrorWithStatusCode) {
 	var err error
-	p.Category, err = category.GetCategory(request.Model)
+	p.Category, err = category.GetCategory(request.Model, p.Region)
 	if err != nil || p.Category == nil {
 		return nil, common.StringErrorWrapperLocal("bedrock provider not found", "bedrock_err", http.StatusInternalServerError)
 	}
@@ -85,8 +92,19 @@ func (p *BedrockProvider) getClaudeRequest(request *claude.ClaudeRequest) (*http
 		return nil, common.StringErrorWrapperLocal("bedrock config error", "invalid_bedrock_config", http.StatusInternalServerError)
 	}
 
-	copyRequest := *request
+	// Bedrock 跑的就是 Claude，与 Anthropic 渠道一致：原生请求恒字节透传（保留客户端
+	// 指纹/未知字段），仅去掉 Bedrock 不接受的 model/stream 并注入 anthropic_version；
+	// 取不到原始字节时回退结构体序列化。两条路径都经 custom_params 合并。
+	if patched, ok := p.patchPassThroughBody(request); ok {
+		req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, patched, headers, request.Model)
+		if errWithCode != nil {
+			return nil, errWithCode
+		}
+		p.Sign(req)
+		return req, nil
+	}
 
+	copyRequest := *request
 	bedrockRequest := &category.ClaudeRequest{
 		ClaudeRequest:    &copyRequest,
 		AnthropicVersion: category.AnthropicVersion,
@@ -94,13 +112,61 @@ func (p *BedrockProvider) getClaudeRequest(request *claude.ClaudeRequest) (*http
 	bedrockRequest.Model = ""
 	bedrockRequest.Stream = false
 
-	// 创建请求
-	req, err := p.Requester.NewRequest(http.MethodPost, fullRequestURL, p.Requester.WithBody(bedrockRequest), p.Requester.WithHeader(headers))
-	if err != nil {
-		return nil, common.StringErrorWrapperLocal(err.Error(), "new_request_failed", http.StatusInternalServerError)
+	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, bedrockRequest, headers, request.Model)
+	if errWithCode != nil {
+		return nil, errWithCode
 	}
 
 	p.Sign(req)
 
 	return req, nil
+}
+
+// patchPassThroughBody 读取 gin 缓存的原始 Claude 原生请求体，去掉 Bedrock 不接受的
+// model（走 URL）/ stream（走 API 选择）字段并注入 anthropic_version，其余字节原样保留。
+// 同时回写 applyClaudeThinkingConstraints 对结构体做的两处约束（max_tokens 抬高、
+// thinking 置 nil），否则透传出去的 body 会带着违规字段被 Bedrock 拒绝。
+// 返回 (字节, true) 表示透传可用；返回 (nil, false) 表示应回退结构体序列化路径。
+func (p *BedrockProvider) patchPassThroughBody(request *claude.ClaudeRequest) ([]byte, bool) {
+	// 必须是 Claude 原生 /v1/messages 请求（含 messages 字段），否则放弃透传
+	out, ok := p.ReadNativeRawBody("messages")
+	if !ok {
+		return nil, false
+	}
+
+	for _, field := range []string{"model", "stream"} {
+		if !gjson.GetBytes(out, field).Exists() {
+			continue
+		}
+		patched, err := sjson.DeleteBytes(out, field)
+		if err != nil {
+			return nil, false
+		}
+		out = patched
+	}
+
+	// max_tokens 可能被 applyClaudeThinkingConstraints 抬高（thinking.budget+4000）
+	if request.MaxTokens > 0 && gjson.GetBytes(out, "max_tokens").Int() != int64(request.MaxTokens) {
+		patched, err := sjson.SetBytes(out, "max_tokens", request.MaxTokens)
+		if err != nil {
+			return nil, false
+		}
+		out = patched
+	}
+
+	// thinking 可能被约束置 nil（tool_choice=any/tool 时与 thinking 互斥）
+	if request.Thinking == nil && gjson.GetBytes(out, "thinking").Exists() {
+		patched, err := sjson.DeleteBytes(out, "thinking")
+		if err != nil {
+			return nil, false
+		}
+		out = patched
+	}
+
+	out, err := sjson.SetBytes(out, "anthropic_version", category.AnthropicVersion)
+	if err != nil {
+		return nil, false
+	}
+
+	return out, true
 }
