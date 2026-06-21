@@ -44,7 +44,7 @@ var regionPrefixes = []string{"global.", "us.", "eu.", "apac."}
 //
 // 注意 AP 区分两代：claude-3.x / sonnet-4 / opus-4-1 等旧世代有 apac. profile；
 // 4.5+ 新世代（sonnet-4-5/4-6、haiku-4-5、opus-4-5/4-6/4-7/4-8）没有 apac.，AP 区统一
-// 走 global.。opus-4-5 更特殊，连 us./eu. regional 都没有，全部 region 只能走 global.。
+// 走 global.（这些新模型在 AP 仅有 global，无 jp/au 时也用 global 兜底）。
 var awsModelCanCrossRegionMap = map[string]map[string]string{
 	"anthropic.claude-3-sonnet-20240229-v1:0":   {"us": "us", "eu": "eu", "ap": "apac"},
 	"anthropic.claude-3-opus-20240229-v1:0":     {"us": "us"},
@@ -59,7 +59,7 @@ var awsModelCanCrossRegionMap = map[string]map[string]string{
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-sonnet-4-6":               {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-haiku-4-5-20251001-v1:0":  {"us": "us", "eu": "eu", "ap": "global"},
-	"anthropic.claude-opus-4-5-20251101-v1:0":   {"us": "global", "eu": "global", "ap": "global"},
+	"anthropic.claude-opus-4-5-20251101-v1:0":   {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-opus-4-6-v1":              {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-opus-4-7":                 {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-opus-4-8":                 {"us": "us", "eu": "eu", "ap": "global"},
