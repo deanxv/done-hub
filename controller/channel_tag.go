@@ -17,7 +17,15 @@ func GetChannelsTagList(c *gin.Context) {
 		return
 	}
 
-	channelsTag, err := model.GetChannelsTagList(tag)
+	var params model.SearchChannelsTagParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		common.APIRespondWithError(c, http.StatusOK, err)
+		return
+	}
+	// path param 为准，避免被 query 篡改
+	params.Tag = tag
+
+	channelsTag, err := model.GetChannelsTagList(&params)
 	if err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
 		return
@@ -112,11 +120,17 @@ func DeleteDisabledChannelsTag(c *gin.Context) {
 		common.APIRespondWithError(c, http.StatusOK, err)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
 }
 
+// UpdateChannelsTagParams 承载整组「优先级 / 权重 / 成本倍率」的统一设置。
+// Value 用 float64 以兼容成本倍率的小数；优先级/权重在落库前转回整型。
 type UpdateChannelsTagParams struct {
-	Type  string `json:"type"`
-	Value int    `json:"value"`
+	Type  string  `json:"type"`
+	Value float64 `json:"value"`
 }
 
 func UpdateChannelsTagPriority(c *gin.Context) {
@@ -135,13 +149,24 @@ func UpdateChannelsTagPriority(c *gin.Context) {
 
 	switch params.Type {
 	case "priority":
-		err = model.UpdateChannelsTagPriority(tag, params.Value)
-		if err != nil {
-			common.APIRespondWithError(c, http.StatusOK, err)
-			return
+		err = model.UpdateChannelsTagPriority(tag, int(params.Value))
+	case "weight":
+		if params.Value < 1 {
+			params.Value = 1
 		}
+		err = model.UpdateChannelsTagWeight(tag, uint(params.Value))
+	case "cost_ratio":
+		if params.Value < 0 {
+			params.Value = 0
+		}
+		err = model.UpdateChannelsTagCostRatio(tag, params.Value)
 	default:
 		common.AbortWithMessage(c, http.StatusOK, "invalid type")
+		return
+	}
+
+	if err != nil {
+		common.APIRespondWithError(c, http.StatusOK, err)
 		return
 	}
 
@@ -162,9 +187,9 @@ func ChangeChannelsTagStatus(c *gin.Context) {
 	var statusInt int
 	switch status {
 	case "enable":
-		statusInt = config.TokenStatusEnabled
+		statusInt = config.ChannelStatusEnabled
 	case "disable":
-		statusInt = config.TokenStatusDisabled
+		statusInt = config.ChannelStatusManuallyDisabled
 	}
 
 	if statusInt == 0 {

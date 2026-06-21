@@ -254,10 +254,10 @@ export default function TableToolBar({ filterName, handleFilterName, groupOption
           </Select>
         </FormControl>
         <FormControl>
-          <InputLabel htmlFor="channel-filter_tag-label">{t('channel_index.filterTags')}</InputLabel>
+          <InputLabel htmlFor="channel-filter_tag-label">{t('channel_index.tagFilter')}</InputLabel>
           <Select
             id="channel-filter_tag-label"
-            label={t('channel_index.filterTags')}
+            label={t('channel_index.tagFilter')}
             value={filterName.filter_tag}
             name="filter_tag"
             onChange={handleFilterName}
@@ -276,7 +276,7 @@ export default function TableToolBar({ filterName, handleFilterName, groupOption
               {t('channel_index.all')}
             </MenuItem>
             <MenuItem key={1} value={1}>
-              {t('channel_index.filterTags')}
+              {t('channel_index.noTagOnly')}
             </MenuItem>
             <MenuItem key={2} value={2}>
               {t('channel_index.onlyTags')}
