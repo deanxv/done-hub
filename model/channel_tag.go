@@ -27,7 +27,7 @@ type ChannelTag struct {
 	ResponseTime float64 `json:"response_time"` // 组内已测渠道的平均响应时间(ms)，未测渠道不计入
 }
 
-// CheckTagTypeConsistency 护栏：标签语义是「同配置、多 Key 的克隆组」，全组类型必须一致。
+// CheckTagTypeConsistency 护栏：同一标签下的渠道共享同一套配置、各自不同 Key，全组类型必须一致。
 // 阻止把不同类型的渠道加入同一标签，避免后续分组统一编辑把整组覆盖成单一类型。
 // excludeID 用于编辑自身时排除当前渠道（新建时传 0）。
 func CheckTagTypeConsistency(tag string, channelType int, excludeID int) error {
@@ -192,8 +192,8 @@ func UpdateChannelsTag(tag string, channel *Channel) error {
 	//  - Select("*") 强制写入零值（修复 only_chat=false / pre_cost=0 / other="" 等无法保存的问题）
 	//  - 黑名单排除逐行/运行时字段；新增 Channel 字段会自动纳入批量更新，避免漏字段
 	//  - priority/weight/cost_ratio 为逐行可调字段（成本倍率支持组内各渠道单独设置），不随分组统一编辑覆盖
-	//  - type 为克隆组的根本属性，由创建时决定；分组编辑弹窗不显示类型字段，故统一编辑不得改写 type，
-	//    否则会把代表渠道的类型悄悄覆盖到全组（混合组尤其危险），违反「所见即所得」
+	//  - type 为渠道的根本属性，由创建时决定；分组编辑弹窗不显示类型字段，故统一编辑不得改写 type，
+	//    否则会把代表渠道的类型悄悄覆盖到全组（类型不一致的分组尤其危险），违反「所见即所得」
 	err = tx.Model(&Channel{}).Where("tag = ?", tag).
 		Select("*").
 		Omit("id", "key", "type", "status", "priority", "weight", "cost_ratio",

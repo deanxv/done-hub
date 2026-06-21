@@ -172,8 +172,8 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	// 校验类型一致性：标签变化（加入/切换标签）时校验；标签未变但「在组内单独编辑改了类型」时
-	// 也要校验，防止单渠道编辑把同一克隆组变成混合类型。仅编辑已有成员且类型未变则放行，
-	// 避免阻断历史遗留的混合组成员的正常编辑。
+	// 也要校验，防止单渠道编辑把同一标签分组变成混合类型。仅编辑已有成员且类型未变则放行，
+	// 避免阻断历史遗留的混合分组成员的正常编辑。
 	oldChannel, getErr := model.GetChannelById(channel.Id)
 	if getErr != nil || oldChannel.Tag != channel.Tag || (channel.Tag != "" && oldChannel.Type != channel.Type) {
 		if err = model.CheckTagTypeConsistency(channel.Tag, channel.Type, channel.Id); err != nil {
