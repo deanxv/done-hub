@@ -2,8 +2,11 @@ package gemini
 
 import (
 	"bytes"
+	"context"
+	"done-hub/common/cache"
 	"done-hub/common/logger"
 	"done-hub/common/requester"
+	"done-hub/common/utils"
 	"done-hub/model"
 	"done-hub/providers/base"
 	"done-hub/providers/openai"
@@ -17,7 +20,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
+
+const geminiSATokenCacheKey = "api_token:gemini_sa"
+const geminiSAScope = "https://www.googleapis.com/auth/generative-language"
 
 type GeminiProviderFactory struct{}
 
@@ -46,6 +55,14 @@ func (f GeminiProviderFactory) Create(channel *model.Channel) base.ProviderInter
 		version = channel.Other
 	}
 
+	// Key 是服务账号 JSON 时改用 OAuth Bearer 认证（见 GetRequestHeaders）。
+	// use_openai_api 会绕到 OpenAIProvider 的 Bearer <Key> 逻辑（把整段 JSON 当 key），
+	// 对服务账号无效，这里强制关闭；原生路径同样接受 OpenAI 格式请求并转换，功能等价。
+	saEmail, useServiceAccount := parseServiceAccountEmail(channel.Key)
+	if useServiceAccount {
+		useOpenaiAPI = false
+	}
+
 	return &GeminiProvider{
 		OpenAIProvider: openai.OpenAIProvider{
 			BaseProvider: base.BaseProvider{
@@ -55,8 +72,9 @@ func (f GeminiProviderFactory) Create(channel *model.Channel) base.ProviderInter
 			},
 			SupportStreamOptions: true,
 		},
-		UseOpenaiAPI:     useOpenaiAPI,
-		UseCodeExecution: useCodeExecution,
+		UseOpenaiAPI:        useOpenaiAPI,
+		UseCodeExecution:    useCodeExecution,
+		ServiceAccountEmail: saEmail,
 	}
 }
 
@@ -64,6 +82,8 @@ type GeminiProvider struct {
 	openai.OpenAIProvider
 	UseOpenaiAPI     bool
 	UseCodeExecution bool
+	// ServiceAccountEmail 非空表示 Key 是 GCP 服务账号 JSON，认证走 OAuth Bearer token。
+	ServiceAccountEmail string
 }
 
 func getConfig(version string) base.ProviderConfig {
@@ -365,11 +385,74 @@ func (p *GeminiProvider) GetFullRequestURL(requestURL string, modelName string) 
 
 }
 
+// parseServiceAccountEmail 解析 GCP 服务账号 JSON 并返回 client_email。
+// 若 key 不是服务账号凭证（如普通的 AIza API Key），ok 返回 false。
+func parseServiceAccountEmail(key string) (email string, ok bool) {
+	if !strings.HasPrefix(strings.TrimSpace(key), "{") {
+		return "", false
+	}
+	var sa struct {
+		Type        string `json:"type"`
+		ClientEmail string `json:"client_email"`
+	}
+	if err := json.Unmarshal([]byte(key), &sa); err != nil || sa.Type != "service_account" {
+		return "", false
+	}
+	return sa.ClientEmail, true
+}
+
+// GetToken 用服务账号凭证换取调用 Gemini API 的 OAuth token，带缓存。
+// 复刻自 vertexai.GetToken，区别仅在于 scope 用 generative-language 而非 cloud-platform。
+func (p *GeminiProvider) GetToken() (string, error) {
+	cacheKey := fmt.Sprintf("%s:%s", geminiSATokenCacheKey, p.ServiceAccountEmail)
+	token, err := cache.GetCache[string](cacheKey)
+	if err != nil {
+		logger.SysError("Failed to get token from cache: " + err.Error())
+	}
+
+	if token != "" {
+		return token, nil
+	}
+
+	config, err := google.JWTConfigFromJSON([]byte(p.Channel.Key), geminiSAScope)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse credentials: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	ctx = utils.SetProxy(p.Channel.GetProxy(), ctx)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, requester.HTTPClient)
+
+	tok, err := config.TokenSource(ctx).Token()
+	if err != nil {
+		return "", fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	duration := time.Until(tok.Expiry) - 5*time.Minute
+	if duration <= 0 {
+		duration = 30 * time.Second
+	}
+	cache.SetCache(cacheKey, tok.AccessToken, duration)
+
+	return tok.AccessToken, nil
+}
+
 // 获取请求头
 func (p *GeminiProvider) GetRequestHeaders() (headers map[string]string) {
 	headers = make(map[string]string)
 	p.CommonRequestHeaders(headers)
-	headers["x-goog-api-key"] = p.Channel.Key
 
+	if p.ServiceAccountEmail != "" {
+		token, err := p.GetToken()
+		if err != nil {
+			logger.SysError("[Gemini] failed to get service account token: " + err.Error())
+			return headers
+		}
+		headers["Authorization"] = "Bearer " + token
+		return headers
+	}
+
+	headers["x-goog-api-key"] = p.Channel.Key
 	return headers
 }
