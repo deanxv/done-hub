@@ -246,6 +246,12 @@ func (p *AntigravityProvider) getChatRequest(geminiRequest *gemini.GeminiChatReq
 	// Claude 模型特殊处理：将 parametersJsonSchema 改回 parameters
 	if isClaudeModel {
 		convertToolsParametersForClaude(requestMap)
+	} else {
+		// Gemini 上游同样不认 parametersJsonSchema（实测：name/description 生效，
+		// 但 parametersJsonSchema 被无视，模型只能照 description 瞎猜参数），
+		// 只认原生 parameters(Schema)。这里把 parametersJsonSchema 转成合法的 Gemini Schema：
+		// 内联 $ref、删除 $schema/additionalProperties 等不支持字段、type 转大写。
+		convertToolsParametersForGemini(requestMap)
 	}
 
 	delete(requestMap, "safetySettings")
@@ -556,6 +562,133 @@ func convertToolsParametersForClaude(requestMap map[string]interface{}) {
 			}
 		}
 	}
+}
+
+// convertToolsParametersForGemini 将 Gemini 模型的 parametersJsonSchema 转换成原生 parameters(Schema)。
+// Antigravity 的 Gemini 上游不认 parametersJsonSchema，只认 parameters；且 parameters 是 Gemini
+// Schema（type 为大写枚举、不支持 $ref/$defs/additionalProperties 等 JSON Schema 关键字），
+// 因此需要做一次结构转换而非简单改名。
+func convertToolsParametersForGemini(requestMap map[string]interface{}) {
+	tools, ok := requestMap["tools"].([]interface{})
+	if !ok || len(tools) == 0 {
+		return
+	}
+
+	for _, tool := range tools {
+		toolMap, ok := tool.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		funcDecls, ok := toolMap["functionDeclarations"].([]interface{})
+		if !ok {
+			continue
+		}
+
+		for _, funcDecl := range funcDecls {
+			funcDeclMap, ok := funcDecl.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			raw, hasParams := funcDeclMap["parametersJsonSchema"]
+			if !hasParams {
+				continue
+			}
+
+			// root 用于解析 $ref（形如 "#/$defs/Xxx" 的文档内引用）。
+			root, _ := raw.(map[string]interface{})
+			funcDeclMap["parameters"] = jsonSchemaToGeminiSchema(raw, root, nil)
+			delete(funcDeclMap, "parametersJsonSchema")
+		}
+	}
+}
+
+// jsonSchemaToGeminiSchema 把一份 JSON Schema 转成 Gemini 原生 Schema：
+//   - 内联 $ref（Gemini Schema 不认引用），并丢弃 $defs/definitions；
+//   - type 转大写（Gemini 的 Type 枚举：STRING/OBJECT/ARRAY/...）；
+//   - 只保留 Gemini Schema 支持的字段，其余（$schema、additionalProperties 等）一律丢弃；
+//   - seen 用于打断循环引用，避免无限递归。
+func jsonSchemaToGeminiSchema(value any, root map[string]interface{}, seen map[string]bool) any {
+	schema, ok := value.(map[string]interface{})
+	if !ok {
+		return value
+	}
+
+	if ref, ok := schema["$ref"].(string); ok {
+		if seen[ref] {
+			return map[string]interface{}{"type": "OBJECT"}
+		}
+		if root != nil {
+			if resolved, found := resolveAntigravityJSONRef(root, ref); found {
+				next := make(map[string]bool, len(seen)+1)
+				for k := range seen {
+					next[k] = true
+				}
+				next[ref] = true
+				return jsonSchemaToGeminiSchema(resolved, root, next)
+			}
+		}
+	}
+
+	out := map[string]interface{}{}
+	if typ, ok := schema["type"].(string); ok {
+		out["type"] = strings.ToUpper(typ)
+	} else if _, ok := schema["properties"]; ok {
+		out["type"] = "OBJECT"
+	}
+
+	for _, key := range []string{"description", "required", "enum", "format", "nullable",
+		"minimum", "maximum", "minItems", "maxItems", "minLength", "maxLength", "pattern"} {
+		if v, exists := schema[key]; exists {
+			out[key] = v
+		}
+	}
+
+	if properties, ok := schema["properties"].(map[string]interface{}); ok {
+		converted := map[string]interface{}{}
+		for key, property := range properties {
+			converted[key] = jsonSchemaToGeminiSchema(property, root, seen)
+		}
+		out["properties"] = converted
+	}
+	if items, ok := schema["items"]; ok {
+		out["items"] = jsonSchemaToGeminiSchema(items, root, seen)
+	}
+	if anyOf, ok := schema["anyOf"].([]interface{}); ok {
+		converted := make([]interface{}, 0, len(anyOf))
+		for _, item := range anyOf {
+			converted = append(converted, jsonSchemaToGeminiSchema(item, root, seen))
+		}
+		out["anyOf"] = converted
+	}
+	return out
+}
+
+// resolveAntigravityJSONRef 解析文档内引用（形如 "#/$defs/Replacement"），只支持以 "#" 开头的本地 JSON Pointer。
+func resolveAntigravityJSONRef(root map[string]interface{}, ref string) (any, bool) {
+	if !strings.HasPrefix(ref, "#") {
+		return nil, false
+	}
+	pointer := strings.TrimPrefix(strings.TrimPrefix(ref, "#"), "/")
+	if pointer == "" {
+		return root, true
+	}
+
+	var current any = root
+	for _, token := range strings.Split(pointer, "/") {
+		token = strings.ReplaceAll(token, "~1", "/")
+		token = strings.ReplaceAll(token, "~0", "~")
+		node, ok := current.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		current, ok = node[token]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 // reorganizeToolMessages 重组消息，确保 functionCall 后紧跟对应的 functionResponse
