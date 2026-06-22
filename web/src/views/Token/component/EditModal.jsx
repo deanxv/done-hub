@@ -46,7 +46,11 @@ import 'dayjs/locale/zh-cn';
 const validationSchema = Yup.object().shape({
   is_edit: Yup.boolean(),
   name: Yup.string().required('名称 不能为空'),
-  remain_quota: Yup.number().min(0, '必须大于等于0'),
+  remain_quota: Yup.number().when('unlimited_quota', {
+    is: true,
+    then: (schema) => schema,
+    otherwise: (schema) => schema.min(0, '必须大于等于0')
+  }),
   expired_time: Yup.number(),
   unlimited_quota: Yup.boolean(),
   setting: Yup.object().shape({
@@ -472,19 +476,22 @@ const EditModal = ({ open, tokenId, onCancel, onOk, userGroupOptions, adminMode 
                     label={t('token_index.unlimitedQuota')}
                   />
                 </FormControl>
-                <QuotaInput
-                  id="channel-remain_quota-label"
-                  name="remain_quota"
-                  label={t('token_index.quota')}
-                  value={values.remain_quota}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  disabled={values.unlimited_quota}
-                  error={Boolean(touched.remain_quota && errors.remain_quota)}
-                  helperText={touched.remain_quota && errors.remain_quota ? errors.remain_quota : ''}
-                  sx={{ ...theme.typography.otherInput }}
-                />
-                <Alert severity="info">{t('token_index.quotaNote')}</Alert>
+                {!values.unlimited_quota && (
+                  <>
+                    <QuotaInput
+                      id="channel-remain_quota-label"
+                      name="remain_quota"
+                      label={t('token_index.quota')}
+                      value={values.remain_quota}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      error={Boolean(touched.remain_quota && errors.remain_quota)}
+                      helperText={touched.remain_quota && errors.remain_quota ? errors.remain_quota : ''}
+                      sx={{ ...theme.typography.otherInput }}
+                    />
+                    <Alert severity="info">{t('token_index.quotaNote')}</Alert>
+                  </>
+                )}
                 <Divider sx={{ margin: '16px 0px' }} />
                 <Typography variant="h4">{t('token_index.heartbeat')}</Typography>
                 <Typography variant="caption">{t('token_index.heartbeatTip')}</Typography>

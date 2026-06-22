@@ -63,6 +63,7 @@ const OperationSetting = () => {
     ChannelDisableThreshold: 0,
     LogConsumeEnabled: 'true',
     DisplayInCurrencyEnabled: 'false',
+    DisplayTokenStatEnabled: 'false',
     ApproximateTokenEnabled: 'false',
     EmptyResponseBillingEnabled: 'true',
     UnifiedRequestResponseModelEnabled: 'false',
@@ -681,6 +682,18 @@ const OperationSetting = () => {
                   checked={dataLoaded ? inputs.DisplayInCurrencyEnabled === 'true' : false}
                   onChange={handleInputChange}
                   name="DisplayInCurrencyEnabled"
+                  disabled={!dataLoaded || loading}
+                />
+              }
+            />
+
+            <FormControlLabel
+              label={t('setting_index.operationSettings.generalSettings.displayTokenStat')}
+              control={
+                <Checkbox
+                  checked={dataLoaded ? inputs.DisplayTokenStatEnabled === 'true' : false}
+                  onChange={handleInputChange}
+                  name="DisplayTokenStatEnabled"
                   disabled={!dataLoaded || loading}
                 />
               }

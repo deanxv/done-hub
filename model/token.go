@@ -486,6 +486,39 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 	return err
 }
 
+// AddTokenUsedQuota 仅按带符号增量调整令牌的 used_quota（用量计量），不触碰 remain_quota（额度上限）。
+// 用于无限额度令牌：它没有额度上限的概念，但仍需统计真实用量。quota 为正表示消费、为负表示退还。
+func AddTokenUsedQuota(id int, quota int) (err error) {
+	if config.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeTokenUsedQuota, id, quota)
+		return nil
+	}
+	return addTokenUsedQuota(id, quota)
+}
+
+func addTokenUsedQuota(id int, quota int) (err error) {
+	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
+		map[string]interface{}{
+			"used_quota":    gorm.Expr("used_quota + ?", quota),
+			"accessed_time": utils.GetTimestamp(),
+		},
+	).Error
+
+	// 清除缓存
+	if err == nil && config.RedisEnabled {
+		var key string
+		keyCol := "`key`"
+		if common.UsingPostgreSQL {
+			keyCol = `"key"`
+		}
+		if getErr := DB.Model(&Token{}).Where("id = ?", id).Select(keyCol).Scan(&key).Error; getErr == nil && key != "" {
+			redis.RedisDel(fmt.Sprintf(UserTokensKey, key))
+		}
+	}
+
+	return err
+}
+
 func PreConsumeTokenQuota(tokenId int, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
@@ -509,11 +542,14 @@ func PreConsumeTokenQuota(tokenId int, quota int) (err error) {
 	if quotaTooLow || noMoreQuota {
 		go sendQuotaWarningEmail(token.UserId, userQuota, noMoreQuota)
 	}
-	if !token.UnlimitedQuota {
+	if token.UnlimitedQuota {
+		// 无限额度令牌没有上限，只累计用量，不扣减 remain_quota
+		err = AddTokenUsedQuota(tokenId, quota)
+	} else {
 		err = DecreaseTokenQuota(tokenId, quota)
-		if err != nil {
-			return err
-		}
+	}
+	if err != nil {
+		return err
 	}
 	err = DecreaseUserQuota(token.UserId, quota)
 	return err
@@ -557,15 +593,16 @@ func PostConsumeTokenQuotaWithInfo(tokenId int, userId int, unlimitedQuota bool,
 	if err != nil {
 		return err
 	}
-	if !unlimitedQuota {
-		if quota > 0 {
-			err = DecreaseTokenQuota(tokenId, quota)
-		} else {
-			err = IncreaseTokenQuota(tokenId, -quota)
-		}
-		if err != nil {
-			return err
-		}
+	if unlimitedQuota {
+		// 无限额度令牌没有上限，只按带符号增量调整用量，不触碰 remain_quota
+		err = AddTokenUsedQuota(tokenId, quota)
+	} else if quota > 0 {
+		err = DecreaseTokenQuota(tokenId, quota)
+	} else {
+		err = IncreaseTokenQuota(tokenId, -quota)
+	}
+	if err != nil {
+		return err
 	}
 	return nil
 }

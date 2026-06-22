@@ -49,6 +49,7 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterBool("LogConsumeEnabled", &config.LogConsumeEnabled)
 	config.GlobalOption.RegisterBool("EmptyResponseBillingEnabled", &config.EmptyResponseBillingEnabled)
 	config.GlobalOption.RegisterBool("DisplayInCurrencyEnabled", &config.DisplayInCurrencyEnabled)
+	config.GlobalOption.RegisterBool("DisplayTokenStatEnabled", &config.DisplayTokenStatEnabled)
 	config.GlobalOption.RegisterFloat("ChannelDisableThreshold", &config.ChannelDisableThreshold)
 	config.GlobalOption.RegisterBool("EmailDomainRestrictionEnabled", &config.EmailDomainRestrictionEnabled)
 

@@ -312,8 +312,11 @@ func UpdateToken(c *gin.Context) {
 		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime
-		cleanToken.RemainQuota = token.RemainQuota
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
+		// 无限额度令牌没有上限概念，保留原 remain_quota，避免误填值覆盖掉用户真实额度（再切回有限额时仍可用）
+		if !token.UnlimitedQuota {
+			cleanToken.RemainQuota = token.RemainQuota
+		}
 		cleanToken.Group = token.Group
 		cleanToken.BackupGroup = token.BackupGroup
 
@@ -464,8 +467,11 @@ func UpdateTokenByAdmin(c *gin.Context) {
 	} else {
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime
-		cleanToken.RemainQuota = token.RemainQuota
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
+		// 无限额度令牌没有上限概念，保留原 remain_quota，避免误填值覆盖掉用户真实额度（再切回有限额时仍可用）
+		if !token.UnlimitedQuota {
+			cleanToken.RemainQuota = token.RemainQuota
+		}
 		cleanToken.Group = token.Group
 		cleanToken.BackupGroup = token.BackupGroup
 		cleanToken.Setting.Set(newSetting)

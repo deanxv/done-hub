@@ -16,6 +16,7 @@ import (
 const (
 	BatchUpdateTypeUserQuota = iota
 	BatchUpdateTypeTokenQuota
+	BatchUpdateTypeTokenUsedQuota // 仅累加 tokens.used_quota(无限额度令牌的用量计量，不动 remain_quota）
 	BatchUpdateTypeUsedQuota
 	BatchUpdateTypeChannelUsedQuota
 	BatchUpdateTypeRequestCount
@@ -133,6 +134,8 @@ func batchUpdate() {
 			batchIncreaseUserQuota(store)
 		case BatchUpdateTypeTokenQuota:
 			batchIncreaseTokenQuota(store)
+		case BatchUpdateTypeTokenUsedQuota:
+			batchAddColumn("tokens", "used_quota", store)
 		case BatchUpdateTypeUsedQuota:
 			batchAddColumn("users", "used_quota", store)
 		case BatchUpdateTypeRequestCount:

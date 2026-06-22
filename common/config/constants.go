@@ -28,6 +28,7 @@ var ChatLinks = ""
 var AnalyticsCode = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
 var DisplayInCurrencyEnabled = true
+var DisplayTokenStatEnabled = true
 
 // 是否开启用户月账单功能
 var UserInvoiceMonth = false
