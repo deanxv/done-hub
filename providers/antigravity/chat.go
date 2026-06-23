@@ -568,6 +568,11 @@ func convertToolsParametersForClaude(requestMap map[string]interface{}) {
 // Antigravity 的 Gemini 上游不认 parametersJsonSchema，只认 parameters；且 parameters 是 Gemini
 // Schema（type 为大写枚举、不支持 $ref/$defs/additionalProperties 等 JSON Schema 关键字），
 // 因此需要做一次结构转换而非简单改名。
+//
+// 注意：这里没有复用直连 Gemini（providers/gemini/chat.go 的 cleanSchemaRecursively）那套
+// “只剥离 $schema/additionalProperties、保留小写 type、不展开 $ref” 的清洗逻辑——因为实测
+// Antigravity 上游比直连 Gemini 更严：小写 type 与未内联的 $ref 会导致参数定义丢失，模型只能
+// 照 description 瞎猜参数名。故此处需要更彻底的结构化转换（详见 jsonSchemaToGeminiSchema）。
 func convertToolsParametersForGemini(requestMap map[string]interface{}) {
 	tools, ok := requestMap["tools"].([]interface{})
 	if !ok || len(tools) == 0 {
