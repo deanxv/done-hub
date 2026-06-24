@@ -174,6 +174,11 @@ func (h *GeminiRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		h.Usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
 	}
 
+	// 缓存命中 token：与 PromptTokens 一致取最后一个非零值，计费时按缓存倍率折算。
+	if geminiResponse.UsageMetadata.CachedContentTokenCount > 0 {
+		h.Usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
+	}
+
 	// 计算 completion tokens，确保不为负数
 	completionTokens := geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
 	if completionTokens < 0 {

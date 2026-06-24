@@ -925,6 +925,12 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 		h.Usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
 	}
 
+	// 缓存命中 token：流式下取最后一个非零值（与 PromptTokens 一样是覆盖语义），
+	// 计费时按缓存倍率折算（见 ConvertOpenAIUsage 注释）。
+	if geminiResponse.UsageMetadata.CachedContentTokenCount > 0 {
+		h.Usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
+	}
+
 	// 计算 completion tokens，确保不为负数
 	completionTokens := geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
 	if completionTokens < 0 {
@@ -1008,6 +1014,13 @@ func ConvertOpenAIUsage(geminiUsage *GeminiUsageMetadata) types.Usage {
 		CompletionTokensDetails: types.CompletionTokensDetails{
 			ReasoningTokens: geminiUsage.ThoughtsTokenCount,
 		},
+	}
+
+	// cachedContentTokenCount 是上游缓存命中的 token 数，已包含在 PromptTokenCount 里。
+	// 落到 PromptTokensDetails.CachedTokens 后，types.GetExtraTokens 会把它搬进
+	// ExtraTokens[cached_tokens]，计费时按缓存倍率做差额调整（见 model/price.go）。
+	if geminiUsage.CachedContentTokenCount > 0 {
+		usage.PromptTokensDetails.CachedTokens = geminiUsage.CachedContentTokenCount
 	}
 
 	for _, p := range geminiUsage.PromptTokensDetails {
