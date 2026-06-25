@@ -5,6 +5,7 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"errors"
@@ -13,12 +14,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 type xunfeiHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *XunfeiProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -54,6 +57,7 @@ func (p *XunfeiProvider) CreateChatCompletionStream(request *types.ChatCompletio
 	chatHandler := &xunfeiHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.SendWSJsonRequest[string](wsConn, xunfeiRequest, chatHandler.handlerStream)
@@ -312,7 +316,7 @@ func (h *xunfeiHandler) convertToOpenaiStream(xunfeiChatResponse *XunfeiChatResp
 		ID:      xunfeiChatResponse.Header.Sid,
 		Object:  "chat.completion.chunk",
 		Created: utils.GetTimestamp(),
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 	}
 
 	if xunfeiText.FunctionCall == nil {

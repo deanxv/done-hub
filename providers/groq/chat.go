@@ -74,6 +74,7 @@ func (p *GroqProvider) CreateChatCompletionStream(request *types.ChatCompletionR
 	chatHandler := openai.OpenAIStreamHandler{
 		Usage:     p.Usage,
 		ModelName: request.Model,
+		Context:   p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.HandlerChatStream)

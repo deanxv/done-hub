@@ -5,16 +5,20 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type palmStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *PalmProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -50,6 +54,7 @@ func (p *PalmProvider) CreateChatCompletionStream(request *types.ChatCompletionR
 	chatHandler := &palmStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -184,7 +189,7 @@ func (h *palmStreamHandler) convertToOpenaiStream(palmChatResponse *PaLMChatResp
 	streamResponse := types.ChatCompletionStreamResponse{
 		ID:      fmt.Sprintf("chatcmpl-%s", utils.GetUUID()),
 		Object:  "chat.completion.chunk",
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 		Choices: []types.ChatCompletionStreamChoice{choice},
 		Created: utils.GetTimestamp(),
 	}

@@ -6,15 +6,19 @@ import (
 	"done-hub/common/model_utils"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type aliStreamHandler struct {
 	Usage              *types.Usage
 	Request            *types.ChatCompletionRequest
+	Context            *gin.Context
 	lastStreamResponse string
 }
 
@@ -59,6 +63,7 @@ func (p *AliProvider) CreateChatCompletionStream(request *types.ChatCompletionRe
 	chatHandler := &aliStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -251,7 +256,7 @@ func (h *aliStreamHandler) convertToOpenaiStream(aliResponse *AliChatResponse, d
 		ID:      aliResponse.RequestId,
 		Object:  "chat.completion.chunk",
 		Created: utils.GetTimestamp(),
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 		Choices: []types.ChatCompletionStreamChoice{choice},
 	}
 

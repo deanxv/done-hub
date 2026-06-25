@@ -5,16 +5,20 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type baiduStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *BaiduProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -72,6 +76,7 @@ func (p *BaiduProvider) CreateChatCompletionStream(request *types.ChatCompletion
 	chatHandler := &baiduStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -285,7 +290,7 @@ func (h *baiduStreamHandler) convertToOpenaiStream(baiduResponse *BaiduChatStrea
 		ID:      baiduResponse.Id,
 		Object:  "chat.completion.chunk",
 		Created: baiduResponse.Created,
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 	}
 
 	if baiduResponse.FunctionCall == nil {

@@ -13,6 +13,7 @@ import (
 	"done-hub/model"
 	"done-hub/providers"
 	providersBase "done-hub/providers/base"
+	"done-hub/providers/claude"
 	"done-hub/providers/gemini"
 	"done-hub/types"
 	"encoding/json"
@@ -378,7 +379,43 @@ func fetchChannelByModel(c *gin.Context, modelName string) (*model.Channel, erro
 	return channel, nil
 }
 
+// unifyResponseModel 在响应写出前统一把含 model 字段的响应对象改写为用户原始请求模型名。
+// 仅在 UnifiedRequestResponseModelEnabled 开启且 context 存在 original_model 时生效（由
+// GetResponseModelNameFromContext 内部判断）；未启用时返回原值，幂等无副作用。
+// 这是所有非流式 JSON 响应（chat/completions/embeddings/moderations/rerank/responses/claude/gemini）
+// 的统一出口拦截点，避免逐个 provider 手动改写导致的覆盖遗漏。
+func unifyResponseModel(c *gin.Context, data interface{}) {
+	switch v := data.(type) {
+	case *types.ChatCompletionResponse:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *types.CompletionResponse:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *types.EmbeddingResponse:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *types.ModerationResponse:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *types.RerankResponse:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *types.OpenAIResponsesResponses:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *claude.ClaudeResponse:
+		v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+	case *gemini.GeminiChatResponse:
+		// Gemini 原生响应回显的是 modelVersion；同时存在 model 字段，二者都按需改写。
+		// 仅当原值非空时改写，避免给本不含该字段的响应凭空注入。
+		if v.ModelVersion != "" {
+			v.ModelVersion = providersBase.GetResponseModelNameFromContext(c, v.ModelVersion)
+		}
+		if v.Model != "" {
+			v.Model = providersBase.GetResponseModelNameFromContext(c, v.Model)
+		}
+	}
+}
+
 func responseJsonClient(c *gin.Context, data interface{}) *types.OpenAIErrorWithStatusCode {
+	// 统一改写响应里的 model 字段为用户原始请求模型名（开关开启且存在映射时）
+	unifyResponseModel(c, data)
+
 	// 将data转换为 JSON，禁用 HTML 转义以避免 & 被转为 \u0026
 	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)

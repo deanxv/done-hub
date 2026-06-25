@@ -6,12 +6,14 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -21,6 +23,7 @@ type OpenAIResponsesStreamHandler struct {
 	Prefix    string
 	Model     string
 	MessageID string
+	Context   *gin.Context
 
 	searchType string
 	toolIndex  int
@@ -78,7 +81,10 @@ func (p *OpenAIProvider) CreateResponsesStream(request *types.OpenAIResponsesReq
 	chatHandler := OpenAIResponsesStreamHandler{
 		Usage:  p.Usage,
 		Prefix: `data: `,
-		Model:  request.Model,
+		// chat→responses 兼容路径（HandlerChatStream）合成的 chat chunk 用 h.Model 当响应模型名，
+		// 这里直接解析成用户原始请求模型名；原生 responses 路径不读 h.Model，走 response.model 字节改写。
+		Model:   p.GetResponseModelName(request.Model),
+		Context: p.Context,
 	}
 
 	if request.ConvertChat {
@@ -264,6 +270,13 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 	if err != nil {
 		errChan <- common.ErrorToOpenAIError(err)
 		return
+	}
+
+	// 统一请求响应模型：model 仅出现在 response.created / response.completed 等信封事件的
+	// response.model（文本增量事件不含该字段，helper 自动 no-op）。在剥离前缀的纯 JSON 上
+	// 字节级改写后回填 rawStr，保留 data: 前缀与字段顺序；下游写入 eventBuffer 的各出口都复用。
+	if patched, changed := base.UnifyModelInJSONBytes(h.Context, noSpaceLine, "response.model"); changed {
+		rawStr = strings.Replace(rawStr, string(noSpaceLine), string(patched), 1)
 	}
 
 	switch openaiResponse.Type {

@@ -3,15 +3,19 @@ package codex
 import (
 	"done-hub/common"
 	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CodexResponsesStreamHandler Codex Responses 流式响应处理器
 type CodexResponsesStreamHandler struct {
 	Usage       *types.Usage
+	Context     *gin.Context
 	eventBuffer strings.Builder
 	eventType   string
 }
@@ -50,7 +54,8 @@ func (p *CodexProvider) CreateResponses(request *types.OpenAIResponsesRequest) (
 
 	// 创建流式处理器
 	handler := &CodexResponsesStreamHandler{
-		Usage: p.Usage,
+		Usage:   p.Usage,
+		Context: p.Context,
 	}
 
 	// 获取流式响应
@@ -91,7 +96,8 @@ func (p *CodexProvider) CreateResponsesStream(request *types.OpenAIResponsesRequ
 
 	// 创建流式处理器
 	handler := &CodexResponsesStreamHandler{
-		Usage: p.Usage,
+		Usage:   p.Usage,
+		Context: p.Context,
 	}
 
 	// 使用 RequestNoTrimStream 保持原始格式（包括 event: 行）
@@ -272,6 +278,13 @@ func (h *CodexResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, da
 			h.eventType = ""
 		}
 		return
+	}
+
+	// 统一请求响应模型：model 仅出现在 response.created / response.completed 等信封事件的
+	// response.model（文本增量事件不含该字段，helper 自动 no-op）。在剥离前缀的纯 JSON 上
+	// 字节级改写后回填 rawStr，保留 data: 前缀与字段顺序；下游缓冲/直发两个出口都复用。
+	if patched, changed := base.UnifyModelInJSONBytes(h.Context, []byte(dataLine), "response.model"); changed {
+		rawStr = strings.Replace(rawStr, dataLine, string(patched), 1)
 	}
 
 	// 解析 JSON 以提取 usage 信息（但不修改响应）

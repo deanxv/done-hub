@@ -187,7 +187,7 @@ func (p *ReplicateProvider) CreateChatCompletionStream(request *types.ChatComple
 
 	chatHandler := ReplicateStreamHandler{
 		Usage:     p.Usage,
-		ModelName: request.Model,
+		ModelName: p.GetResponseModelName(request.Model),
 		ID:        replicateResponse.ID,
 		Provider:  p,
 	}

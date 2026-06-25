@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"done-hub/common"
 	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // countImagesInResponse 统计响应中的图片数量
@@ -32,6 +35,7 @@ type GeminiRelayStreamHandler struct {
 	Usage     *types.Usage
 	Prefix    string
 	ModelName string
+	Context   *gin.Context
 
 	Key string
 }
@@ -91,6 +95,7 @@ func (p *GeminiProvider) CreateGeminiChatStream(request *GeminiChatRequest) (req
 		Usage:     p.Usage,
 		ModelName: request.Model,
 		Prefix:    `data: `,
+		Context:   p.Context,
 
 		Key: channel.Key,
 	}
@@ -131,6 +136,21 @@ func (h *GeminiRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		cleaningError(geminiResponse.ErrorInfo, h.Key)
 		errChan <- geminiResponse.ErrorInfo
 		return
+	}
+
+	// 统一请求响应模型：在剥离前缀的纯 JSON 上字节级改写 modelVersion / model 两个字段
+	// （gjson 读 + sjson 改，仅动这两个字段，其余字段顺序/内容不变），再回填到 rawStr，
+	// 保留其 data: 前缀与尾部。下游两个发送出口都复用改写后的 rawStr。
+	{
+		patched := noSpaceLine
+		for _, path := range []string{"modelVersion", "model"} {
+			if out, changed := base.UnifyModelInJSONBytes(h.Context, patched, path); changed {
+				patched = out
+			}
+		}
+		if !bytes.Equal(patched, noSpaceLine) {
+			rawStr = strings.Replace(rawStr, string(noSpaceLine), string(patched), 1)
+		}
 	}
 
 	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用

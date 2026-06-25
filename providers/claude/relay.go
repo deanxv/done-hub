@@ -6,12 +6,14 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/model_utils"
 	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -21,6 +23,7 @@ type ClaudeRelayStreamHandler struct {
 	ModelName  string
 	Prefix     string
 	StartUsage *Usage
+	Context    *gin.Context
 
 	AddEvent bool
 }
@@ -61,6 +64,7 @@ func (p *ClaudeProvider) CreateClaudeChatStream(request *ClaudeRequest) (request
 		Usage:     p.Usage,
 		ModelName: request.Model,
 		Prefix:    `data: {`,
+		Context:   p.Context,
 	}
 
 	// 发送请求
@@ -121,6 +125,12 @@ func (h *ClaudeRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 	case "message_start":
 		ClaudeUsageToOpenaiUsage(&claudeResponse.Message.Usage, h.Usage)
 		h.StartUsage = &claudeResponse.Message.Usage
+		// 统一请求响应模型：model 仅出现在 message_start 的 message.model。
+		// 在剥离前缀的纯 JSON 上字节级改写（gjson 读 + sjson 改，仅动 model 一个字段，
+		// 其余字段顺序/内容不变），再把改写后的 JSON 回填到 rawStr，保留其原有的 data: 前缀与尾部。
+		if patched, changed := base.UnifyModelInJSONBytes(h.Context, noSpaceLine, "message.model"); changed {
+			rawStr = strings.Replace(rawStr, string(noSpaceLine), string(patched), 1)
+		}
 	case "message_delta":
 		ClaudeUsageMerge(&claudeResponse.Usage, h.StartUsage)
 		ClaudeUsageToOpenaiUsage(&claudeResponse.Usage, h.Usage)

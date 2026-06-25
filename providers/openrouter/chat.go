@@ -100,6 +100,7 @@ func (p *OpenRouterProvider) CreateChatCompletionStream(request *types.ChatCompl
 		Usage:      p.Usage,
 		ModelName:  request.Model,
 		EscapeJSON: p.StreamEscapeJSON,
+		Context:    p.Context,
 
 		ReasoningHandler: p.ReasoningHandler,
 	}

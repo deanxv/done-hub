@@ -4,17 +4,21 @@ import (
 	"done-hub/common"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type CloudflareAIStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *CloudflareAIProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -50,6 +54,7 @@ func (p *CloudflareAIProvider) CreateChatCompletionStream(request *types.ChatCom
 	chatHandler := &CloudflareAIStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -161,7 +166,7 @@ func (h *CloudflareAIStreamHandler) convertToOpenaiStream(chatResponse *ChatResu
 		ID:      fmt.Sprintf("chatcmpl-%s", utils.GetUUID()),
 		Object:  "chat.completion.chunk",
 		Created: utils.GetTimestamp(),
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 	}
 
 	choice := types.ChatCompletionStreamChoice{

@@ -4,15 +4,19 @@ import (
 	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type tunyuanStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *HunyuanProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -48,6 +52,7 @@ func (p *HunyuanProvider) CreateChatCompletionStream(request *types.ChatCompleti
 	chatHandler := &tunyuanStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -159,7 +164,7 @@ func (h *tunyuanStreamHandler) convertToOpenaiStream(tunyuanChatResponse *ChatCo
 	streamResponse := types.ChatCompletionStreamResponse{
 		Object:  "chat.completion.chunk",
 		Created: tunyuanChatResponse.Created,
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 	}
 
 	for _, choice := range tunyuanChatResponse.Choices {

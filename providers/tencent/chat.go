@@ -5,16 +5,20 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type tencentStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *TencentProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -50,6 +54,7 @@ func (p *TencentProvider) CreateChatCompletionStream(request *types.ChatCompleti
 	chatHandler := &tencentStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -186,7 +191,7 @@ func (h *tencentStreamHandler) convertToOpenaiStream(tencentChatResponse *Tencen
 	streamResponse := types.ChatCompletionStreamResponse{
 		Object:  "chat.completion.chunk",
 		Created: utils.GetTimestamp(),
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 	}
 	if len(tencentChatResponse.Choices) > 0 {
 		var choice types.ChatCompletionStreamChoice

@@ -6,16 +6,20 @@ import (
 	"done-hub/common/image"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ollamaStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
+	Context *gin.Context
 }
 
 func (p *OllamaProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -51,6 +55,7 @@ func (p *OllamaProvider) CreateChatCompletionStream(request *types.ChatCompletio
 	chatHandler := &ollamaStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream(p.Requester, resp, chatHandler.handlerStream)
@@ -200,7 +205,7 @@ func (h *ollamaStreamHandler) handlerStream(rawLine *[]byte, dataChan chan strin
 		ID:      fmt.Sprintf("chatcmpl-%s", utils.GetUUID()),
 		Object:  "chat.completion.chunk",
 		Created: utils.GetTimestamp(),
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 		Choices: []types.ChatCompletionStreamChoice{choice},
 	}
 

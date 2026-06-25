@@ -69,6 +69,7 @@ func (p *MoonshotProvider) CreateChatCompletionStream(request *types.ChatComplet
 	chatHandler := openai.OpenAIStreamHandler{
 		Usage:     p.Usage,
 		ModelName: request.Model,
+		Context:   p.Context,
 	}
 
 	return requester.RequestStream(p.Requester, resp, chatHandler.HandlerChatStream)

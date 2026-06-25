@@ -6,17 +6,21 @@ import (
 	"done-hub/common/requester"
 	"done-hub/common/utils"
 	"done-hub/model"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type zhipuStreamHandler struct {
 	Usage   *types.Usage
 	Request *types.ChatCompletionRequest
 	IsCode  bool
+	Context *gin.Context
 }
 
 func (p *ZhipuProvider) CreateChatCompletion(request *types.ChatCompletionRequest) (*types.ChatCompletionResponse, *types.OpenAIErrorWithStatusCode) {
@@ -56,6 +60,7 @@ func (p *ZhipuProvider) CreateChatCompletionStream(request *types.ChatCompletion
 	chatHandler := &zhipuStreamHandler{
 		Usage:   p.Usage,
 		Request: request,
+		Context: p.Context,
 	}
 
 	return requester.RequestStream[string](p.Requester, resp, chatHandler.handlerStream)
@@ -320,7 +325,7 @@ func (h *zhipuStreamHandler) convertToOpenaiStream(zhipuResponse *ZhipuStreamRes
 		ID:      zhipuResponse.ID,
 		Object:  "chat.completion.chunk",
 		Created: zhipuResponse.Created,
-		Model:   h.Request.Model,
+		Model:   base.GetResponseModelNameFromContext(h.Context, h.Request.Model),
 	}
 
 	if zhipuResponse.IsFunction() {
