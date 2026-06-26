@@ -18,11 +18,18 @@ var (
 	UsernameCacheKey            = "user_name:%d"
 	UserQuotaCacheKey           = "user_quota:%d"
 	UserEnabledCacheKey         = "user_enabled:%d"
+	UserRoleStatusCacheKey      = "user_role_status:%d"
 	UserRealtimeQuotaKey        = "user_realtime_quota:%d"
 	UserRealtimeQuotaExpiration = 24 * time.Hour
 
 	OldUserTokensCacheKey = "old_user_tokens_cache"
 )
+
+// UserRoleStatus 缓存中保存的用户实时角色与状态。
+type UserRoleStatus struct {
+	Role   int `json:"role"`
+	Status int `json:"status"`
+}
 
 func CacheGetTokenByKey(key string) (*Token, error) {
 	if !config.RedisEnabled {
@@ -118,6 +125,32 @@ func CacheIsUserEnabled(userId int) (bool, error) {
 		cache.CacheTimeout)
 
 	return enabled, err
+}
+
+// CacheGetUserRoleStatus 读取用户实时的角色与状态，优先命中缓存（TokenCacheSeconds=0 永不过期，
+// 靠 ClearUserGroupAndTokensCache 主动失效）。用户角色/状态变更后下一次鉴权即生效，
+// 同时避免每个请求都回库。未启用 Redis 时退化为直接查库。
+func CacheGetUserRoleStatus(userId int) (role int, status int, err error) {
+	if !config.RedisEnabled {
+		return GetUserRoleAndStatus(userId)
+	}
+
+	rs, err := cache.GetOrSetCache(
+		fmt.Sprintf(UserRoleStatusCacheKey, userId),
+		time.Duration(TokenCacheSeconds)*time.Second,
+		func() (UserRoleStatus, error) {
+			r, s, e := GetUserRoleAndStatus(userId)
+			if e != nil {
+				return UserRoleStatus{}, e
+			}
+			return UserRoleStatus{Role: r, Status: s}, nil
+		},
+		cache.CacheTimeout)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return rs.Role, rs.Status, nil
 }
 
 func CacheGetUsername(id int) (username string, err error) {

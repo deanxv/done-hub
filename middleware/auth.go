@@ -18,6 +18,7 @@ func authHelper(c *gin.Context, minRole int) {
 	role := session.Get("role")
 	id := session.Get("id")
 	status := session.Get("status")
+	useAccessToken := false
 	if username == nil {
 		// Check access token
 		accessToken := c.Request.Header.Get("Authorization")
@@ -40,6 +41,7 @@ func authHelper(c *gin.Context, minRole int) {
 			role = user.Role
 			id = user.Id
 			status = user.Status
+			useAccessToken = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -48,6 +50,31 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
+	}
+	// Cookie session 路径：不信任 cookie 中签发的 role/status，统一以服务端（缓存/DB）为准，
+	// 保证降级管理员、封禁、删除用户等变更下一次请求即生效。
+	// access token 路径（ValidateAccessToken）已是实时查库，无需重复校验。
+	if !useAccessToken {
+		idInt, ok := id.(int)
+		if !ok {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无权进行此操作，会话无效",
+			})
+			c.Abort()
+			return
+		}
+		currentRole, currentStatus, err := model.CacheGetUserRoleStatus(idInt)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无权进行此操作，用户校验失败",
+			})
+			c.Abort()
+			return
+		}
+		role = currentRole
+		status = currentStatus
 	}
 	if status.(int) == config.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
