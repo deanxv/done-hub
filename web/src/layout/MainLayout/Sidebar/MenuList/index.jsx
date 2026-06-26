@@ -31,7 +31,10 @@ const MenuList = ({ isMini = false }) => {
         }
 
         const filteredChildren = item.children.filter(
-          (child) => (!child.isAdmin || userIsAdmin) && !(siteInfo.UserInvoiceMonth === false && child.id === 'invoice')
+          (child) =>
+            (!child.isAdmin || userIsAdmin) &&
+            !(siteInfo.UserInvoiceMonth === false && child.id === 'invoice') &&
+            !(siteInfo.builtin_chat_enabled === false && child.id === 'playground')
         );
 
         if (filteredChildren.length === 0) {
