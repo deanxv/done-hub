@@ -47,13 +47,14 @@ func (p *OpenAIProvider) CreateResponses(request *types.OpenAIResponsesRequest) 
 		return nil, errWithCode
 	}
 
-	if response.Usage == nil || response.Usage.OutputTokens == 0 {
+	// 仅在 usage 完全缺失、或有响应内容却把 output_tokens 算成 0（解析异常）时才兜底估算，
+	// 避免误杀上游真实返回的空响应（output_tokens=0 且无内容是合法的）而覆盖其 input/details。
+	if response.Usage == nil || (response.Usage.OutputTokens == 0 && response.GetContent() != "") {
 		response.Usage = &types.ResponsesUsage{
 			InputTokens:  p.Usage.PromptTokens,
 			OutputTokens: 0,
 			TotalTokens:  0,
 		}
-		// // 那么需要计算
 		response.Usage.OutputTokens = common.CountTokenText(response.GetContent(), request.Model)
 		response.Usage.TotalTokens = response.Usage.InputTokens + response.Usage.OutputTokens
 	}
@@ -183,9 +184,10 @@ func (p *OpenAIProvider) CreateResponsesCompaction(request *types.OpenAIResponse
 		return nil, errWithCode
 	}
 
-	// 与 CreateResponses 同款兜底：上游漏返 usage 或 output_tokens 时，
-	// 用本地预扣的 PromptTokens + 对响应文本做 token 估算补齐，避免计费归零。
-	if response.Usage == nil || response.Usage.OutputTokens == 0 {
+	// 与 CreateResponses 同款兜底：上游漏返 usage、或有响应内容却把 output_tokens 算成 0（解析异常）时，
+	// 用本地预扣的 PromptTokens + 对响应文本做 token 估算补齐，避免计费归零；
+	// output_tokens=0 且无内容的合法空响应不在此列，保留上游真实 usage。
+	if response.Usage == nil || (response.Usage.OutputTokens == 0 && response.GetContent() != "") {
 		response.Usage = &types.ResponsesUsage{
 			InputTokens:  p.Usage.PromptTokens,
 			OutputTokens: 0,
@@ -279,6 +281,28 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 		rawStr = strings.Replace(rawStr, string(noSpaceLine), string(patched), 1)
 	}
 
+	// 终止事件（completed/done/incomplete/failed）：先处理 usage，再结束流。
+	// 终止事件集合与 usage 提取统一走 base helper，与 codex 渠道共享同一份判定。
+	if base.IsResponsesTerminalEvent(openaiResponse.Type) {
+		if base.ExtractResponsesStreamUsage(&openaiResponse, h.Usage) {
+			getResponsesExtraBilling(openaiResponse.Response, h.Usage)
+		}
+
+		// 添加数据行到缓冲区
+		h.eventBuffer.WriteString(rawStr)
+		h.eventBuffer.WriteString("\n")
+
+		// 发送完整的 SSE 事件块
+		dataChan <- h.eventBuffer.String()
+
+		// 发送EOF信号结束流
+		errChan <- io.EOF
+
+		// 标记流已关闭
+		*rawLine = requester.StreamClosed
+		return
+	}
+
 	switch openaiResponse.Type {
 	case "response.created":
 		if len(openaiResponse.Response.Tools) > 0 {
@@ -310,27 +334,6 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 				h.Usage.IncExtraBilling(types.APITollTypeFileSearch, "")
 			}
 		}
-	case "response.completed", "response.failed", "response.incomplete":
-		// 处理流结束事件 - 先处理usage，再结束流
-		if openaiResponse.Response != nil && openaiResponse.Response.Usage != nil {
-			usage := openaiResponse.Response.Usage
-			*h.Usage = *usage.ToOpenAIUsage()
-			getResponsesExtraBilling(openaiResponse.Response, h.Usage)
-		}
-
-		// 添加数据行到缓冲区
-		h.eventBuffer.WriteString(rawStr)
-		h.eventBuffer.WriteString("\n")
-
-		// 发送完整的 SSE 事件块
-		dataChan <- h.eventBuffer.String()
-
-		// 发送EOF信号结束流
-		errChan <- io.EOF
-
-		// 标记流已关闭
-		*rawLine = requester.StreamClosed
-		return
 	}
 
 	// 添加数据行到缓冲区
@@ -484,10 +487,8 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 			}
 		}
 	default:
-		if openaiResponse.Response != nil && openaiResponse.Response.Usage != nil {
-			usage := openaiResponse.Response.Usage
-			*h.Usage = *usage.ToOpenAIUsage()
-
+		// 终止事件携带最终 usage：判定与提取统一走 base helper（与原生 responses 路径共享）。
+		if base.ExtractResponsesStreamUsage(&openaiResponse, h.Usage) {
 			getResponsesExtraBilling(openaiResponse.Response, h.Usage)
 			chatRes.Choices = append(chatRes.Choices, types.ChatCompletionStreamChoice{
 				Index:        0,
@@ -495,7 +496,6 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 				FinishReason: types.ConvertResponsesStatusToChat(openaiResponse.Response.Status),
 			})
 			needOutput = true
-
 		}
 	}
 

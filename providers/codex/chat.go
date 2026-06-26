@@ -4,6 +4,7 @@ import (
 	"done-hub/common"
 	"done-hub/common/logger"
 	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
@@ -167,13 +168,9 @@ func (h *CodexStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan string
 		return
 	}
 
-	// 处理 response.completed 事件（包含 usage 信息）
-	if responsesStream.Type == "response.completed" && responsesStream.Response != nil {
-		if responsesStream.Response.Usage != nil {
-			h.Usage.PromptTokens = responsesStream.Response.Usage.InputTokens
-			h.Usage.CompletionTokens = responsesStream.Response.Usage.OutputTokens
-			h.Usage.TotalTokens = responsesStream.Response.Usage.TotalTokens
-		}
+	// 处理终止事件（completed/done/incomplete/failed，包含 usage 信息）
+	if base.IsResponsesTerminalEvent(responsesStream.Type) {
+		base.ExtractResponsesStreamUsage(&responsesStream, h.Usage)
 		return
 	}
 
@@ -183,6 +180,9 @@ func (h *CodexStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan string
 		if !ok {
 			return
 		}
+
+		// 累积输出文本：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
+		h.Usage.TextBuilder.WriteString(delta)
 
 		// 转换为 Chat 格式的流式响应
 		chatResponse := h.convertResponsesStreamToChatStream(&responsesStream, delta)

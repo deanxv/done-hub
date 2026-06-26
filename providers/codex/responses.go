@@ -70,6 +70,21 @@ func (p *CodexProvider) CreateResponses(request *types.OpenAIResponsesRequest) (
 		return nil, errWithCode
 	}
 
+	// 与 openai 非流式同款兜底：上游漏返 usage、或有响应内容却把 output_tokens 算成 0（解析异常）时，
+	// 用本地预扣的 PromptTokens + 对响应文本估算 token 补齐，避免计费归零；
+	// output_tokens=0 且无内容的合法空响应不在此列，保留上游真实 usage。
+	if response.Usage == nil || (response.Usage.OutputTokens == 0 && response.GetContent() != "") {
+		response.Usage = &types.ResponsesUsage{
+			InputTokens:  p.Usage.PromptTokens,
+			OutputTokens: 0,
+			TotalTokens:  0,
+		}
+		response.Usage.OutputTokens = common.CountTokenText(response.GetContent(), request.Model)
+		response.Usage.TotalTokens = response.Usage.InputTokens + response.Usage.OutputTokens
+	}
+
+	*p.Usage = *response.Usage.ToOpenAIUsage()
+
 	return response, nil
 }
 
@@ -159,14 +174,10 @@ func (p *CodexProvider) collectResponsesStreamResponse(stream requester.StreamRe
 				continue
 			}
 
-			// 提取完整响应（response.completed 事件）
-			if streamResp.Type == "response.completed" && streamResp.Response != nil {
+			// 提取完整响应（终止事件：completed/done/incomplete/failed）
+			if base.IsResponsesTerminalEvent(streamResp.Type) && streamResp.Response != nil {
 				response = streamResp.Response
-				if response.Usage != nil {
-					p.Usage.PromptTokens = response.Usage.InputTokens
-					p.Usage.CompletionTokens = response.Usage.OutputTokens
-					p.Usage.TotalTokens = response.Usage.TotalTokens
-				}
+				base.ExtractResponsesStreamUsage(&streamResp, p.Usage)
 			}
 
 		case err, ok := <-errChan:
@@ -290,14 +301,14 @@ func (h *CodexResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, da
 	// 解析 JSON 以提取 usage 信息（但不修改响应）
 	var responsesEvent types.OpenAIResponsesStreamResponses
 	if err := json.Unmarshal([]byte(dataLine), &responsesEvent); err == nil {
-		// 提取 usage 信息
-		if responsesEvent.Type == "response.completed" && responsesEvent.Response != nil {
-			if responsesEvent.Response.Usage != nil {
-				h.Usage.PromptTokens = responsesEvent.Response.Usage.InputTokens
-				h.Usage.CompletionTokens = responsesEvent.Response.Usage.OutputTokens
-				h.Usage.TotalTokens = responsesEvent.Response.Usage.TotalTokens
+		// 累积输出文本：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
+		if responsesEvent.Type == "response.output_text.delta" {
+			if delta, ok := responsesEvent.Delta.(string); ok {
+				h.Usage.TextBuilder.WriteString(delta)
 			}
 		}
+		// 终止事件 usage 提取统一走 base helper（覆盖 completed/done/incomplete/failed）。
+		base.ExtractResponsesStreamUsage(&responsesEvent, h.Usage)
 	}
 
 	// 完全透传：将原始数据添加到缓冲区或直接发送

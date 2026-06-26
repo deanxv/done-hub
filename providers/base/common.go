@@ -363,6 +363,33 @@ func UnifyModelInJSONBytes(ctx *gin.Context, raw []byte, modelPath string) (out 
 	return patched, true
 }
 
+// IsResponsesTerminalEvent 判断是否为 responses 流的终止事件（携带最终 usage）。
+// 不同上游可能以 response.completed / response.done / response.incomplete / response.failed 任一作为终止帧，
+// openai 与 codex 两条解析链路统一以此为准，避免各自漏认某种类型导致 usage 丢失。
+func IsResponsesTerminalEvent(eventType string) bool {
+	switch eventType {
+	case "response.completed", "response.done", "response.incomplete", "response.failed":
+		return true
+	default:
+		return false
+	}
+}
+
+// ExtractResponsesStreamUsage 从 responses 终止事件的嵌套 response.usage 提取 usage 写入 dst，
+// 返回 true 表示成功提取到上游 usage。仅覆盖 token 数；extra billing（web_search 等）由各 handler 自行补充。
+// 仅在确实拿到 usage 时才覆盖 dst：usage 缺失时返回 false 且不动 dst，保住已累积的 TextBuilder，
+// 让 relay 层基于输出文本的兜底估算仍能生效。
+func ExtractResponsesStreamUsage(event *types.OpenAIResponsesStreamResponses, dst *types.Usage) bool {
+	if event == nil || !IsResponsesTerminalEvent(event.Type) {
+		return false
+	}
+	if event.Response == nil || event.Response.Usage == nil {
+		return false
+	}
+	*dst = *event.Response.Usage.ToOpenAIUsage()
+	return true
+}
+
 func (p *BaseProvider) GetChannel() *model.Channel {
 	return p.Channel
 }
