@@ -311,6 +311,12 @@ func testAllChannels(isNotify bool) error {
 
 		var sb strings.Builder
 		for _, channel := range channels {
+			// 定时任务跳过手动禁用的渠道：它不会被自动恢复，测试只会消耗配额，无实际意义。
+			// 手动触发（isNotify=true）仍测试全部渠道。
+			if !isNotify && channel.Status == config.ChannelStatusManuallyDisabled {
+				continue
+			}
+
 			time.Sleep(config.RequestInterval)
 
 			isChannelEnabled := channel.Status == config.ChannelStatusEnabled
