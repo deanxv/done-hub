@@ -1,9 +1,9 @@
 import PropTypes from 'prop-types';
-import Label from 'ui-component/Label';
-import Stack from '@mui/material/Stack';
-import Divider from '@mui/material/Divider';
+import { Box } from '@mui/material';
+import GroupRatioLabel from 'ui-component/GroupRatioLabel';
 
-const GroupLabel = ({ group }) => {
+// 表格分组列：每个分组渲染为一枚「code + 倍率」双色胶囊，横向排列超出宽度自动换行。
+const GroupLabel = ({ group, groupMap = {} }) => {
   let groups = [];
   if (group === '') {
     groups = ['default'];
@@ -12,16 +12,17 @@ const GroupLabel = ({ group }) => {
     groups.sort();
   }
   return (
-    <Stack divider={<Divider orientation="vertical" flexItem />} spacing={0.5}>
-      {groups.map((group, index) => {
-        return <Label key={index}>{group}</Label>;
-      })}
-    </Stack>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {groups.map((item, index) => (
+        <GroupRatioLabel key={index} label={item} ratio={groupMap[item]?.ratio} />
+      ))}
+    </Box>
   );
 };
 
 GroupLabel.propTypes = {
-  group: PropTypes.string
+  group: PropTypes.string,
+  groupMap: PropTypes.object
 };
 
 export default GroupLabel;

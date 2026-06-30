@@ -119,7 +119,7 @@ const EditModal = ({ open, userId, onCancel, onOk }) => {
   const fetchGroups = async () => {
     try {
       let res = await API.get(`/api/group/`);
-      const groups = Array.isArray(res.data.data) ? [...res.data.data].sort((a, b) => String(a).localeCompare(String(b))) : [];
+      const groups = Array.isArray(res.data.data) ? res.data.data.map((item) => item.symbol).sort((a, b) => a.localeCompare(b)) : [];
       setGroupOptions(groups);
     } catch (error) {
       showError(error.message);

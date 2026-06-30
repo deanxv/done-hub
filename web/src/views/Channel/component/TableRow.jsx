@@ -112,6 +112,7 @@ export default function ChannelTableRow({
   onRefresh,
   onTagStatsRefresh,
   groupOptions,
+  groupMap,
   modelOptions,
   prices,
   selected,
@@ -653,7 +654,7 @@ export default function ChannelTableRow({
           )}
         </TableCell>
 
-        <TableCell>
+        <TableCell sx={{ minWidth: 300, maxWidth: 360 }}>
           {isMixedGroup ? (
             <Tooltip title={t('channel_row.mixedTip')} placement="top" arrow>
               <Label color="warning" variant="soft">
@@ -661,7 +662,7 @@ export default function ChannelTableRow({
               </Label>
             </Tooltip>
           ) : (
-            <GroupLabel group={item.group} />
+            <GroupLabel group={item.group} groupMap={groupMap} />
           )}
         </TableCell>
 
@@ -1243,7 +1244,7 @@ export default function ChannelTableRow({
                                       </TableCell>
                                       <TableCell sx={{ textAlign: 'center' }}>
                                         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                                          <GroupLabel group={channel.group ?? ''} />
+                                          <GroupLabel group={channel.group ?? ''} groupMap={groupMap} />
                                         </Box>
                                       </TableCell>
                                       <TableCell sx={{ textAlign: 'center' }}>
@@ -1590,6 +1591,7 @@ export default function ChannelTableRow({
         }}
         channelId={item.tag ? item.tag : item.id}
         groupOptions={groupOptions}
+        groupMap={groupMap}
         isTag={!!item.tag}
         modelOptions={modelOptions}
         prices={prices}
@@ -1678,6 +1680,7 @@ export default function ChannelTableRow({
         }}
         channelId={subEditChannelId}
         groupOptions={groupOptions}
+        groupMap={groupMap}
         isTag={false}
         modelOptions={modelOptions}
         prices={prices}
@@ -1693,6 +1696,7 @@ ChannelTableRow.propTypes = {
   onRefresh: PropTypes.func,
   onTagStatsRefresh: PropTypes.func,
   groupOptions: PropTypes.array,
+  groupMap: PropTypes.object,
   modelOptions: PropTypes.array,
   prices: PropTypes.array,
   selected: PropTypes.bool,

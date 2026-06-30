@@ -4,12 +4,11 @@ import { useSelector } from 'react-redux'
 
 import { Box, Button, IconButton, Stack, TableCell, TableRow, Tooltip } from '@mui/material'
 
-import RatioBadge from 'ui-component/RatioBadge'
+import GroupRatioLabel from 'ui-component/GroupRatioLabel'
 
 import TableSwitch from 'ui-component/Switch'
 import ConfirmDialog from 'ui-component/confirm-dialog'
 import { copy, renderQuota, timestamp2string } from 'utils/common'
-import Label from 'ui-component/Label'
 
 import { Icon } from '@iconify/react'
 import { useTranslation } from 'react-i18next'
@@ -51,26 +50,24 @@ export default function TokensTableRow({ item, manageToken, handleOpenModal, set
   const renderGroupCell = (symbol, fallback, fallbackRatio) => {
     let label
     let ratio
+    let color = 'default'
     if (!symbol) {
-      label = <Label color="default">{fallback}</Label>
+      label = fallback
       ratio = fallbackRatio
     } else {
       const g = userGroup[symbol]
       if (!g) {
-        label = <Label color="error">{symbol} (不存在)</Label>
+        label = `${symbol} (不存在)`
+        color = 'error'
+      } else if (g.inaccessible) {
+        label = `${g.name} (不可用)`
+        color = 'error'
       } else {
-        label = g.inaccessible
-          ? <Label color="error">{g.name} (不可用)</Label>
-          : <Label color={g.color}>{g.name}</Label>
+        label = g.name
         ratio = g.ratio
       }
     }
-    return (
-      <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
-        {label}
-        {ratio !== undefined && ratio !== null && <RatioBadge ratio={ratio}/>}
-      </Stack>
-    )
+    return <GroupRatioLabel label={label} ratio={ratio} color={color}/>
   }
 
   const handleDeleteOpen = () => {

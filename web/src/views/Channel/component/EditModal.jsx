@@ -23,6 +23,7 @@ import {
   FormHelperText,
   IconButton,
   InputLabel,
+  ListItemText,
   MenuItem,
   OutlinedInput,
   Select,
@@ -44,9 +45,12 @@ import useCustomizeT from 'hooks/useCustomizeT';
 import { PreCostType } from '../type/other';
 import MapInput from './MapInput';
 import ListInput from './ListInput';
+import { formatGroupLabel } from './batchHelpers';
 import ModelSelectorModal from './ModelSelectorModal';
 import CollapsibleSection from './CollapsibleSection';
 import ConfirmDialog from 'ui-component/confirm-dialog';
+import RatioBadge from 'ui-component/RatioBadge';
+import GroupRatioLabel from 'ui-component/GroupRatioLabel';
 import pluginList from '../type/Plugin.json';
 import { Icon } from '@iconify/react';
 import Editor from '@monaco-editor/react';
@@ -78,7 +82,7 @@ const getValidationSchema = (t) =>
     custom_parameter: Yup.string().nullable()
   });
 
-const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, modelOptions, prices, tags }) => {
+const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, isTag, modelOptions, prices, tags }) => {
   const { t } = useTranslation();
   const { t: customizeT } = useCustomizeT();
   const theme = useTheme();
@@ -1211,6 +1215,7 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                       id="channel-groups-label"
                       options={groupOptions}
                       value={values.groups}
+                      getOptionLabel={(option) => formatGroupLabel(option, groupMap)}
                       onChange={(e, value) => {
                         const event = {
                           target: {
@@ -1222,6 +1227,37 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, isTag, model
                       }}
                       onBlur={handleBlur}
                       filterSelectedOptions
+                      renderOption={(props, option) => {
+                        const group = groupMap[option];
+                        return (
+                          <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <ListItemText
+                              sx={{ my: 0, flex: 1, minWidth: 0 }}
+                              primary={formatGroupLabel(option, groupMap)}
+                              secondary={group?.description || null}
+                              primaryTypographyProps={{ sx: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }}
+                              secondaryTypographyProps={{ sx: { fontSize: '0.7rem', whiteSpace: 'normal', lineHeight: 1.2 } }}
+                            />
+                            <RatioBadge ratio={group?.ratio} />
+                          </Box>
+                        );
+                      }}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => {
+                          // 透传 getTagProps 余下的 data-tag-index / tabIndex，保留 MUI 标签键盘焦点导航
+                          const { key, onDelete, ...rest } = getTagProps({ index });
+                          return (
+                            <GroupRatioLabel
+                              key={key}
+                              label={option}
+                              ratio={groupMap[option]?.ratio}
+                              onDelete={onDelete}
+                              sx={{ m: '3px' }}
+                              {...rest}
+                            />
+                          );
+                        })
+                      }
                       renderInput={(params) => (
                         <TextField {...params} name="groups" error={Boolean(errors.groups)} label={customizeT(inputLabel.groups)} />
                       )}
@@ -2202,6 +2238,7 @@ EditModal.propTypes = {
   onCancel: PropTypes.func,
   onOk: PropTypes.func,
   groupOptions: PropTypes.array,
+  groupMap: PropTypes.object,
   isTag: PropTypes.bool,
   modelOptions: PropTypes.array,
   prices: PropTypes.array,

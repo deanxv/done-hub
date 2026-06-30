@@ -6,9 +6,9 @@ import { API } from 'utils/api';
 import { showError, showSuccess } from 'utils/common';
 import { useTranslation } from 'react-i18next';
 import BatchChannelSelector from './BatchChannelSelector';
-import { splitCsv } from './batchHelpers';
+import { formatGroupLabel, splitCsv } from './batchHelpers';
 
-const BatchAddUserGroup = ({ groupOptions }) => {
+const BatchAddUserGroup = ({ groupOptions, groupMap = {} }) => {
   const { t } = useTranslation();
   const [keyword, setKeyword] = useState('');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -71,6 +71,7 @@ const BatchAddUserGroup = ({ groupOptions }) => {
       <Autocomplete
         options={groupOptions}
         value={selectedGroup || null}
+        getOptionLabel={(option) => formatGroupLabel(option, groupMap)}
         onChange={(event, newValue) => setSelectedGroup(newValue || '')}
         renderInput={(params) => (
           <TextField {...params} label={t('channel_index.selectUserGroupToAdd')} placeholder={t('channel_index.pleaseSelectUserGroup')} />
@@ -90,7 +91,8 @@ const BatchAddUserGroup = ({ groupOptions }) => {
 };
 
 BatchAddUserGroup.propTypes = {
-  groupOptions: PropTypes.array
+  groupOptions: PropTypes.array,
+  groupMap: PropTypes.object
 };
 
 export default BatchAddUserGroup;

@@ -92,6 +92,7 @@ export default function ChannelList() {
   const [confirmConfirm, setConfirmConfirm] = useState(() => {});
 
   const [groupOptions, setGroupOptions] = useState([]);
+  const [groupMap, setGroupMap] = useState({});
   const [toolBarValue, setToolBarValue] = useState(originalKeyword);
   const [searchKeyword, setSearchKeyword] = useState(originalKeyword);
 
@@ -379,8 +380,13 @@ export default function ChannelList() {
   const fetchGroups = async () => {
     try {
       let res = await API.get(`/api/group/`);
-      const groups = Array.isArray(res.data.data) ? [...res.data.data].sort((a, b) => String(a).localeCompare(String(b))) : [];
-      setGroupOptions(groups);
+      const data = Array.isArray(res.data.data) ? res.data.data : [];
+      const map = {};
+      data.forEach((item) => {
+        map[item.symbol] = item;
+      });
+      setGroupMap(map);
+      setGroupOptions(data.map((item) => item.symbol).sort((a, b) => a.localeCompare(b)));
     } catch (error) {
       showError(error.message);
     }
@@ -553,6 +559,7 @@ export default function ChannelList() {
               filterName={toolBarValue}
               handleFilterName={handleToolBarValue}
               groupOptions={groupOptions}
+              groupMap={groupMap}
               tags={tags}
               onSearch={searchChannels}
             />
@@ -784,6 +791,7 @@ export default function ChannelList() {
                     // handleOpenModal={handleOpenModal}
                     // setModalChannelId={setEditChannelId}
                     groupOptions={groupOptions}
+                    groupMap={groupMap}
                     onRefresh={handleRefresh}
                     onTagStatsRefresh={fetchTags}
                     modelOptions={modelOptions}
@@ -815,11 +823,18 @@ export default function ChannelList() {
         onOk={handleOkModal}
         channelId={editChannelId}
         groupOptions={groupOptions}
+        groupMap={groupMap}
         modelOptions={modelOptions}
         prices={prices}
         tags={tags}
       />
-      <BatchModal open={openBatchModal} setOpen={setOpenBatchModal} groupOptions={groupOptions} modelOptions={modelOptions} />
+      <BatchModal
+        open={openBatchModal}
+        setOpen={setOpenBatchModal}
+        groupOptions={groupOptions}
+        groupMap={groupMap}
+        modelOptions={modelOptions}
+      />
 
       <ConfirmDialog
         open={confirm.value}

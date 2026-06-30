@@ -24,7 +24,7 @@ const a11yProps = (index) => ({
   'aria-controls': `channel-tabpanel-${index}`
 });
 
-const BatchModal = ({ open, setOpen, groupOptions, modelOptions }) => {
+const BatchModal = ({ open, setOpen, groupOptions, groupMap, modelOptions }) => {
   const { t } = useTranslation();
   const [value, setValue] = useState(0);
   const [mountedTabs, setMountedTabs] = useState(() => new Set([0]));
@@ -71,7 +71,7 @@ const BatchModal = ({ open, setOpen, groupOptions, modelOptions }) => {
       <Divider />
       <DialogContent>
         <CustomTabPanel value={value} index={0}>
-          {mountedTabs.has(0) && <BatchAddUserGroup groupOptions={groupOptions} />}
+          {mountedTabs.has(0) && <BatchAddUserGroup groupOptions={groupOptions} groupMap={groupMap} />}
         </CustomTabPanel>
         <CustomTabPanel value={value} index={1}>
           {mountedTabs.has(1) && <BatchAddModel modelOptions={modelOptions} />}
@@ -94,6 +94,7 @@ BatchModal.propTypes = {
   open: PropTypes.bool,
   setOpen: PropTypes.func,
   groupOptions: PropTypes.array,
+  groupMap: PropTypes.object,
   modelOptions: PropTypes.array
 };
 

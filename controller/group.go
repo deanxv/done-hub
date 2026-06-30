@@ -9,19 +9,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetGroups(c *gin.Context) {
-	groupNames := make([]string, 0)
+type groupOption struct {
+	Symbol      string  `json:"symbol"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Ratio       float64 `json:"ratio"`
+}
 
+func GetGroups(c *gin.Context) {
 	userGroup := model.GlobalUserGroupRatio.GetAll()
 
-	for symbol, _ := range userGroup {
-		groupNames = append(groupNames, symbol)
+	groups := make([]groupOption, 0, len(userGroup))
+	for _, v := range userGroup {
+		groups = append(groups, groupOption{
+			Symbol:      v.Symbol,
+			Name:        v.Name,
+			Description: v.Description,
+			Ratio:       v.Ratio,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    groupNames,
+		"data":    groups,
 	})
 }
 
