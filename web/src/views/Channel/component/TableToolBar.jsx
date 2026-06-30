@@ -249,8 +249,10 @@ export default function TableToolBar({ filterName, handleFilterName, groupOption
             {groupOptions.map((option) => {
               return (
                 <MenuItem key={option} value={option}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ width: '100%' }}>
-                    <span>{formatGroupLabel(option, groupMap)}</span>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ width: '100%', minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                      {formatGroupLabel(option, groupMap)}
+                    </span>
                     <RatioBadge ratio={groupMap[option]?.ratio} />
                   </Stack>
                 </MenuItem>

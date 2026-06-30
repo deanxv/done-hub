@@ -28,6 +28,7 @@ const GroupRatioLabel = ({ label, ratio, color = 'default', onDelete, sx, ...oth
       sx={{
         display: 'inline-flex',
         alignItems: 'stretch',
+        maxWidth: '100%',
         height: 24,
         borderRadius: '6px',
         overflow: 'hidden',
@@ -39,13 +40,15 @@ const GroupRatioLabel = ({ label, ratio, color = 'default', onDelete, sx, ...oth
       <Box
         component="span"
         sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
+          minWidth: 0,
           px: 0.75,
           fontSize: '0.75rem',
           fontWeight: 700,
+          lineHeight: '24px',
           color: textColor,
-          whiteSpace: 'nowrap'
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
         }}
       >
         {label}
@@ -57,6 +60,7 @@ const GroupRatioLabel = ({ label, ratio, color = 'default', onDelete, sx, ...oth
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
+            flexShrink: 0,
             minWidth: 28,
             px: 0.75,
             fontSize: '0.75rem',
@@ -76,6 +80,7 @@ const GroupRatioLabel = ({ label, ratio, color = 'default', onDelete, sx, ...oth
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
+            flexShrink: 0,
             pl: hasRatio ? 0.25 : 0.5,
             pr: 0.5,
             cursor: 'pointer',
