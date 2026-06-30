@@ -654,7 +654,9 @@ export default function ChannelTableRow({
           )}
         </TableCell>
 
-        <TableCell sx={{ minWidth: 300, maxWidth: 360 }}>
+        {/* 列宽跟随内容自适应：下限仅保证列标题「分组」单行可读，上限 360 为胶囊横向堆叠的换行阈值；
+            分组稀疏时整列向标题宽收缩，避免单胶囊行白占空间（表格同列共享宽度，无法逐行缩放）。 */}
+        <TableCell sx={{ minWidth: 100, maxWidth: 360 }}>
           {isMixedGroup ? (
             <Tooltip title={t('channel_row.mixedTip')} placement="top" arrow>
               <Label color="warning" variant="soft">

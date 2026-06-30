@@ -136,7 +136,7 @@ type ClaudeRequest struct {
 	Thinking      *Thinking       `json:"thinking,omitempty"`
 	McpServers    any             `json:"mcp_servers,omitempty"`
 	Metadata      *ClaudeMetadata `json:"metadata,omitempty"`
-	Stream        bool            `json:"stream"`
+	Stream        bool            `json:"stream,omitempty"`
 }
 
 type Thinking struct {
