@@ -33,6 +33,7 @@ var bedrockMap = map[string]string{
 	"claude-opus-4-6":            "anthropic.claude-opus-4-6-v1",
 	"claude-opus-4-7":            "anthropic.claude-opus-4-7",
 	"claude-opus-4-8":            "anthropic.claude-opus-4-8",
+	"claude-sonnet-5":            "anthropic.claude-sonnet-5",
 }
 
 // 用户显式书写的区域前缀（手动覆盖优先）
@@ -63,6 +64,8 @@ var awsModelCanCrossRegionMap = map[string]map[string]string{
 	"anthropic.claude-opus-4-6-v1":              {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-opus-4-7":                 {"us": "us", "eu": "eu", "ap": "global"},
 	"anthropic.claude-opus-4-8":                 {"us": "us", "eu": "eu", "ap": "global"},
+	// sonnet-5：EU 无 geo profile，仅 Global（AWS model card 2026-06-30）
+	"anthropic.claude-sonnet-5": {"us": "us", "eu": "global", "ap": "global"},
 }
 
 var CategoryMap = map[string]Category{}
