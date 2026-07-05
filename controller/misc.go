@@ -14,6 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Health 免鉴权健康检查端点，供负载均衡/容器存活探针使用。
+// 主要面向 RELAY_ONLY 从节点：此模式下 /api/status 被关闭，探针改用此端点。
+func Health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func GetStatus(c *gin.Context) {
 	telegramBot := ""
 	if telegram.TGEnabled {

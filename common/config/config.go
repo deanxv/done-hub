@@ -14,6 +14,7 @@ func InitConf() {
 	setEnv()
 	Language = viper.GetString("language")
 	IsMasterNode = viper.GetString("node_type") != "slave"
+	RelayOnly = viper.GetBool("relay_only")
 	RequestInterval = time.Duration(viper.GetInt("polling_interval")) * time.Second
 	SessionSecret = utils.GetOrDefault("session_secret", SessionSecret)
 	UserInvoiceMonth = viper.GetBool("user_invoice_month")

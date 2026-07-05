@@ -3,6 +3,7 @@ package router
 import (
 	"done-hub/common/config"
 	"done-hub/common/logger"
+	"done-hub/controller"
 	"embed"
 	"fmt"
 	"net/http"
@@ -14,6 +15,17 @@ import (
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	// 纯 relay 网关模式：仅暴露转发接口与健康检查，其余(前端、/api 管理接口、
+	// dashboard、MCP、pprof、前端跳转)一律不注册，未匹配路由统一返回 404。
+	// 用于从节点只对外提供 relay 能力，同时避免泄露主域名等信息。
+	if config.RelayOnly {
+		router.GET("/health", controller.Health)
+		SetRelayRouter(router)
+		router.NoRoute(controller.RelayNotFound)
+		logger.SysLog("RELAY_ONLY mode enabled: web pages & management API are disabled")
+		return
+	}
+
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)

@@ -276,6 +276,10 @@ var RootUserEmail = ""
 
 var IsMasterNode = true
 
+// RelayOnly 纯 relay 网关模式：仅暴露转发接口(/v1、/claude、/gemini、/mj 等)与 /health，
+// 前端页面、/api 管理接口、dashboard 一律返回 404，避免从节点泄露主域名等信息。
+var RelayOnly = false
+
 var RequestInterval time.Duration
 
 var BatchUpdateEnabled = false

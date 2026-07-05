@@ -19,10 +19,13 @@ services:
     #      - NODE_TYPE=slave  # 多机部署时从节点取消注释该行
     #      - SYNC_FREQUENCY=60  # 需要定期从数据库加载数据时取消注释该行
     #      - FRONTEND_BASE_URL=https://openai.justsong.cn  # 多机部署时从节点取消注释该行
+    #      - RELAY_ONLY=true  # 纯 relay 网关模式：仅暴露转发接口(/v1、/claude、/gemini 等)与 /health，前端与 /api 管理接口全部 404。
+    #                         # 注意：开启后 /api/status 不可用，需将下方 healthcheck 的探测地址改为 http://localhost:3000/health
     depends_on:
       - redis
       - db
     healthcheck:
+      # RELAY_ONLY 模式下请将 /api/status 改为 /health（该模式关闭了 /api）
       test:
         [
           "CMD-SHELL",
