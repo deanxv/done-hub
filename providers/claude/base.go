@@ -134,6 +134,12 @@ func isProviderManagedHeader(name string) bool {
 		"te",
 		"trailer":
 		return true
+	// 浏览器 CORS 语义头：done-hub 作为中转，前端请求会带 Origin/Referer 指向自身域名。
+	// 透传给 Anthropic 会被判定为浏览器直连，返回 403 permission_error
+	// "CORS requests must set 'anthropic-dangerous-direct-browser-access' header"，
+	// 进而触发渠道自动禁用。中转场景这两个头对上游无意义，一律剥离。
+	case "origin", "referer":
+		return true
 	}
 	return false
 }
