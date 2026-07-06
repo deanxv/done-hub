@@ -86,3 +86,37 @@ func SetProxy(proxyAddr string, ctx context.Context) context.Context {
 	// 否则使用 http 代理
 	return context.WithValue(ctx, key, proxyAddr)
 }
+
+// NewProxyHTTPClient 构建一个将代理固化在 Transport 上的 http.Client。
+// 适用于 oauth2 等第三方库：它们通过 PostForm 等方式发请求，不会透传 SetProxy 注入到 context 的代理地址，
+// 只能依赖 Transport 自身携带代理。proxyAddr 为空时返回默认直连的 http.Client。
+func NewProxyHTTPClient(proxyAddr string) (*http.Client, error) {
+	if proxyAddr == "" {
+		return &http.Client{}, nil
+	}
+
+	proxyURL, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing proxy address: %w", err)
+	}
+
+	transport := &http.Transport{}
+	switch proxyURL.Scheme {
+	case "http", "https":
+		transport.Proxy = http.ProxyURL(proxyURL)
+	case "socks5", "socks5h":
+		proxyDialer, err := proxy.FromURL(proxyURL, proxy.Direct)
+		if err != nil {
+			return nil, fmt.Errorf("error creating proxy dialer: %w", err)
+		}
+		if contextDialer, ok := proxyDialer.(proxy.ContextDialer); ok {
+			transport.DialContext = contextDialer.DialContext
+		} else {
+			transport.Dial = proxyDialer.Dial
+		}
+	default:
+		return nil, fmt.Errorf("unsupported proxy scheme: %s", proxyURL.Scheme)
+	}
+
+	return &http.Client{Transport: transport}, nil
+}

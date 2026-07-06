@@ -144,8 +144,12 @@ func (p *VertexAIProvider) GetToken() (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	ctx = utils.SetProxy(p.Channel.GetProxy(), ctx)
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, requester.HTTPClient)
+
+	httpClient, err := utils.NewProxyHTTPClient(p.Channel.GetProxy())
+	if err != nil {
+		return "", fmt.Errorf("failed to create proxy http client: %w", err)
+	}
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
 
 	tok, err := config.TokenSource(ctx).Token()
 	if err != nil {
