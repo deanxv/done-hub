@@ -303,7 +303,7 @@ func (p *GeminiCliProvider) GetToken() (string, error) {
 		ctx = context.Background()
 	}
 
-	cacheKey := fmt.Sprintf("%s:%s", TokenCacheKey, p.ProjectID)
+	cacheKey := fmt.Sprintf("%s:%d", TokenCacheKey, p.Channel.Id)
 
 	cachedToken, _ := cache.GetCache[string](cacheKey)
 	if cachedToken != "" {

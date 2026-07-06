@@ -586,6 +586,9 @@ func ClearChannelTokenCache(channelId int) {
 		fmt.Sprintf("api_token:codex:%d", channelId),
 		fmt.Sprintf("api_token:geminicli:%d", channelId),
 		fmt.Sprintf("api_token:claudecode:%d", channelId),
+		fmt.Sprintf("api_token:vertexai:%d", channelId),
+		fmt.Sprintf("api_token:gemini_sa:%d", channelId),
+		fmt.Sprintf("api_token:antigravity:%d", channelId),
 	}
 
 	for _, key := range cacheKeys {
