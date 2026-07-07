@@ -417,6 +417,23 @@ func DeleteOldLog(targetTimestamp int64) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// DeleteOldLogBatch 分批删除指定时间之前的消费日志，返回本批删除行数。
+// 先查一批 ID 再按 ID 删，避免超大事务锁表。
+func DeleteOldLogBatch(targetTimestamp int64, batchSize int) (int64, error) {
+	var ids []int
+	err := DB.Model(&Log{}).Select("id").
+		Where("type = ? AND created_at < ?", LogTypeConsume, targetTimestamp).
+		Limit(batchSize).Pluck("id", &ids).Error
+	if err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := DB.Where("id IN ?", ids).Delete(&Log{})
+	return result.RowsAffected, result.Error
+}
+
 type LogStatistic struct {
 	Date             string `gorm:"column:date"`
 	RequestCount     int64  `gorm:"column:request_count"`

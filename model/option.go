@@ -47,6 +47,8 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterBool("AutomaticDisableChannelNotifyEnabled", &config.AutomaticDisableChannelNotifyEnabled)
 	config.GlobalOption.RegisterBool("ApproximateTokenEnabled", &config.ApproximateTokenEnabled)
 	config.GlobalOption.RegisterBool("LogConsumeEnabled", &config.LogConsumeEnabled)
+	config.GlobalOption.RegisterBool("LogAutoDeleteEnabled", &config.LogAutoDeleteEnabled)
+	config.GlobalOption.RegisterInt("LogAutoDeleteDays", &config.LogAutoDeleteDays)
 	config.GlobalOption.RegisterBool("EmptyResponseBillingEnabled", &config.EmptyResponseBillingEnabled)
 	config.GlobalOption.RegisterBool("DisplayInCurrencyEnabled", &config.DisplayInCurrencyEnabled)
 	config.GlobalOption.RegisterBool("DisplayTokenStatEnabled", &config.DisplayTokenStatEnabled)

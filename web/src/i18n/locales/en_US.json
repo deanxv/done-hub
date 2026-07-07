@@ -1111,6 +1111,12 @@
           "placeholder": "Number of retries"
         },
         "saveButton": "Save General Settings",
+        "subGroups": {
+          "linkAndBilling": "Links & Billing",
+          "retry": "Retry Policy",
+          "upstreamError": "Upstream Error Handling",
+          "displayOptions": "Display & Billing Options"
+        },
         "title": "General Settings",
         "topUpLink": {
           "label": "Top-up Link",
@@ -1134,6 +1140,8 @@
       },
       "logSettings": {
         "clearLogs": "Clear Historical Logs",
+        "autoDelete": "Enable Auto Deletion of Consumption Logs",
+        "autoDeleteDays": "Retention Days for Auto Deletion",
         "logCleanupTime": {
           "label": "Log Cleanup Time",
           "placeholder": "Log Cleanup Time"

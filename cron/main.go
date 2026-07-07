@@ -5,6 +5,7 @@ import (
 	"done-hub/common/logger"
 	"done-hub/common/scheduler"
 	"done-hub/model"
+	"fmt"
 	"github.com/spf13/viper"
 	"time"
 
@@ -58,6 +59,38 @@ func InitCron() {
 			logger.SysLog("10分钟统计数据")
 		}),
 	)
+
+	// 每天凌晨 3:00 自动清理过期消费日志
+	err = scheduler.Manager.AddJob(
+		"log_auto_delete",
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(3, 0, 0))),
+		gocron.NewTask(func() {
+			if !config.LogAutoDeleteEnabled || config.LogAutoDeleteDays <= 0 {
+				return
+			}
+			targetTimestamp := time.Now().AddDate(0, 0, -config.LogAutoDeleteDays).Unix()
+			const batchSize = 10000
+			var totalDeleted int64
+			for {
+				affected, err := model.DeleteOldLogBatch(targetTimestamp, batchSize)
+				if err != nil {
+					logger.SysError(fmt.Sprintf("[cron] 消费日志自动清理失败，已删 %d 行: %v", totalDeleted, err))
+					break
+				}
+				totalDeleted += affected
+				if affected == 0 {
+					break
+				}
+			}
+			if totalDeleted > 0 {
+				logger.SysLog(fmt.Sprintf("[cron] 消费日志自动清理完成，共删除 %d 行", totalDeleted))
+			}
+		}),
+	)
+	if err != nil {
+		logger.SysError("Cron job error: " + err.Error())
+		return
+	}
 
 	// 开启自动更新 并且设置了有效自动更新时间 同时自动更新模式不是system 则会从服务器拉取最新价格表
 	autoPriceUpdatesInterval := viper.GetInt("auto_price_updates_interval")

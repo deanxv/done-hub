@@ -156,6 +156,9 @@ var MemoryCacheEnabled = false
 
 var LogConsumeEnabled = true
 
+var LogAutoDeleteEnabled = false // 是否启用消费日志自动清理
+var LogAutoDeleteDays = 30       // 保留天数，默认30天
+
 var SMTPServer = ""
 var SMTPPort = 587
 var SMTPAccount = ""
