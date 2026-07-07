@@ -12,7 +12,7 @@ export const NoticeDialogs = () => {
   const { isOpen, closeNotice, notice } = useNotice();
 
   return (
-    <Dialog aria-labelledby="customized-dialog-title" open={isOpen} fullWidth maxWidth="sm">
+    <Dialog aria-labelledby="customized-dialog-title" open={isOpen} fullWidth maxWidth="md">
       <DialogTitle
         sx={{
           margin: '0px',
