@@ -40,14 +40,14 @@ type User struct {
 	InviteCode        string         `json:"invite_code" gorm:"-:all"`                                          // this field is only for registration, don't save it to database!
 	UsedInviteCode    string         `json:"used_invite_code" gorm:"type:varchar(32);index;default:''"`         // the invite code used during registration, for statistics
 	AccessToken       string         `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota             int            `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota         int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount      int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Quota             int            `json:"quota" gorm:"type:bigint;default:0"`
+	UsedQuota         int            `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
+	RequestCount      int            `json:"request_count" gorm:"type:int;default:0;"`                  // request number
 	Group             string         `json:"group" gorm:"type:varchar(32);default:'default'"`
 	AffCode           string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount          int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota          int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`
-	AffHistoryQuota   int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"`
+	AffQuota          int            `json:"aff_quota" gorm:"type:bigint;default:0;column:aff_quota"`
+	AffHistoryQuota   int            `json:"aff_history_quota" gorm:"type:bigint;default:0;column:aff_history"`
 	InviterId         int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	LastLoginTime     int64          `json:"last_login_time" gorm:"bigint;default:0"`
 	LastLoginIp       string         `json:"last_login_ip" gorm:"type:varchar(128);default:''"`
@@ -840,7 +840,7 @@ func ProcessInviterReward(userId int, rechargeQuota int, ip string) error {
 
 	if config.InviterRewardType == "percentage" {
 		// 百分比奖励
-		rewardQuota = int(float64(rechargeQuota) * float64(config.InviterRewardValue) / 100.0)
+		rewardQuota = common.QuotaFromFloat(float64(rechargeQuota) * float64(config.InviterRewardValue) / 100.0)
 		logMessage = fmt.Sprintf("邀请用户充值返利 %s \n\n (充值额度: %s, 返利比例: %d%%)",
 			common.LogQuota(rewardQuota),
 			common.LogQuota(rechargeQuota),

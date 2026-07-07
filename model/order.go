@@ -24,7 +24,7 @@ type Order struct {
 	Amount        int            `json:"amount" gorm:"default:0"`
 	OrderAmount   float64        `json:"order_amount" gorm:"type:decimal(10,2);default:0"`
 	OrderCurrency CurrencyType   `json:"order_currency" gorm:"type:varchar(16)"`
-	Quota         int            `json:"quota" gorm:"type:int;default:0"`
+	Quota         int            `json:"quota" gorm:"type:bigint;default:0"`
 	Fee           float64        `json:"fee" gorm:"type:decimal(10,2);default:0"`
 	Discount      float64        `json:"discount" gorm:"type:decimal(10,2);default:0"`
 	Status        OrderStatus    `json:"status" gorm:"type:varchar(32)"`

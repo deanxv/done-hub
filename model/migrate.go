@@ -83,6 +83,56 @@ func changeTokenKeyColumnType() *gormigrate.Migration {
 	}
 }
 
+// changeQuotaColumnsToBigint 将历史上为 int32 的额度列加宽为 bigint,
+// 防止大额计费溢出回绕成负数。仅 MySQL/PostgreSQL 需要;SQLite 的 INTEGER
+// 本就是动态最长 8 字节,无需处理。
+func changeQuotaColumnsToBigint() *gormigrate.Migration {
+	return &gormigrate.Migration{
+		ID: "202607070001",
+		Migrate: func(tx *gorm.DB) error {
+			dialect := tx.Dialector.Name()
+			if dialect == "sqlite" {
+				return nil
+			}
+
+			// 表名 -> 需要加宽的列
+			targets := map[string][]string{
+				"users":  {"quota", "used_quota", "aff_quota", "aff_history"},
+				"orders": {"quota"},
+			}
+
+			for table, cols := range targets {
+				if !tx.Migrator().HasTable(table) {
+					continue
+				}
+				for _, col := range cols {
+					if !tx.Migrator().HasColumn(table, col) {
+						continue
+					}
+					var stmt string
+					switch dialect {
+					case "mysql":
+						stmt = "ALTER TABLE `" + table + "` MODIFY COLUMN `" + col + "` bigint NOT NULL DEFAULT 0"
+					case "postgres":
+						stmt = "ALTER TABLE " + table + " ALTER COLUMN " + col + " TYPE bigint"
+					default:
+						continue
+					}
+					if err := tx.Exec(stmt).Error; err != nil {
+						logger.SysLog("加宽 " + table + "." + col + " 为 bigint 失败: " + err.Error())
+						return err
+					}
+				}
+			}
+			return nil
+		},
+		// 不做缩窄回滚:bigint -> int 可能丢数据,故留空。
+		Rollback: func(tx *gorm.DB) error {
+			return nil
+		},
+	}
+}
+
 func migrationBefore(db *gorm.DB) error {
 	// 从库不执行
 	if !config.IsMasterNode {
@@ -98,6 +148,7 @@ func migrationBefore(db *gorm.DB) error {
 	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
 		removeKeyIndexMigration(),
 		changeTokenKeyColumnType(),
+		changeQuotaColumnsToBigint(),
 	})
 	return m.Migrate()
 }

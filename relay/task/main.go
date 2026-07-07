@@ -177,7 +177,7 @@ func CompletedTask(quotaInstance *relay_util.Quota, taskAdaptor base.TaskInterfa
 	quotaInstance.ConsumeWithSnapshot(snap, &types.Usage{CompletionTokens: 0, PromptTokens: 1, TotalTokens: 1}, false)
 
 	task := taskAdaptor.GetTask()
-	task.Quota = int(quotaInstance.GetInputRatio() * 1000)
+	task.Quota = common.QuotaFromFloat(quotaInstance.GetInputRatio() * 1000)
 
 	err := task.Insert()
 	if err != nil {

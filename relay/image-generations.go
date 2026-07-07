@@ -16,6 +16,21 @@ type relayImageGenerations struct {
 	request types.ImageRequest
 }
 
+// MaxImageN 单次请求允许的最大图片数量。用户可控的 n / sampleCount 作为
+// 计费与上游请求的乘数,必须有上界,防止超大值溢出或滥用(纵深防御)。
+const MaxImageN = 64
+
+// clampImageN 把图片数量钳制到 [1, MaxImageN]。
+func clampImageN(n int) int {
+	if n < 1 {
+		return 1
+	}
+	if n > MaxImageN {
+		return MaxImageN
+	}
+	return n
+}
+
 func newRelayImageGenerations(c *gin.Context) *relayImageGenerations {
 	relay := &relayImageGenerations{}
 	relay.c = c
@@ -41,6 +56,7 @@ func (r *relayImageGenerations) setRequest() error {
 	if r.request.N == 0 {
 		r.request.N = 1
 	}
+	r.request.N = clampImageN(r.request.N)
 
 	if strings.HasPrefix(r.request.Model, "dall-e") {
 		if r.request.Size == "" {
@@ -101,6 +117,13 @@ func (r *relayImageGenerations) setGeminiRequest() error {
 		switch key {
 		case "sampleCount":
 			if sampleCount, ok := value.(float64); ok {
+				// 先在 float 域钳到安全区间,避免超大 float 转 int 时结果
+				// 实现相关(Go 规范)而绕过下方 clampImageN。
+				if sampleCount < 1 {
+					sampleCount = 1
+				} else if sampleCount > float64(MaxImageN) {
+					sampleCount = float64(MaxImageN)
+				}
 				r.request.N = int(sampleCount)
 			}
 		case "aspectRatio":
@@ -116,6 +139,7 @@ func (r *relayImageGenerations) setGeminiRequest() error {
 	if r.request.N == 0 {
 		r.request.N = 1
 	}
+	r.request.N = clampImageN(r.request.N)
 
 	r.setOriginalModel(r.request.Model)
 

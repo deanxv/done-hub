@@ -84,9 +84,9 @@ func NewQuota(c *gin.Context, modelName string, promptTokens int) *Quota {
 
 func (q *Quota) PreQuotaConsumption() *types.OpenAIErrorWithStatusCode {
 	if q.price.Type == model.TimesPriceType {
-		q.preConsumedQuota = int(1000 * q.inputRatio)
+		q.preConsumedQuota = common.QuotaFromFloat(1000 * q.inputRatio)
 	} else if q.price.Input != 0 || q.price.Output != 0 {
-		q.preConsumedQuota = int(float64(q.promptTokens)*q.inputRatio) + config.PreConsumedQuota
+		q.preConsumedQuota = common.QuotaFromFloat(float64(q.promptTokens)*q.inputRatio) + config.PreConsumedQuota
 	}
 
 	if q.preConsumedQuota == 0 {
@@ -324,22 +324,22 @@ func (q *Quota) GetTotalQuota(promptTokens, completionTokens int, extraBilling m
 // 依赖调用方已通过 GetExtraBillingData 设置好 extraBillingData。
 func (q *Quota) calcQuota(promptTokens, completionTokens int, inputRatio, outputRatio, ratio float64) (quota int) {
 	if q.price.Type == model.TimesPriceType {
-		quota = int(1000 * inputRatio)
+		quota = common.QuotaFromFloat(1000 * inputRatio)
 	} else {
-		quota = int(math.Ceil((float64(promptTokens) * inputRatio) + (float64(completionTokens) * outputRatio)))
+		quota = common.QuotaFromFloat(math.Ceil((float64(promptTokens) * inputRatio) + (float64(completionTokens) * outputRatio)))
 	}
 
 	extraBillingQuota := 0
 	if q.extraBillingData != nil {
 		for _, value := range q.extraBillingData {
-			extraBillingQuota += int(math.Ceil(
-				float64(value.Price)*float64(config.QuotaPerUnit),
-			)) * value.CallCount
+			extraBillingQuota += common.QuotaFromFloat(
+				math.Ceil(float64(value.Price)*float64(config.QuotaPerUnit)) * float64(value.CallCount),
+			)
 		}
 	}
 
 	if extraBillingQuota > 0 {
-		quota += int(math.Ceil(
+		quota += common.QuotaFromFloat(math.Ceil(
 			float64(extraBillingQuota) * ratio,
 		))
 	}
