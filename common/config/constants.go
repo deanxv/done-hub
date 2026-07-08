@@ -238,6 +238,11 @@ func GetChannelFailErrorMessage() string {
 // 统一请求响应模型（响应中显示用户请求的原始模型名称）
 var UnifiedRequestResponseModelEnabled = false
 
+// FingerprintPassThroughEnabled 让原生 Claude 格式渠道（Bedrock / Claude 官方）尽量保留
+// 上游的响应指纹：非流式原始字节透传、Bedrock 额外透传 x-amzn-* 响应头、流式跳过 model 改写。
+// 默认开启；关闭后回退到与其它渠道一致的结构体序列化行为。
+var FingerprintPassThroughEnabled = true
+
 // 模型名称大小写不敏感匹配
 var ModelNameCaseInsensitiveEnabled = false
 

@@ -10,6 +10,7 @@ import (
 	"done-hub/types"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -26,6 +27,10 @@ type ClaudeRelayStreamHandler struct {
 	Context    *gin.Context
 
 	AddEvent bool
+
+	// SkipModelUnify 为 true 时跳过 message_start 中 message.model 的统一改写，
+	// 用于 Bedrock 指纹保真：保留上游 AWS 返回的原始 model 名。
+	SkipModelUnify bool
 }
 
 func (p *ClaudeProvider) CreateClaudeChat(request *ClaudeRequest) (*ClaudeResponse, *types.OpenAIErrorWithStatusCode) {
@@ -36,8 +41,12 @@ func (p *ClaudeProvider) CreateClaudeChat(request *ClaudeRequest) (*ClaudeRespon
 	defer req.Body.Close()
 
 	claudeResponse := &ClaudeResponse{}
-	// 发送请求
-	_, errWithCode = p.Requester.SendRequest(req, claudeResponse, false)
+	// 指纹保真：用 outputResp=true 让 TeeReader 回填 resp.Body，既能 unmarshal 一份供计费，
+	// 又能拿到上游原始字节。只有在「无模型映射需要改 model」时才真正字节透传，
+	// 否则回退结构体路径由 unifyResponseModel 改写 model（字节透传无法改 model）。
+	// 与 Bedrock 共用 FingerprintPassThroughEnabled 开关；关闭即回退结构体序列化（无额外字节缓存）。
+	passThrough := config.FingerprintPassThroughEnabled && p.Context != nil
+	resp, errWithCode := p.Requester.SendRequest(req, claudeResponse, passThrough)
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
@@ -48,6 +57,18 @@ func (p *ClaudeProvider) CreateClaudeChat(request *ClaudeRequest) (*ClaudeRespon
 	if !isOk {
 		usage.CompletionTokens = ClaudeOutputUsage(claudeResponse)
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+
+	// 上游回显的 model 名 == 用户请求名时字节透传，保留字段顺序 / 未知字段 / model 原名；
+	// 不相等（配了别名映射、需改回请求名）时不暂存字节，交给结构体路径 unifyResponseModel 改写。
+	// 判据是本次响应实际回显的 claudeResponse.Model，而非渠道是否配了映射表。
+	if passThrough && resp != nil {
+		if !base.HasResponseModelMapping(p.Context, claudeResponse.Model) {
+			if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
+				p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
+			}
+		}
+		resp.Body.Close()
 	}
 
 	return claudeResponse, nil
@@ -128,8 +149,11 @@ func (h *ClaudeRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		// 统一请求响应模型：model 仅出现在 message_start 的 message.model。
 		// 在剥离前缀的纯 JSON 上字节级改写（gjson 读 + sjson 改，仅动 model 一个字段，
 		// 其余字段顺序/内容不变），再把改写后的 JSON 回填到 rawStr，保留其原有的 data: 前缀与尾部。
-		if patched, changed := base.UnifyModelInJSONBytes(h.Context, noSpaceLine, "message.model"); changed {
-			rawStr = strings.Replace(rawStr, string(noSpaceLine), string(patched), 1)
+		// SkipModelUnify 时跳过（Bedrock 指纹保真：保留 AWS 原始 model 名）。
+		if !h.SkipModelUnify {
+			if patched, changed := base.UnifyModelInJSONBytes(h.Context, noSpaceLine, "message.model"); changed {
+				rawStr = strings.Replace(rawStr, string(noSpaceLine), string(patched), 1)
+			}
 		}
 	case "message_delta":
 		ClaudeUsageMerge(&claudeResponse.Usage, h.StartUsage)

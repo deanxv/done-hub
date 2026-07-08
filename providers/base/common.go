@@ -326,6 +326,27 @@ func resolveUnifiedModel(ctx *gin.Context, upstreamModel string) (originalModel 
 	return originalModelStr, true
 }
 
+// HasResponseModelMapping 判断本次响应是否需要把上游返回的 upstreamModel 改写成用户请求名。
+//
+// 关键：判据是「上游这次实际回显的 model 名（upstreamModel）是否 != 用户请求名」，
+// 而【不是】「渠道配置里有没有配模型映射表」。含义：
+//   - 上游回显名 == 请求名（Claude 官方常见情形，无别名映射时透传给上游、上游原样回显）
+//     → 返回 false → 改不改结果都一样 → 可安全字节透传保指纹。
+//   - 上游回显名 != 请求名（渠道配了别名映射，或上游本就返回带前后缀的规范名，
+//     如 Bedrock 的 anthropic.claude-xxx-v1:0）→ 返回 true → 必须走结构体路径
+//     由 unifyResponseModel 把 model 改回请求名（字节透传无法改字段）。
+//
+// 注意 Bedrock 渠道不用本函数取舍：它无条件保 AWS 原名（表现成真 AWS），
+// 见 providers/bedrock/relay_claude.go 的无条件字节透传 + SkipModelUnify。
+//
+// 实现依赖有副作用的 resolveUnifiedModel（首次判定为 true 时会输出一条 INFO 日志并置
+// unified_model_logged 标志）。这里是安全的：ok=true 时后段 unifyResponseModel 仍会
+// 走同一路径，靠该标志去重不会二次日志；ok=false 时 resolveUnifiedModel 根本不记日志。
+func HasResponseModelMapping(ctx *gin.Context, upstreamModel string) bool {
+	_, ok := resolveUnifiedModel(ctx, upstreamModel)
+	return ok
+}
+
 // GetResponseModelNameFromContext 从 Context 获取响应模型名称的静态函数
 // 用于流式响应等无法访问 BaseProvider 的场景
 func GetResponseModelNameFromContext(ctx *gin.Context, fallbackModel string) string {

@@ -110,6 +110,47 @@ func getKeyConfig(bedrock *BedrockProvider) {
 	}
 }
 
+// awsResponseHeaderExcluded 是禁止透传的响应头（传输层 / 由下游自行设置）。
+// 透传这些会与 done-hub 自己写的响应头冲突或破坏分块传输。
+//
+// 注意：当前 filterAWSResponseHeaders 的白名单已限定为 x-amzn-* / apigw-requestid，
+// 这些传输层头不会命中该白名单，故此排除集当前是冗余的防御性兜底——仅在未来放宽
+// 白名单（如加入 x-amz-* 前缀）时才真正生效，防止误透传传输层头。
+var awsResponseHeaderExcluded = map[string]struct{}{
+	"content-length":    {},
+	"content-type":      {},
+	"content-encoding":  {},
+	"transfer-encoding": {},
+	"connection":        {},
+	"keep-alive":        {},
+}
+
+// filterAWSResponseHeaders 从上游 Bedrock 响应头中挑出可透传给客户端的 AWS 指纹头，
+// 目的是让 done-hub 中转的响应看起来像直连 AWS（携带 x-amzn-requestid /
+// x-amzn-bedrock-input-token-count / x-amzn-bedrock-output-token-count / apigw-requestid 等）。
+// 只透传 x-amzn- 前缀及 apigw-requestid，其余（包括 x-amz- 非 amzn 前缀）暂不透传，避免误伤。
+func filterAWSResponseHeaders(src http.Header) http.Header {
+	if len(src) == 0 {
+		return nil
+	}
+	out := http.Header{}
+	for name, values := range src {
+		lower := strings.ToLower(name)
+		if _, excluded := awsResponseHeaderExcluded[lower]; excluded {
+			continue
+		}
+		if strings.HasPrefix(lower, "x-amzn-") || lower == "apigw-requestid" {
+			for _, v := range values {
+				out.Add(name, v)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func (p *BedrockProvider) Sign(req *http.Request) error {
 	var body []byte
 	if req.Body == nil {

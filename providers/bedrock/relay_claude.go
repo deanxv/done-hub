@@ -7,6 +7,7 @@ import (
 	"done-hub/providers/bedrock/category"
 	"done-hub/providers/claude"
 	"done-hub/types"
+	"io"
 	"net/http"
 
 	"github.com/tidwall/gjson"
@@ -21,10 +22,22 @@ func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*clau
 	defer req.Body.Close()
 
 	claudeResponse := &claude.ClaudeResponse{}
-	// // 发送请求
-	_, openaiErr := p.Requester.SendRequest(req, claudeResponse, false)
+	// 指纹保真开启时用 outputResp=true：TeeReader 会把上游原始字节回填 resp.Body，
+	// 既能 unmarshal 一份供计费，又能拿到原始字节透传给客户端（保留字段顺序/未知字段/AWS model 原名）。
+	passThrough := config.FingerprintPassThroughEnabled && p.Context != nil
+	resp, openaiErr := p.Requester.SendRequest(req, claudeResponse, passThrough)
 	if openaiErr != nil {
 		return nil, openaiErr
+	}
+
+	if passThrough && resp != nil {
+		if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil {
+			p.Context.Set(config.GinBedrockRawResponseBodyKey, rawBytes)
+		}
+		if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
+			p.Context.Set(config.GinBedrockPassThroughHeaders, headers)
+		}
+		resp.Body.Close()
 	}
 
 	usage := p.GetUsage()
@@ -48,12 +61,21 @@ func (p *BedrockProvider) CreateClaudeChatStream(request *claude.ClaudeRequest) 
 		ModelName: request.Model,
 		Prefix:    `{"type"`,
 		AddEvent:  true,
+		// 指纹保真：保留 message_start 里 AWS 的 message.model（anthropic.claude-xxx-v1:0），
+		// 不改写成用户请求名，否则会暴露"被中转"。
+		SkipModelUnify: config.FingerprintPassThroughEnabled,
 	}
 
 	// 发送请求
 	resp, openaiErr := p.Requester.SendRequestRaw(req)
 	if openaiErr != nil {
 		return nil, openaiErr
+	}
+
+	if config.FingerprintPassThroughEnabled && p.Context != nil {
+		if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
+			p.Context.Set(config.GinBedrockPassThroughHeaders, headers)
+		}
 	}
 
 	stream, openaiErr := RequestStream(resp, chatHandler.HandlerStream)
