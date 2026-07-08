@@ -41,6 +41,7 @@ func getConfig() base.ProviderConfig {
 		BaseURL:           "https://api.x.ai",
 		ChatCompletions:   "/v1/chat/completions",
 		ImagesGenerations: "/v1/images/generations",
+		ImagesEdit:        "/v1/images/edits",
 		ModelList:         "/v1/models",
 		Responses:         "/v1/responses",
 	}
