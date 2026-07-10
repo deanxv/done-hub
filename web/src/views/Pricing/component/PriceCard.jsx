@@ -30,6 +30,7 @@ const PriceCard = ({ price, onEdit, onDelete, ownedby, unit = 'K' }) => {
       cached_write_tokens: t('modelpricePage.cached_write_tokens'),
       cached_write_1h_tokens: t('modelpricePage.cached_write_1h_tokens'),
       cached_read_tokens: t('modelpricePage.cached_read_tokens'),
+      openai_cache_write_tokens: t('modelpricePage.openai_cache_write_tokens'),
       input_audio_tokens: t('modelpricePage.input_audio_tokens'),
       output_audio_tokens: t('modelpricePage.output_audio_tokens'),
       reasoning_tokens: t('modelpricePage.reasoning_tokens'),

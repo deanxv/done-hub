@@ -743,6 +743,7 @@
     "cached_write_tokens": "快取寫入倍率",
     "cached_write_1h_tokens": "快取寫入(1h)倍率",
     "cached_read_tokens": "快取讀取倍率",
+    "openai_cache_write_tokens": "OpenAI快取寫入倍率",
     "reasoning_tokens": "推理倍率",
     "input_text_tokens": "輸入文本倍率",
     "output_text_tokens": "輸出文本倍率",

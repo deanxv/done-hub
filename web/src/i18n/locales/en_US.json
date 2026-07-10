@@ -760,6 +760,7 @@
     "cached_write_tokens": "Cache Write Ratio",
     "cached_write_1h_tokens": "Cache Write 1h Ratio",
     "cached_read_tokens": "Cache Read Ratio",
+    "openai_cache_write_tokens": "OpenAI Cache Write Ratio",
     "reasoning_tokens": "Reasoning Ratio",
     "input_text_tokens": "Input Text Ratio",
     "output_text_tokens": "Output Text Ratio",
