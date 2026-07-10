@@ -645,6 +645,7 @@
       "outputPrice": "輸出價格",
       "groupRatio": "分組倍率",
       "groupRatioValue": "分組倍率",
+      "longContextRatio": "長上下文倍率",
       "actualPrice": "實際價格",
       "input": "輸入",
       "output": "輸出",
@@ -771,6 +772,10 @@
     "priceDetails": "價格明細",
     "priceNote": "不同分組,對應的價格也隨之不同,渠道組需要在令牌管理中切換。",
     "otherInfo": "其他資訊",
+    "longContext": "長上下文計費",
+    "shortContext": "短上下文",
+    "longContextLabel": "長上下文",
+    "longContextDesc": "輸入超過 {{threshold}} tokens 時，整次請求按長上下文價格計費。",
     "totalModels": "共 {{count}} 個模型",
     "noModelsFound": "未找到匹配的模型",
     "noModelsFoundTip": "請嘗試調整篩選條件或搜索關鍵詞",
@@ -921,7 +926,12 @@
     "noAvailableRatios": "冇可用嘅擴展倍率",
     "noExtraRatios": "暫無額外擴展倍率，請從下拉框選擇添加",
     "promptRatio": "提示倍率",
-    "selectExtraRatio": "選擇擴展倍率"
+    "selectExtraRatio": "選擇擴展倍率",
+    "longContext": "長上下文分檔",
+    "longContextThreshold": "閾值(tokens)",
+    "longContextInputRatio": "輸入倍率",
+    "longContextOutputRatio": "輸出倍率",
+    "longContextHelp": "輸入 token 超過閾值時，整次請求按上述倍率計費；閾值留空或為 0 表示不啟用。"
   },
   "profile": "個人設定",
   "profilePage": {

@@ -100,9 +100,10 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
 
   useEffect(() => {
     const grouped = prices.reduce((acc, item, index) => {
-      // 需要保证 extra_ratios 和 locked 字段也相同才能合并
+      // 需要保证 extra_ratios、long_context 和 locked 字段也相同才能合并
       const extraRatiosStr = item.extra_ratios ? JSON.stringify(item.extra_ratios) : '';
-      const key = `${item.type}-${item.channel_type}-${item.input}-${item.output}-${extraRatiosStr}-${item.locked}`;
+      const longContextStr = item.long_context ? JSON.stringify(item.long_context) : '';
+      const key = `${item.type}-${item.channel_type}-${item.input}-${item.output}-${extraRatiosStr}-${longContextStr}-${item.locked}`;
 
       if (!acc[key]) {
         acc[key] = {

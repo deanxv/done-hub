@@ -653,6 +653,7 @@
       "outputPrice": "出力価格",
       "groupRatio": "グループ倍率",
       "groupRatioValue": "グループ倍率",
+      "longContextRatio": "ロングコンテキスト倍率",
       "actualPrice": "実際の価格",
       "input": "入力",
       "output": "出力",
@@ -780,6 +781,10 @@
     "priceDetails": "価格詳細",
     "priceNote": "グループによって価格が異なります。トークン管理でグループを切り替えてください。",
     "otherInfo": "その他の情報",
+    "longContext": "ロングコンテキスト課金",
+    "shortContext": "ショートコンテキスト",
+    "longContextLabel": "ロングコンテキスト",
+    "longContextDesc": "入力が {{threshold}} tokens を超えると、リクエスト全体がロングコンテキスト価格で課金されます。",
     "totalModels": "合計 {{count}} モデル",
     "noModelsFound": "一致するモデルが見つかりません",
     "noModelsFoundTip": "フィルタまたは検索キーワードを調整してみてください",
@@ -932,7 +937,12 @@
     "noAvailableRatios": "利用可能な拡張倍率はありません",
     "noExtraRatios": "追加の拡張倍率はありません。ドロップダウンメニューから選択してください。",
     "promptRatio": "倍率係数",
-    "selectExtraRatio": "拡大率を選択します"
+    "selectExtraRatio": "拡大率を選択します",
+    "longContext": "ロングコンテキスト階層",
+    "longContextThreshold": "しきい値(tokens)",
+    "longContextInputRatio": "入力倍率",
+    "longContextOutputRatio": "出力倍率",
+    "longContextHelp": "入力トークンがしきい値を超えると、リクエスト全体が上記の倍率で課金されます。しきい値を空または 0 にすると無効になります。"
   },
   "profile": "プロフィール",
   "profilePage": {

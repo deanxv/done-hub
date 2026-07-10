@@ -672,6 +672,7 @@
       "outputPrice": "Output Price",
       "groupRatio": "Group Ratio",
       "groupRatioValue": "Group Ratio",
+      "longContextRatio": "Long Context Ratio",
       "actualPrice": "Actual Price",
       "input": "Input",
       "output": "Output",
@@ -788,6 +789,10 @@
     "priceDetails": "Price Details",
     "priceNote": "Different groups have different prices. Switch groups in token management.",
     "otherInfo": "Other Information",
+    "longContext": "Long Context Pricing",
+    "shortContext": "Short context",
+    "longContextLabel": "Long context",
+    "longContextDesc": "When input exceeds {{threshold}} tokens, the whole request is billed at long context prices.",
     "totalModels": "Total {{count}} models",
     "noModelsFound": "No matching models found",
     "noModelsFoundTip": "Please try adjusting filters or search keywords",
@@ -940,7 +945,12 @@
     "noAvailableRatios": "No available extension ratio",
     "noExtraRatios": "No additional magnification rate is available, please select to add from the drop-down menu.",
     "promptRatio": "Leverage ratio",
-    "selectExtraRatio": "Select magnification ratio"
+    "selectExtraRatio": "Select magnification ratio",
+    "longContext": "Long Context Tier",
+    "longContextThreshold": "Threshold (tokens)",
+    "longContextInputRatio": "Input Ratio",
+    "longContextOutputRatio": "Output Ratio",
+    "longContextHelp": "When input tokens exceed the threshold, the whole request is billed at the ratios above. Leave the threshold empty or 0 to disable."
   },
   "profile": "Profile",
   "profilePage": {

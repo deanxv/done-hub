@@ -66,7 +66,15 @@ type Price struct {
 	Locked      bool    `json:"locked" gorm:"default:false"` // 如果模型为locked 则覆盖模式不会更新locked的模型价格
 
 	ExtraRatios *datatypes.JSONType[map[string]float64] `json:"extra_ratios,omitempty" gorm:"type:json"`
+	LongContext *datatypes.JSONType[LongContextTier]    `json:"long_context,omitempty" gorm:"type:json"`
 	ModelInfo   *ModelInfoResponse                      `json:"model_info,omitempty" gorm:"-"`
+}
+
+// LongContextTier 长上下文分档计费：输入 token 超过 Threshold 时，整次请求输入/输出侧套用对应倍率。
+type LongContextTier struct {
+	Threshold   int     `json:"threshold"`    // 输入 token 阈值，如 272000
+	InputRatio  float64 `json:"input_ratio"`  // 超阈值时输入倍率，如 2
+	OutputRatio float64 `json:"output_ratio"` // 超阈值时输出倍率，如 1.5
 }
 
 func GetAllPrices() ([]*Price, error) {
@@ -140,6 +148,29 @@ func (price *Price) GetExtraRatio(key string) float64 {
 	return ratio
 }
 
+// GetLongContextMultiplier 返回本次请求输入侧/输出侧应额外乘的倍率。
+// 按次计费、未配置、阈值 <= 0 或输入 token 未超阈值时返回 (1, 1)。
+func (price *Price) GetLongContextMultiplier(inputTokens int) (float64, float64) {
+	if price.LongContext == nil || price.Type == TimesPriceType {
+		return 1, 1
+	}
+
+	tier := price.LongContext.Data()
+	if tier.Threshold <= 0 || inputTokens <= tier.Threshold {
+		return 1, 1
+	}
+
+	in, out := tier.InputRatio, tier.OutputRatio
+	if in <= 0 {
+		in = 1
+	}
+	if out <= 0 {
+		out = 1
+	}
+
+	return in, out
+}
+
 func (price *Price) FetchInputCurrencyPrice(rate float64) string {
 	r := decimal.NewFromFloat(price.GetInput()).Mul(decimal.NewFromFloat(rate))
 	return r.String()
@@ -159,6 +190,7 @@ func UpdatePrices(tx *gorm.DB, models []string, prices *Price) error {
 			Output:      prices.Output,
 			Locked:      prices.Locked,
 			ExtraRatios: prices.ExtraRatios,
+			LongContext: prices.LongContext,
 		}).Error
 
 	return err

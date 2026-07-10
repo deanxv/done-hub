@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next';
 import ToggleButtonGroup from 'ui-component/ToggleButton';
 import Decimal from 'decimal.js';
 import { ExtraRatiosSelector } from './ExtraRatiosSelector';
+import { LongContextSelector } from './LongContextSelector';
 
 // rate 是后端存储的基准单位；USD/RMB × K/M 通过 rate 中转换算
 // 基准：1 rate = $0.002 / 1K tokens（同时 1 rate = ¥0.014 / 1K，暗藏汇率 7）
@@ -142,7 +143,8 @@ const multipleOriginInputs = {
   output: 0,
   locked: false,
   models: [],
-  extra_ratios: {}
+  extra_ratios: {},
+  long_context: {}
 };
 
 // 单一模式初始值
@@ -153,7 +155,19 @@ const singleOriginInputs = {
   input: 0,
   output: 0,
   locked: false,
-  extra_ratios: {}
+  extra_ratios: {},
+  long_context: {}
+};
+
+// 归一化长上下文分档：阈值 <= 0 视为未启用，返回 null 不落库。
+const normalizeLongContext = (longContext) => {
+  const threshold = Number(longContext?.threshold) || 0;
+  if (threshold <= 0) return null;
+  return {
+    threshold,
+    input_ratio: Number(longContext?.input_ratio) || 1,
+    output_ratio: Number(longContext?.output_ratio) || 1
+  };
 };
 
 const EditModal = ({
@@ -174,6 +188,7 @@ const EditModal = ({
   const [inputs, setInputs] = useState(singleMode ? singleOriginInputs : multipleOriginInputs);
   const [selectModel, setSelectModel] = useState([]);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   const [unitType, setUnitType] = useState('rate');
   const [localUnit, setLocalUnit] = useState(unit);
@@ -247,6 +262,7 @@ const EditModal = ({
       if (validationError) {
         setStatus({ success: false });
         setErrors({ submit: validationError });
+        setSubmitting(false);
         return;
       }
 
@@ -257,7 +273,8 @@ const EditModal = ({
           await onSaveSingle({
             ...values,
             input: calculatedInput,
-            output: calculatedOutput
+            output: calculatedOutput,
+            long_context: normalizeLongContext(values.long_context)
           });
         }
         setSubmitting(false);
@@ -265,6 +282,7 @@ const EditModal = ({
       } catch (error) {
         setStatus({ success: false });
         setErrors({ submit: error.message });
+        setSubmitting(false);
         return;
       }
     }
@@ -284,7 +302,8 @@ const EditModal = ({
           input: calculatedInput,
           output: calculatedOutput,
           locked: values.locked,
-          extra_ratios: values.extra_ratios
+          extra_ratios: values.extra_ratios,
+          long_context: normalizeLongContext(values.long_context)
         }
       });
       const { success, message } = res.data;
@@ -341,13 +360,24 @@ const EditModal = ({
     }));
   };
 
+  // 处理long_context变化 (单模式用)
+  const handleChangeLongContext = (newLongContext) => {
+    if (!singleMode) return; // 单一模式专用
+
+    setInputs((prev) => ({
+      ...prev,
+      long_context: newLongContext
+    }));
+  };
+
   useEffect(() => {
     if (singleMode) {
       // 单一模式初始化表单
       if (price) {
         setInputs({
           ...price,
-          extra_ratios: price.extra_ratios || {}
+          extra_ratios: price.extra_ratios || {},
+          long_context: price.long_context || {}
         });
       } else {
         setInputs(singleOriginInputs);
@@ -651,6 +681,30 @@ const EditModal = ({
     );
   };
 
+  // 渲染长上下文分档选择器
+  const renderLongContextSelector = (formProps) => {
+    const { setFieldValue, values = {} } = formProps || {};
+
+    if (singleMode) {
+      return (
+        <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+          <LongContextSelector value={inputs.long_context} onChange={handleChangeLongContext} />
+        </Paper>
+      );
+    }
+
+    return (
+      <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
+        <LongContextSelector
+          value={values.long_context || {}}
+          onChange={(newLongContext) => {
+            setFieldValue('long_context', newLongContext);
+          }}
+        />
+      </FormControl>
+    );
+  };
+
   // 渲染模型选择器 (多模式特有)
   const renderModelSelector = (formProps) => {
     if (!formProps) return null;
@@ -714,11 +768,13 @@ const EditModal = ({
         <Button onClick={onCancel}>{t('common.cancel')}</Button>
         {singleMode ? (
           <Button
+            disableElevation
+            disabled={submitting}
             onClick={() =>
               submit(inputs, {
                 setErrors,
                 setStatus: () => {},
-                setSubmitting: () => {}
+                setSubmitting
               })
             }
             variant="contained"
@@ -769,6 +825,8 @@ const EditModal = ({
 
             {renderExtraRatioSelector()}
 
+            {inputs.type === 'tokens' && renderLongContextSelector()}
+
             {errors.general && (
               <Typography color="error" variant="body2">
                 {errors.general}
@@ -793,6 +851,7 @@ const EditModal = ({
                 {renderLockedToggle(formProps)}
                 <Alert severity="warning">{t('pricing_edit.lockedTip')}</Alert>
                 {renderExtraRatioSelector(formProps)}
+                {formProps.values.type === 'tokens' && renderLongContextSelector(formProps)}
                 {renderActions(formProps)}
               </form>
             )}
