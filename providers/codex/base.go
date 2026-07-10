@@ -24,10 +24,20 @@ const (
 	DefaultClientID = "pdlLIX2Y72MIl2rhLhTE9VV9bN905kBh"
 	TokenEndpoint   = "https://auth0.openai.com/oauth/token"
 
+	// DefaultCodexVersion 是伪装的 Codex CLI 版本号。
+	// 上游 chatgpt.com/backend-api/codex/responses 会用该版本号对模型访问做灰度门控：
+	// 修改时必须同步更新 DefaultCodexUserAgent 中内嵌的版本号。
+	DefaultCodexVersion = "0.144.1"
+
 	// DefaultCodexUserAgent 是 Codex CLI 伪装 UA 的统一来源，
 	// 同时被 chat/responses 请求头、Token Refresh、OAuth 授权码换 token 三处复用，
 	// 避免单点升级时漏改导致 auth0 灰度场景下行为不一致。
-	DefaultCodexUserAgent = "codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
+	// 版本号必须与 DefaultCodexVersion 保持一致。
+	DefaultCodexUserAgent = "codex_cli_rs/" + DefaultCodexVersion + " (Ubuntu 22.4.0; x86_64) xterm-256color"
+
+	// DefaultCodexOriginator 是官方 Codex CLI 的 originator 标识，
+	// 上游据此识别请求来自官方客户端。缺失时新模型可能被拒或降级。
+	DefaultCodexOriginator = "codex_cli_rs"
 )
 
 type CodexProviderFactory struct{}
@@ -216,6 +226,7 @@ func (p *CodexProvider) filterAndPassthroughClientHeaders(headers map[string]str
 
 	allowedKeys := []string{
 		"version",
+		"originator",
 		"openai-beta",
 		"session_id",
 		"x-session-id", // 额外支持 x-session-id

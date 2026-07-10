@@ -125,6 +125,16 @@ func (p *CodexProvider) applyDefaultHeaders(headers map[string]string) {
 		headers["User-Agent"] = DefaultCodexUserAgent
 	}
 
+	// 设置 version（上游据此对新模型做灰度门控，缺失时 gpt-5.6 等可能 404）
+	if _, exists := headers["version"]; !exists {
+		headers["version"] = DefaultCodexVersion
+	}
+
+	// 设置 originator（官方 Codex CLI 标识，缺失时可能被拒或降级）
+	if _, exists := headers["originator"]; !exists {
+		headers["originator"] = DefaultCodexOriginator
+	}
+
 	// 设置 Accept（如果没有设置）
 	if _, exists := headers["Accept"]; !exists {
 		headers["Accept"] = "application/json"
