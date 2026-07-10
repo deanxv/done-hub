@@ -332,6 +332,7 @@ function calculateTokens(item) {
   const cached_write_ratio = metadata?.cached_write_tokens_ratio || 1;
   const cached_write_1h_ratio = metadata?.cached_write_1h_tokens_ratio || 1;
   const cached_read_ratio = metadata?.cached_read_tokens_ratio || 1;
+  const openai_cache_write_ratio = metadata?.openai_cache_write_tokens_ratio || 1;
   const reasoning_tokens = metadata?.reasoning_tokens_ratio || 1;
   const input_text_tokens_ratio = metadata?.input_text_tokens_ratio || 1;
   const output_text_tokens_ratio = metadata?.output_text_tokens_ratio || 1;
@@ -375,6 +376,12 @@ function calculateTokens(item) {
       labelParams: { ratio: cached_write_1h_ratio }
     },
     { key: 'cached_read_tokens', label: 'logPage.cachedReadTokens', rate: cached_read_ratio, labelParams: { ratio: cached_read_ratio } },
+    {
+      key: 'openai_cache_write_tokens',
+      label: 'logPage.openaiCacheWriteTokens',
+      rate: openai_cache_write_ratio,
+      labelParams: { ratio: openai_cache_write_ratio }
+    },
     { key: 'reasoning_tokens', label: 'logPage.reasoningTokens', rate: reasoning_tokens, labelParams: { ratio: reasoning_tokens } },
     {
       key: 'input_image_tokens',
@@ -402,6 +409,7 @@ function calculateTokens(item) {
         'cached_write_tokens',
         'cached_write_1h_tokens',
         'cached_read_tokens',
+        'openai_cache_write_tokens',
         'input_image_tokens'
       ].includes(key);
 

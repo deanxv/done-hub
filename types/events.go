@@ -96,6 +96,11 @@ func (u *UsageEvent) GetExtraTokens() map[string]int {
 		u.ExtraTokens[config.UsageExtraOutputAudio] = u.OutputTokenDetails.AudioTokens
 	}
 
+	// OpenAI 缓存写入（GPT-5.6+，Responses API input_token_details.cache_write_tokens）
+	if u.InputTokenDetails.OpenAICacheWriteTokens > 0 && u.ExtraTokens[config.UsageExtraOpenAICacheWrite] == 0 {
+		u.ExtraTokens[config.UsageExtraOpenAICacheWrite] = u.InputTokenDetails.OpenAICacheWriteTokens
+	}
+
 	return u.ExtraTokens
 }
 

@@ -512,6 +512,7 @@
     "cachedWriteTokens": "缓存写入Tokens (* {{ ratio }})",
     "cachedWrite1hTokens": "缓存写入Tokens(1h) (* {{ ratio }})",
     "cachedReadTokens": "缓存读取Tokens (* {{ ratio }})",
+    "openaiCacheWriteTokens": "缓存写入Tokens(OpenAI) (* {{ ratio }})",
     "reasoningTokens": "推理Tokens (* {{ ratio }})",
     "inputImageTokens": "输入图像Tokens (* {{ ratio }})",
     "outputImageTokens": "输出图像Tokens (* {{ ratio }})",

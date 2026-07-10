@@ -37,6 +37,7 @@ var ExtraKeyIsPrompt = map[string]bool{
 	config.UsageExtraOutputTextTokens:  false,
 	config.UsageExtraInputImageTokens:  true,
 	config.UsageExtraOutputImageTokens: false,
+	config.UsageExtraOpenAICacheWrite:  true,
 }
 
 func GetExtraPriceIsPrompt(key string) bool {
@@ -53,6 +54,7 @@ var defaultExtraPrice = map[string]float64{
 	config.UsageExtraReasoning:        1,
 	config.UsageExtraInputTextTokens:  1,
 	config.UsageExtraOutputTextTokens: 1,
+	config.UsageExtraOpenAICacheWrite: 1.25,
 }
 
 type Price struct {

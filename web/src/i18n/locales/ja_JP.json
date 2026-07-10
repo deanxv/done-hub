@@ -667,6 +667,7 @@
     "cachedReadTokens": "キャッシュからトークンを読み取ります（* {{ ratio }} )",
     "cachedWriteTokens": "トークンのキャッシュ書き込み（* {{ ratio }} ）",
     "cachedWrite1hTokens": "トークンのキャッシュ書き込み 1h（* {{ ratio }} ）",
+    "openaiCacheWriteTokens": "トークンのキャッシュ書き込み（OpenAI）（* {{ ratio }} ）",
     "reasoningTokens": "推理トークン"
   },
   "login": {

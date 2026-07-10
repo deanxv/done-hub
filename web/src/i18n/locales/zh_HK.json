@@ -659,7 +659,8 @@
     "cachedReadTokens": "緩存讀取Tokens (* {{ ratio }})",
     "reasoningTokens": "推理Tokens (* {{ ratio }})",
     "cachedWriteTokens": "緩存寫入 Tokens (* {{ ratio }})",
-    "cachedWrite1hTokens": "緩存寫入(1h) Tokens (* {{ ratio }})"
+    "cachedWrite1hTokens": "緩存寫入(1h) Tokens (* {{ ratio }})",
+    "openaiCacheWriteTokens": "緩存寫入 Tokens(OpenAI) (* {{ ratio }})"
   },
   "login": {
     "codeRequired": "驗證碼不能為空",

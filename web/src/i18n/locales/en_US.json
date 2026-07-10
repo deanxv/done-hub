@@ -686,6 +686,7 @@
     "cachedReadTokens": "Cache read Tokens (* {{ ratio }})",
     "cachedWriteTokens": "Write tokens to cache (* {{ ratio }})",
     "cachedWrite1hTokens": "Write tokens to cache 1h (* {{ ratio }})",
+    "openaiCacheWriteTokens": "Write tokens to cache (OpenAI) (* {{ ratio }})",
     "reasoningTokens": "Deduction Tokens (* {{ ratio }})"
   },
   "login": {

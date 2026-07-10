@@ -79,6 +79,11 @@ func (u *Usage) GetExtraTokens() map[string]int {
 		u.ExtraTokens[config.UsageExtraCachedRead] = u.PromptTokensDetails.CachedReadTokens
 	}
 
+	// OpenAI 缓存写入（GPT-5.6+，prompt_tokens_details.cache_write_tokens）
+	if u.PromptTokensDetails.OpenAICacheWriteTokens > 0 && u.ExtraTokens[config.UsageExtraOpenAICacheWrite] == 0 {
+		u.ExtraTokens[config.UsageExtraOpenAICacheWrite] = u.PromptTokensDetails.OpenAICacheWriteTokens
+	}
+
 	// 输入图像
 	if u.PromptTokensDetails.ImageTokens > 0 && u.ExtraTokens[config.UsageExtraInputImageTokens] == 0 {
 		u.ExtraTokens[config.UsageExtraInputImageTokens] = u.PromptTokensDetails.ImageTokens
@@ -125,6 +130,11 @@ type PromptTokensDetails struct {
 	CachedWriteTokens   int `json:"-"`
 	CachedWrite1hTokens int `json:"-"`
 	CachedReadTokens    int `json:"-"`
+
+	// OpenAICacheWriteTokens 对应 OpenAI GPT-5.6+ 的 prompt_tokens_details.cache_write_tokens
+	// （Responses API 为 input_token_details.cache_write_tokens）。与 Anthropic 的 CachedWriteTokens
+	// 语义解耦：OpenAI 缓存写入单一 TTL、按 1.25x 计费，走 UsageExtraOpenAICacheWrite。
+	OpenAICacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
 type CompletionTokensDetails struct {
