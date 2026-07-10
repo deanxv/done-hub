@@ -109,6 +109,7 @@
     "cpmDescription": "CPM",
     "ppmDescription": "PPM",
     "last60SecondsStats": "Last 60 seconds statistics",
+    "autoRefresh": "Auto",
     "timeFilter": {
       "all": "All",
       "year": "This Year",

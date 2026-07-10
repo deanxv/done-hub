@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Grid } from '@mui/material';
 import DataCard from 'ui-component/cards/DataCard';
 import { gridSpacing } from 'store/constant';
@@ -40,6 +40,8 @@ export default function Overview() {
   });
 
   const [rechargeTimeFilter, setRechargeTimeFilter] = useState('month');
+  // 实时流量卡片自动刷新开关，默认开启
+  const [realtimeAutoRefresh, setRealtimeAutoRefresh] = useState(true);
 
   const timeFilterOptions = [
     { value: 'day', label: t('analytics_index.timeFilter.day') },
@@ -151,6 +153,17 @@ export default function Overview() {
     }
   };
 
+  // 仅获取实时流量数据，供自动刷新使用，避免顺带重取用户/通道统计
+  const fetchRpmTpmStatistics = async () => {
+    try {
+      const res = await API.get('/api/analytics/rpm');
+      const { success, data } = res.data;
+      if (success && data) setRpmTpmStatistics(data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   // 处理时间过滤器变化
   const handleRechargeTimeFilterChange = (event) => {
     const newFilter = event.target.value;
@@ -162,6 +175,16 @@ export default function Overview() {
     fetchBasicStatistics();
     fetchRechargeStatistics(rechargeTimeFilter);
   }, []);
+
+  // 首屏基础接口已带回实时流量数据，故挂载时跳过立即刷新，仅启动轮询；用户手动重新开启时才立即刷新
+  const realtimeMounted = useRef(false);
+  useEffect(() => {
+    if (!realtimeAutoRefresh) return;
+    if (realtimeMounted.current) fetchRpmTpmStatistics();
+    else realtimeMounted.current = true;
+    const timer = setInterval(fetchRpmTpmStatistics, 60000);
+    return () => clearInterval(timer);
+  }, [realtimeAutoRefresh]);
 
   return (
     <Grid container spacing={gridSpacing}>
@@ -228,6 +251,10 @@ export default function Overview() {
           isLoading={rpmTpmLoading}
           title={t('analytics_index.realTimeTraffic')}
           content={`${rpmTpmStatistics.rpm} RPM`}
+          showSwitch={true}
+          switchChecked={realtimeAutoRefresh}
+          switchLabel={t('analytics_index.autoRefresh')}
+          onSwitchChange={() => setRealtimeAutoRefresh((v) => !v)}
           subContent={
             <>
               {t('analytics_index.tpmDescription')}: {rpmTpmStatistics.tpm.toLocaleString()} <br />

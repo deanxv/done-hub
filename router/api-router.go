@@ -291,6 +291,7 @@ func SetApiRouter(router *gin.Engine) {
 		analyticsRoute.Use(middleware.AdminAuth())
 		{
 			analyticsRoute.GET("/statistics", controller.GetStatisticsDetail)
+			analyticsRoute.GET("/rpm", controller.GetRpmTpmDetail)
 			analyticsRoute.GET("/period", controller.GetStatisticsByPeriod)
 			analyticsRoute.GET("/multi_user_stats", controller.GetMultiUserStatistics)
 			analyticsRoute.GET("/multi_user_stats/export", controller.ExportMultiUserStatisticsCSV)

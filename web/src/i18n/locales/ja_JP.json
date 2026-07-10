@@ -109,7 +109,8 @@
     "tpmDescription": "TPM (Token/分)",
     "cpmDescription": "CPM",
     "ppmDescription": "PPM",
-    "last60SecondsStats": "最近60秒の統計"
+    "last60SecondsStats": "最近60秒の統計",
+    "autoRefresh": "自動"
   },
   "auth": {
     "invalidLink": "無効なリンク",

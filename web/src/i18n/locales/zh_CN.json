@@ -162,6 +162,7 @@
     "cpmDescription": "CPM",
     "ppmDescription": "PPM",
     "last60SecondsStats": "最近60秒统计",
+    "autoRefresh": "自动",
     "timeFilter": {
       "all": "全部",
       "year": "本年",

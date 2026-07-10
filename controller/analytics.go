@@ -129,6 +129,29 @@ func GetStatisticsDetail(c *gin.Context) {
 	})
 }
 
+// GetRpmTpmDetail 仅返回最近60秒的实时流量统计（RPM/TPM/CPM/PPM），供实时流量卡片自动刷新使用
+func GetRpmTpmDetail(c *gin.Context) {
+	rpmTpmStats, err := model.GetRpmTpmStatistics()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": &RpmTpmStatistics{
+			RPM: rpmTpmStats.RPM,
+			TPM: rpmTpmStats.TPM,
+			CPM: rpmTpmStats.CPM,
+			PPM: rpmTpmStats.PPM,
+		},
+	})
+}
+
 // RechargeStatistics 充值统计响应结构
 type RechargeStatistics struct {
 	Total             int64  `json:"total"`               // 总充值金额（quota）
