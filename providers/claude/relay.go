@@ -33,6 +33,93 @@ type ClaudeRelayStreamHandler struct {
 	SkipModelUnify bool
 }
 
+// claudeUpstreamHeaderExcluded 传输层头，绝不透传（key 全小写）。
+var claudeUpstreamHeaderExcluded = map[string]struct{}{
+	"content-length":    {},
+	"content-type":      {},
+	"content-encoding":  {},
+	"transfer-encoding": {},
+	"connection":        {},
+	"keep-alive":        {},
+}
+
+// claudeUpstreamHeaderPrefixes 前缀白名单（全小写）：限流 / 优先级 / fast mode 指纹头。
+var claudeUpstreamHeaderPrefixes = []string{
+	"anthropic-ratelimit-",
+	"anthropic-priority-",
+	"anthropic-fast-",
+}
+
+// claudeUpstreamHeaderExact 精确白名单（全小写）：退避指令。
+// 注意：retry-after / x-should-retry 是上游 429/529 错误响应才带的头，而错误路径由
+// SendRequest 的 HandleErrorResp 提前接管，不会走到本过滤器——故当前仅在成功响应可达。
+// 保留在白名单是零成本的前瞻：若将来打通错误响应头透传，此处即自动生效。
+var claudeUpstreamHeaderExact = map[string]struct{}{
+	"retry-after":    {},
+	"x-should-retry": {},
+}
+
+// filterClaudeUpstreamHeaders 从上游 Claude 响应头中挑出可透传给客户端的指纹头，
+// 目的是让 done-hub 中转的响应尽量贴近直连 Anthropic（携带 anthropic-ratelimit-* /
+// retry-after 等）。request-id / x-request-id 不直透（避免覆盖本地追踪 ID），单独提取
+// 为字符串返回，由 relay 层以 X-Upstream-Request-Id 回写。大小写不敏感；多值 header 全部
+// 保留；无命中时返回的 http.Header 为 nil。
+func filterClaudeUpstreamHeaders(src http.Header) (http.Header, string) {
+	if len(src) == 0 {
+		return nil, ""
+	}
+	out := http.Header{}
+	var requestID string
+	for name, values := range src {
+		lower := strings.ToLower(name)
+		if _, excluded := claudeUpstreamHeaderExcluded[lower]; excluded {
+			continue
+		}
+		if lower == "request-id" || lower == "x-request-id" {
+			if requestID == "" && len(values) > 0 {
+				requestID = values[0]
+			}
+			continue
+		}
+		matched := false
+		if _, ok := claudeUpstreamHeaderExact[lower]; ok {
+			matched = true
+		} else {
+			for _, prefix := range claudeUpstreamHeaderPrefixes {
+				if strings.HasPrefix(lower, prefix) {
+					matched = true
+					break
+				}
+			}
+		}
+		if !matched {
+			continue
+		}
+		for _, v := range values {
+			out.Add(name, v)
+		}
+	}
+	if len(out) == 0 {
+		out = nil
+	}
+	return out, requestID
+}
+
+// storeClaudeUpstreamHeaders 过滤上游响应头并暂存到 gin.Context，供 relay 层透传写出。
+// 流式与非流式共用。
+func (p *ClaudeProvider) storeClaudeUpstreamHeaders(header http.Header) {
+	if p.Context == nil {
+		return
+	}
+	headers, requestID := filterClaudeUpstreamHeaders(header)
+	if headers != nil {
+		p.Context.Set(config.GinPassThroughHeaders, headers)
+	}
+	if requestID != "" {
+		p.Context.Set(config.GinUpstreamRequestIdKey, requestID)
+	}
+}
+
 func (p *ClaudeProvider) CreateClaudeChat(request *ClaudeRequest) (*ClaudeResponse, *types.OpenAIErrorWithStatusCode) {
 	req, errWithCode := p.getClaudeNativeRequest(request)
 	if errWithCode != nil {
@@ -63,6 +150,8 @@ func (p *ClaudeProvider) CreateClaudeChat(request *ClaudeRequest) (*ClaudeRespon
 	// 不相等（配了别名映射、需改回请求名）时不暂存字节，交给结构体路径 unifyResponseModel 改写。
 	// 判据是本次响应实际回显的 claudeResponse.Model，而非渠道是否配了映射表。
 	if passThrough && resp != nil {
+		// 透传上游响应头（限流 / 退避等）：无论走字节透传还是结构体改写分支都需要。
+		p.storeClaudeUpstreamHeaders(resp.Header)
 		if !base.HasResponseModelMapping(p.Context, claudeResponse.Model) {
 			if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
 				p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
@@ -92,6 +181,12 @@ func (p *ClaudeProvider) CreateClaudeChatStream(request *ClaudeRequest) (request
 	resp, errWithCode := p.Requester.SendRequestRaw(req)
 	if errWithCode != nil {
 		return nil, errWithCode
+	}
+
+	// 指纹保真：此刻 resp.Header 已就绪、resp.Body 尚未被消费，先透传上游响应头。
+	// 守卫条件与非流式 CreateClaudeChat 的 passThrough 对齐。
+	if config.FingerprintPassThroughEnabled && p.Context != nil {
+		p.storeClaudeUpstreamHeaders(resp.Header)
 	}
 
 	stream, errWithCode := requester.RequestNoTrimStream(p.Requester, resp, chatHandler.HandlerStream)

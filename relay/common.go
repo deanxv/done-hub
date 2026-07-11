@@ -412,38 +412,37 @@ func unifyResponseModel(c *gin.Context, data interface{}) {
 	}
 }
 
-// applyBedrockPassThroughHeaders 把 provider 暂存的上游 AWS 响应头（x-amzn-* 等）
-// 写入下游响应，必须在 WriteHeader 之前调用。仅 Bedrock 渠道会暂存该 key，其它渠道无影响。
-func applyBedrockPassThroughHeaders(c *gin.Context) {
-	v, ok := c.Get(config.GinBedrockPassThroughHeaders)
-	if !ok {
-		return
+// applyPassThroughHeaders 把 provider 暂存的上游响应头（Bedrock 的 x-amzn-* /
+// Claude 的 anthropic-ratelimit-* 等）写入下游响应，并把上游 request-id 以
+// X-Upstream-Request-Id 回写。必须在 WriteHeader 之前调用；未暂存对应 key 的渠道无影响。
+func applyPassThroughHeaders(c *gin.Context) {
+	if v, ok := c.Get(config.GinPassThroughHeaders); ok {
+		if headers, ok := v.(http.Header); ok {
+			for name, values := range headers {
+				for _, value := range values {
+					c.Writer.Header().Add(name, value)
+				}
+			}
+		}
 	}
-	headers, ok := v.(http.Header)
-	if !ok {
-		return
-	}
-	for name, values := range headers {
-		for _, value := range values {
-			c.Writer.Header().Add(name, value)
+	if v, ok := c.Get(config.GinUpstreamRequestIdKey); ok {
+		if requestID, ok := v.(string); ok && requestID != "" {
+			c.Writer.Header().Set("X-Upstream-Request-Id", requestID)
 		}
 	}
 }
 
 // writeRawResponseBodyIfPresent 若 provider 暂存了上游原始响应字节，则直接透传，
 // 保留上游的字段顺序 / 未知字段 / model 原名，避免结构体 re-marshal 洗掉指纹。
-// Bedrock 专用 key 额外透传 x-amzn-* 头；通用 key（如 Claude 官方）仅透传字节。
+// 两个 key 都会同时透传上游响应头（Bedrock x-amzn-* / Claude anthropic-* 等）。
 // 命中并写出时返回 true，调用方应据此提前返回。
 func writeRawResponseBodyIfPresent(c *gin.Context) bool {
-	rawKeys := []struct {
-		key         string
-		withHeaders bool
-	}{
-		{config.GinBedrockRawResponseBodyKey, true},
-		{config.GinRawResponseBodyKey, false},
+	rawKeys := []string{
+		config.GinBedrockRawResponseBodyKey,
+		config.GinRawResponseBodyKey,
 	}
-	for _, rk := range rawKeys {
-		raw, ok := c.Get(rk.key)
+	for _, key := range rawKeys {
+		raw, ok := c.Get(key)
 		if !ok {
 			continue
 		}
@@ -451,9 +450,7 @@ func writeRawResponseBodyIfPresent(c *gin.Context) bool {
 		if !ok || len(rawBytes) == 0 {
 			continue
 		}
-		if rk.withHeaders {
-			applyBedrockPassThroughHeaders(c)
-		}
+		applyPassThroughHeaders(c)
 		c.Writer.Header().Set("Content-Type", "application/json")
 		c.Writer.WriteHeader(http.StatusOK)
 		if _, err := c.Writer.Write(rawBytes); err != nil {
@@ -485,6 +482,8 @@ func responseJsonClient(c *gin.Context, data interface{}) *types.OpenAIErrorWith
 	// Encode 会在末尾添加换行符，需要去掉
 	responseBody := bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
 
+	// 结构体改写分支（有模型映射，未走字节透传）同样透传上游响应头，必须在 WriteHeader 之前。
+	applyPassThroughHeaders(c)
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(http.StatusOK)
 	_, err = c.Writer.Write(responseBody)
@@ -566,8 +565,8 @@ func responseStreamClient(c *gin.Context, stream requester.StreamReaderInterface
 
 func responseGeneralStreamClient(c *gin.Context, stream requester.StreamReaderInterface[string], endHandler StreamEndHandler) (firstResponseTime time.Time) {
 	requester.SetEventStreamHeaders(c)
-	// Bedrock 指纹保真：透传上游 AWS 响应头（x-amzn-* 等）。必须在首次写入前设置。
-	applyBedrockPassThroughHeaders(c)
+	// 指纹保真：透传上游响应头（Bedrock x-amzn-* / Claude anthropic-* 等）。必须在首次写入前设置。
+	applyPassThroughHeaders(c)
 	dataChan, errChan := stream.Recv()
 
 	done := make(chan struct{})

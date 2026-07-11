@@ -35,7 +35,7 @@ func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*clau
 			p.Context.Set(config.GinBedrockRawResponseBodyKey, rawBytes)
 		}
 		if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
-			p.Context.Set(config.GinBedrockPassThroughHeaders, headers)
+			p.Context.Set(config.GinPassThroughHeaders, headers)
 		}
 		resp.Body.Close()
 	}
@@ -74,7 +74,7 @@ func (p *BedrockProvider) CreateClaudeChatStream(request *claude.ClaudeRequest) 
 
 	if config.FingerprintPassThroughEnabled && p.Context != nil {
 		if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
-			p.Context.Set(config.GinBedrockPassThroughHeaders, headers)
+			p.Context.Set(config.GinPassThroughHeaders, headers)
 		}
 	}
 
