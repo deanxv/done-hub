@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { Tabs, Tab, Box, Card, Alert, Stack, Button, Typography, ButtonGroup } from '@mui/material';
+import { Tabs, Tab, Box, Card, Alert, Stack, Button, Typography, ButtonGroup, Collapse, IconButton } from '@mui/material';
 import { Icon } from '@iconify/react';
 import Single from './single';
 import Multiple from './multiple';
@@ -42,8 +42,11 @@ const Pricing = () => {
   const [openModal, setOpenModal] = useState(false);
   const [openaddModal, setOpenaddModal] = useState(false);
   const [errPrices, setErrPrices] = useState('');
+  const [errPricesCount, setErrPricesCount] = useState(0);
   const [prices, setPrices] = useState([]);
   const [noPriceModel, setNoPriceModel] = useState([]);
+  const [noPriceExpanded, setNoPriceExpanded] = useState(false);
+  const [errPricesExpanded, setErrPricesExpanded] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -108,8 +111,10 @@ const Pricing = () => {
     const invalidPrices = prices.filter((price) => price.channel_type <= 0);
     if (invalidPrices.length > 0) {
       setErrPrices(invalidPrices.map((price) => price.model).join(', '));
+      setErrPricesCount(invalidPrices.length);
     } else {
       setErrPrices('');
+      setErrPricesCount(0);
     }
   }, [prices]);
 
@@ -225,17 +230,56 @@ const Pricing = () => {
       </Alert>
 
       {noPriceModel.length > 0 && (
-        <Alert severity="warning">
-          <b>{t('pricingPage.noPriceModelWarning')}</b>：
-          {noPriceModel.map((model) => (
-            <span key={model}>{model}, </span>
-          ))}
+        <Alert
+          severity="warning"
+          action={
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNoPriceExpanded(!noPriceExpanded);
+              }}
+              sx={{ ml: 1 }}
+            >
+              <Icon icon={noPriceExpanded ? 'solar:alt-arrow-up-line-duotone' : 'solar:alt-arrow-down-line-duotone'} width={18} />
+            </IconButton>
+          }
+          sx={{ cursor: 'pointer' }}
+          onClick={() => setNoPriceExpanded(!noPriceExpanded)}
+        >
+          <Typography variant="body2" component="span">
+            <b>{t('pricingPage.noPriceModelWarning')}</b>：{t('pricingPage.modelCountLabel', { count: noPriceModel.length })}
+          </Typography>
+          <Collapse in={noPriceExpanded} timeout="auto">
+            <Box sx={{ mt: 1, wordBreak: 'break-all' }}>{noPriceModel.join(', ')}</Box>
+          </Collapse>
         </Alert>
       )}
 
       {errPrices && (
-        <Alert severity="warning">
-          <b>{t('pricingPage.errPricesWarning')}</b>：{errPrices}
+        <Alert
+          severity="warning"
+          action={
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setErrPricesExpanded(!errPricesExpanded);
+              }}
+              sx={{ ml: 1 }}
+            >
+              <Icon icon={errPricesExpanded ? 'solar:alt-arrow-up-line-duotone' : 'solar:alt-arrow-down-line-duotone'} width={18} />
+            </IconButton>
+          }
+          sx={{ cursor: 'pointer' }}
+          onClick={() => setErrPricesExpanded(!errPricesExpanded)}
+        >
+          <Typography variant="body2" component="span">
+            <b>{t('pricingPage.errPricesWarning')}</b>：{t('pricingPage.modelCountLabel', { count: errPricesCount })}
+          </Typography>
+          <Collapse in={errPricesExpanded} timeout="auto">
+            <Box sx={{ mt: 1, wordBreak: 'break-all' }}>{errPrices}</Box>
+          </Collapse>
         </Alert>
       )}
 

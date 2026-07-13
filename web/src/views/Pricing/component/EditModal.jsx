@@ -261,6 +261,7 @@ const EditModal = ({
       const validationError = validateSingleMode(t, values, rows);
       if (validationError) {
         setStatus({ success: false });
+        showError(validationError);
         setErrors({ submit: validationError });
         setSubmitting(false);
         return;

@@ -86,6 +86,25 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
     setLoading(false);
   };
 
+  // 从 models.dev 拉取:由后端拉取并换算成价格数组（避免浏览器直连 models.dev 的 CORS 问题），
+  // 拿到后与普通拉取一样塞进 newPricing，复用下方的新增/变更预览与同步。
+  const handleFetchModelsDev = async () => {
+    setLoading(true);
+    try {
+      const res = await API.get('/api/prices/modelsdev');
+      const { success, message, data } = res.data;
+      if (success && Array.isArray(data)) {
+        setNewPricing(data);
+      } else {
+        showError(message || t('CheckUpdatesTable.dataFormatIncorrect'));
+      }
+    } catch (err) {
+      showError(err.message);
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
   const syncPricing = async (updateMode) => {
     setUpdateLoading(true);
     if (!newPricing.length) {
@@ -104,6 +123,11 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('CheckUpdatesTable.operationCompleted'));
+        // 同步成功后这份拉取数据已是同步前的快照（DB 已改），留着再比对会显示误导性的 diff，
+        // 清空预览逼用户重新拉取，拿同步后的最新状态。
+        setNewPricing([]);
+        setAddModel([]);
+        setDiffModel([]);
         onOk(true);
       } else {
         showError(message);
@@ -173,13 +197,48 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
     [t, getExtraRatioDisplayName]
   );
 
+  // 检查两个 long_context 分档是否有差异
+  const hasLongContextDiff = useCallback((oldLC, newLC) => {
+    const oldThreshold = oldLC?.threshold || 0;
+    const newThreshold = newLC?.threshold || 0;
+    // threshold 为 0（或缺失）视为未启用分档，无论比率如何都不算差异
+    if (!oldThreshold && !newThreshold) return false;
+    if (oldThreshold !== newThreshold) return true;
+    return oldLC?.input_ratio !== newLC?.input_ratio || oldLC?.output_ratio !== newLC?.output_ratio;
+  }, []);
+
+  // 获取 long_context 的变化信息
+  const getLongContextChanges = useCallback(
+    (oldLC, newLC) => {
+      const oldThreshold = oldLC?.threshold || 0;
+      const newThreshold = newLC?.threshold || 0;
+      const format = (lc) =>
+        `${t('CheckUpdatesTable.longContextThreshold')}=${lc.threshold} ${t('CheckUpdatesTable.longContextInput')}=${lc.input_ratio} ${t(
+          'CheckUpdatesTable.longContextOutput'
+        )}=${lc.output_ratio}`;
+
+      if (!oldThreshold && newThreshold) {
+        return `${t('CheckUpdatesTable.longContextAdded')} ${format(newLC)}`;
+      }
+      if (oldThreshold && !newThreshold) {
+        return t('CheckUpdatesTable.longContextRemoved');
+      }
+      return `${t('CheckUpdatesTable.longContextChanged')} ${format(oldLC)} -> ${format(newLC)}`;
+    },
+    [t]
+  );
+
   useEffect(() => {
     const newModels = newPricing.filter((np) => !row.some((r) => r.model === np.model));
 
     const changeModel = row.filter((r) =>
       newPricing.some(
         (np) =>
-          np.model === r.model && (np.input !== r.input || np.output !== r.output || hasExtraRatiosDiff(r.extra_ratios, np.extra_ratios))
+          np.model === r.model &&
+          (np.input !== r.input ||
+            np.output !== r.output ||
+            hasExtraRatiosDiff(r.extra_ratios, np.extra_ratios) ||
+            hasLongContextDiff(r.long_context, np.long_context))
       )
     );
 
@@ -195,6 +254,7 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
         const newModel = newPricing.find((np) => np.model === model.model);
         let changes = '';
         let extraRatiosChanges = '';
+        let longContextChange = '';
 
         if (model.input !== newModel.input) {
           changes += `${t('CheckUpdatesTable.inputMultiplierChanged')} ${model.input} ${t('CheckUpdatesTable.to')} ${newModel.input}, `;
@@ -208,20 +268,26 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
           extraRatiosChanges = getExtraRatiosChanges(model.extra_ratios, newModel.extra_ratios);
         }
 
+        // 单独处理长上下文分档变动
+        if (hasLongContextDiff(model.long_context, newModel.long_context)) {
+          longContextChange = getLongContextChanges(model.long_context, newModel.long_context);
+        }
+
         // 去除末尾可能多余的逗号和空格
         changes = changes.replace(/,\s*$/, '');
 
         return {
           model: model.model,
           basicChanges: changes,
-          extraRatiosChanges: extraRatiosChanges
+          extraRatiosChanges: extraRatiosChanges,
+          longContextChange: longContextChange
         };
       });
       setDiffModel(changeModelList);
     } else {
       setDiffModel([]);
     }
-  }, [row, newPricing, t, hasExtraRatiosDiff, getExtraRatiosChanges]);
+  }, [row, newPricing, t, hasExtraRatiosDiff, getExtraRatiosChanges, hasLongContextDiff, getLongContextChanges]);
 
   return (
     <Dialog
@@ -269,6 +335,16 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
               sx: { borderRadius: 1 }
             }}
           />
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<Icon icon={loading ? 'svg-spinners:180-ring' : 'solar:download-minimalistic-bold'} />}
+            onClick={handleFetchModelsDev}
+            disabled={loading}
+            sx={{ mt: 1.5, borderRadius: '18px' }}
+          >
+            {t('CheckUpdatesTable.fetchFromModelsDev')}
+          </Button>
         </Box>
 
         {newPricing.length > 0 && (
@@ -363,6 +439,14 @@ export const CheckUpdates = ({ open, onCancel, onOk, row }) => {
                                         • {change}
                                       </Typography>
                                     ))}
+                                  </Box>
+                                )}
+
+                                {item.longContextChange && (
+                                  <Box sx={{ ml: 1, borderLeft: 1, borderColor: 'warning.main', pl: 1.5 }}>
+                                    <Typography variant="caption" display="block" sx={{ fontSize: '0.7rem' }}>
+                                      • {item.longContextChange}
+                                    </Typography>
                                   </Box>
                                 )}
                               </Box>

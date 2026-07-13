@@ -205,3 +205,20 @@ func GetUpdatePriceService(c *gin.Context) {
 		"message": "",
 	})
 }
+
+// GetPricesFromModelsDev 从 models.dev/api.json 拉取并转换成 done-hub 的 []*Price 返回。
+// 只做转换、不落库：前端拿到后走现有的检查更新预览，再由用户选模式调 /prices/sync 落库。
+// 由后端拉取而非前端直连，是因为 models.dev 不保证 CORS，浏览器直连可能被拦。
+func GetPricesFromModelsDev(c *gin.Context) {
+	prices, err := model.GetPriceByModelsDev()
+	if err != nil {
+		common.APIRespondWithError(c, http.StatusOK, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    prices,
+	})
+}

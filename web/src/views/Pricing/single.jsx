@@ -1,5 +1,9 @@
 import PropTypes from 'prop-types';
 import { useState, useEffect, useMemo } from 'react';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableContainer from '@mui/material/TableContainer';
+import PerfectScrollbar from 'react-perfect-scrollbar';
 import {
   Box,
   Typography,
@@ -14,32 +18,38 @@ import {
   InputLabel,
   Select,
   Paper,
-  Pagination,
+  TablePagination,
   InputAdornment,
   useTheme,
-  IconButton
+  IconButton,
+  Card
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { Icon } from '@iconify/react';
 import { showError, showSuccess, trims } from 'utils/common';
 import { API } from 'utils/api';
 import { useTranslation } from 'react-i18next';
-import { getPageSize, savePageSize } from 'constants';
+import { getPageSize, savePageSize, PAGE_SIZE_OPTIONS } from 'constants';
 import PriceCard from './component/PriceCard';
 import { alpha } from '@mui/material/styles';
 import EditModal from './component/EditModal';
 import ToggleButtonGroup from 'ui-component/ToggleButton';
+import KeywordTableHead from 'ui-component/TableHead';
+import useStickyShadow from 'hooks/useStickyShadow';
 
 const Single = ({ ownedby, prices, reloadData }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const stickyShadowRef = useStickyShadow();
   const [rows, setRows] = useState([]);
   const [selectedRow, setSelectedRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(getPageSize('pricing', 24));
+  const [page, setPage] = useState(0);
+  // 旧版本可能已持久化了不在 PAGE_SIZE_OPTIONS 内的页大小（如 24），夹逼回合法值避免 TablePagination 下拉越界告警
+  const savedPageSize = getPageSize('pricing', 10);
+  const [rowsPerPage, setRowsPerPage] = useState(PAGE_SIZE_OPTIONS.includes(savedPageSize) ? savedPageSize : 10);
   const [channelFilter, setChannelFilter] = useState('all');
   const [lockFilter, setLockFilter] = useState('all');
   const [unit, setUnit] = useState('M');
@@ -152,13 +162,9 @@ const Single = ({ ownedby, prices, reloadData }) => {
   }, [rows, searchTerm, filterType, channelFilter, lockFilter, ownedby]);
 
   const paginatedRows = useMemo(() => {
-    const startIndex = (page - 1) * rowsPerPage;
+    const startIndex = page * rowsPerPage;
     return filteredRows.slice(startIndex, startIndex + rowsPerPage);
   }, [filteredRows, page, rowsPerPage]);
-
-  const pageCount = useMemo(() => {
-    return Math.ceil(filteredRows.length / rowsPerPage);
-  }, [filteredRows, rowsPerPage]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -166,9 +172,9 @@ const Single = ({ ownedby, prices, reloadData }) => {
 
   const handleChangeRowsPerPage = (event) => {
     const newPageSize = parseInt(event.target.value, 10);
+    setPage(0);
     setRowsPerPage(newPageSize);
     savePageSize('pricing', newPageSize);
-    setPage(1);
   };
 
   // 初始化数据
@@ -183,8 +189,8 @@ const Single = ({ ownedby, prices, reloadData }) => {
 
   // 当搜索词变化时重置到第一页
   useEffect(() => {
-    setPage(1);
-  }, [searchTerm, filterType, lockFilter]);
+    setPage(0);
+  }, [searchTerm, filterType, channelFilter, lockFilter]);
 
   return (
     <Box sx={{ width: '100%' }}>
@@ -286,115 +292,47 @@ const Single = ({ ownedby, prices, reloadData }) => {
 
       {/* 数据表格 */}
       {filteredRows.length > 0 ? (
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{
-            overflow: 'hidden',
-            borderRadius: 1,
-            mb: 2
-          }}
-        >
-          {/* 添加滚动容器 */}
-          <Box
-            sx={{
-              width: '100%',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch', // 为iOS设备提供平滑滚动
-              msOverflowStyle: 'none', // 隐藏IE和Edge的滚动条
-              scrollbarWidth: 'none', // 隐藏Firefox的滚动条
-              '&::-webkit-scrollbar': {
-                // 隐藏Chrome、Safari和Opera的滚动条
-                display: 'none'
-              }
-            }}
-          >
-            {/* 表头 */}
-            <Box
-              sx={{
-                display: 'flex',
-                px: 2,
-                py: 1.5,
-                bgcolor: alpha(theme.palette.primary.main, 0.08),
-                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                minWidth: { xs: '800px', sm: '100%' } // 设置最小宽度确保在小屏幕上内容不会挤压
-              }}
-            >
-              <Box width="25%" px={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  {t('modelpricePage.model')}
-                </Typography>
-              </Box>
-              <Box width="20%" px={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  {t('modelpricePage.price')} ({unit})
-                </Typography>
-              </Box>
-              <Box width="45%" px={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  {t('modelpricePage.extraRatios')}
-                </Typography>
-              </Box>
-              <Box width="10%" px={1} textAlign="right">
-                <Typography variant="subtitle2" color="text.secondary">
-                  {t('common.actions')}
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* 表格内容 */}
-            <Box
-              component="table"
-              sx={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                minWidth: { xs: '800px', sm: '100%' } // 设置最小宽度确保在小屏幕上内容不会挤压
-              }}
-            >
-              <Box component="tbody">
-                {paginatedRows.map((price) => (
-                  <PriceCard
-                    key={price.id}
-                    price={price}
-                    onEdit={handleEditClick}
-                    onDelete={handleDeleteClick}
-                    ownedby={ownedby}
-                    unit={unit}
-                  />
-                ))}
-              </Box>
-            </Box>
-          </Box>
+        <Card>
+          <PerfectScrollbar component="div" containerRef={stickyShadowRef}>
+            <TableContainer sx={{ overflow: 'unset' }}>
+              <Table sx={{ minWidth: 800, tableLayout: 'fixed' }}>
+                <KeywordTableHead
+                  headLabel={[
+                    { id: 'model', label: t('modelpricePage.model'), width: '20%', align: 'left', disableSort: true },
+                    { id: 'price', label: `${t('modelpricePage.price')} (${unit})`, width: '15%', align: 'left', disableSort: true },
+                    { id: 'extra_ratios', label: t('modelpricePage.extraRatios'), width: '55%', align: 'left', disableSort: true },
+                    { id: 'action', label: t('common.actions'), width: '10%', align: 'right', disableSort: true, sticky: true }
+                  ]}
+                />
+                <TableBody>
+                  {paginatedRows.map((price) => (
+                    <PriceCard
+                      key={price.id}
+                      price={price}
+                      onEdit={handleEditClick}
+                      onDelete={handleDeleteClick}
+                      ownedby={ownedby}
+                      unit={unit}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </PerfectScrollbar>
 
           {/* 分页 */}
-          {filteredRows.length > rowsPerPage && (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                px: 2,
-                py: 1.5,
-                borderTop: `1px solid ${alpha(theme.palette.divider, 0.5)}`
-              }}
-            >
-              <Typography variant="caption" color="text.secondary">
-                {t('common.total')}: {filteredRows.length}
-              </Typography>
-
-              <Pagination
-                count={pageCount}
-                page={page}
-                onChange={handleChangePage}
-                color="primary"
-                showFirstButton
-                showLastButton
-                siblingCount={1}
-                size="small"
-              />
-            </Box>
-          )}
-        </Paper>
+          <TablePagination
+            page={page}
+            component="div"
+            count={filteredRows.length}
+            rowsPerPage={rowsPerPage}
+            onPageChange={handleChangePage}
+            rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            showFirstButton
+            showLastButton
+          />
+        </Card>
       ) : (
         <Paper
           elevation={0}

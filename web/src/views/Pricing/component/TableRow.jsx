@@ -21,8 +21,8 @@ const PricesTableRow = ({ item, onEdit, onDelete, ownedby, unit = 'K' }) => {
       theme.palette.info.main,
       theme.palette.warning.main
     ];
-    // 根据channel_type确定颜色
-    return colors[(item.channel_type - 1) % colors.length];
+    // 根据channel_type确定颜色（channel_type 可能为 0/未知，取模前先归一化避免负索引）
+    return colors[(((item.channel_type - 1) % colors.length) + colors.length) % colors.length];
   };
 
   const channelColor = getChannelColor();
@@ -49,7 +49,7 @@ const PricesTableRow = ({ item, onEdit, onDelete, ownedby, unit = 'K' }) => {
   // 获取渠道名称
   const getChannelName = (channelType) => {
     const channel = ownedby.find((item) => item.value === channelType);
-    return channel?.label || 'unknown';
+    return channel?.label || t('common.unknown');
   };
 
   // 格式化价格

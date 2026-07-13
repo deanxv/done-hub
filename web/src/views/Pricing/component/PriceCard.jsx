@@ -5,6 +5,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import { Icon } from '@iconify/react';
 import { useTranslation } from 'react-i18next';
 import { ValueFormatter } from 'utils/common';
+import { stickyCellSx } from 'ui-component/stickyCellSx';
 
 const PriceCard = ({ price, onEdit, onDelete, ownedby, unit = 'K' }) => {
   const theme = useTheme();
@@ -13,7 +14,7 @@ const PriceCard = ({ price, onEdit, onDelete, ownedby, unit = 'K' }) => {
   // 获取channel_type对应的名称
   const getChannelTypeName = (type) => {
     const channel = ownedby.find((item) => item.value === type);
-    return channel ? channel.label : t('pricing_edit.unknown');
+    return channel ? channel.label : t('common.unknown');
   };
 
   const typeLabel = useMemo(() => {
@@ -60,8 +61,8 @@ const PriceCard = ({ price, onEdit, onDelete, ownedby, unit = 'K' }) => {
       theme.palette.info.main,
       theme.palette.warning.main
     ];
-    // 根据channel_type确定颜色
-    return colors[(price.channel_type - 1) % colors.length];
+    // 根据channel_type确定颜色（channel_type 可能为 0/未知，取模前先归一化避免负索引）
+    return colors[(((price.channel_type - 1) % colors.length) + colors.length) % colors.length];
   };
 
   // 根据单位格式化价格
@@ -118,28 +119,29 @@ const PriceCard = ({ price, onEdit, onDelete, ownedby, unit = 'K' }) => {
         '&:hover .action-buttons': {
           opacity: 1
         },
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          left: 0,
-          top: 4,
-          bottom: 4,
-          width: 3,
-          bgcolor: channelColor,
-          borderRadius: '0 3px 3px 0'
-        },
         // 添加轻微的过渡效果
         transition: 'background-color 0.15s ease'
       }}
     >
-      {/* 模型名称 */}
+      {/* 模型名称（左侧渠道色条挂在本单元格的 ::before，避免挂在 tr 上被 tableLayout:fixed 当作额外列轨道而串列） */}
       <TableCell
         sx={{
           pl: 2,
           py: 1.5,
           width: '20%',
           borderBottom: 'none',
-          cursor: 'default'
+          cursor: 'default',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            left: 0,
+            top: 4,
+            bottom: 4,
+            width: 3,
+            bgcolor: channelColor,
+            borderRadius: '0 3px 3px 0'
+          }
         }}
       >
         <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -308,7 +310,8 @@ const PriceCard = ({ price, onEdit, onDelete, ownedby, unit = 'K' }) => {
           pr: 2,
           py: 1.5,
           width: '10%',
-          borderBottom: 'none'
+          borderBottom: 'none',
+          ...stickyCellSx
         }}
       >
         <Stack

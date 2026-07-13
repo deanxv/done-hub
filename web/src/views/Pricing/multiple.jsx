@@ -8,7 +8,6 @@ import TableContainer from '@mui/material/TableContainer';
 import PerfectScrollbar from 'react-perfect-scrollbar';
 import {
   Box,
-  Typography,
   Button,
   Dialog,
   DialogActions,
@@ -20,9 +19,8 @@ import {
   InputLabel,
   Select,
   Paper,
-  Pagination,
+  TablePagination,
   InputAdornment,
-  useTheme,
   IconButton,
   Card
 } from '@mui/material';
@@ -32,8 +30,7 @@ import PricesTableRow from './component/TableRow';
 import KeywordTableHead from 'ui-component/TableHead';
 import { API } from 'utils/api';
 import { useTranslation } from 'react-i18next';
-import { alpha } from '@mui/material/styles';
-import { getPageSize, savePageSize } from 'constants';
+import { getPageSize, savePageSize, PAGE_SIZE_OPTIONS } from 'constants';
 import EditModal from './component/EditModal';
 import ToggleButtonGroup from 'ui-component/ToggleButton';
 import useStickyShadow from 'hooks/useStickyShadow';
@@ -41,15 +38,16 @@ import useStickyShadow from 'hooks/useStickyShadow';
 // ----------------------------------------------------------------------
 export default function Multiple({ prices, reloadData, ownedby, noPriceModels }) {
   const { t } = useTranslation();
-  const theme = useTheme();
   const stickyShadowRef = useStickyShadow();
   const [rows, setRows] = useState([]);
   const [selectedRow, setSelectedRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(getPageSize('pricing_multiple', 10));
+  const [page, setPage] = useState(0);
+  // 旧版本可能已在 localStorage 持久化了不在 PAGE_SIZE_OPTIONS 内的页大小（如 20），夹逼回合法值避免 TablePagination 下拉越界告警
+  const savedPageSize = getPageSize('pricing_multiple', 10);
+  const [rowsPerPage, setRowsPerPage] = useState(PAGE_SIZE_OPTIONS.includes(savedPageSize) ? savedPageSize : 10);
   const [channelFilter, setChannelFilter] = useState('all');
   const [lockFilter, setLockFilter] = useState('all');
   const [unit, setUnit] = useState('M');
@@ -181,13 +179,9 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
   }, [rows, searchTerm, filterType, channelFilter, lockFilter, ownedby]);
 
   const paginatedRows = useMemo(() => {
-    const startIndex = (page - 1) * rowsPerPage;
+    const startIndex = page * rowsPerPage;
     return filteredRows.slice(startIndex, startIndex + rowsPerPage);
   }, [filteredRows, page, rowsPerPage]);
-
-  const pageCount = useMemo(() => {
-    return Math.ceil(filteredRows.length / rowsPerPage);
-  }, [filteredRows, rowsPerPage]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -195,15 +189,15 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
 
   const handleChangeRowsPerPage = (event) => {
     const newPageSize = parseInt(event.target.value, 10);
+    setPage(0);
     setRowsPerPage(newPageSize);
     savePageSize('pricing_multiple', newPageSize);
-    setPage(1);
   };
 
   // 当搜索词变化时重置到第一页
   useEffect(() => {
-    setPage(1);
-  }, [searchTerm, filterType, lockFilter]);
+    setPage(0);
+  }, [searchTerm, filterType, channelFilter, lockFilter]);
 
   return (
     <>
@@ -289,15 +283,6 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
               </Select>
             </FormControl>
 
-            <FormControl size="small" sx={{ minWidth: 90 }}>
-              <InputLabel>{t('common.pageSize')}</InputLabel>
-              <Select value={rowsPerPage} onChange={handleChangeRowsPerPage} label={t('common.pageSize')}>
-                <MenuItem value={10}>10</MenuItem>
-                <MenuItem value={20}>20</MenuItem>
-                <MenuItem value={50}>50</MenuItem>
-              </Select>
-            </FormControl>
-
             <ToggleButtonGroup value={unit} onChange={handleUnitChange} options={unitOptions} aria-label="unit toggle" />
           </Box>
         </Box>
@@ -349,33 +334,17 @@ export default function Multiple({ prices, reloadData, ownedby, noPriceModels })
         </PerfectScrollbar>
 
         {/* 分页 */}
-        {filteredRows.length > rowsPerPage && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              px: 2,
-              py: 1.5,
-              borderTop: `1px solid ${alpha(theme.palette.divider, 0.5)}`
-            }}
-          >
-            <Typography variant="caption" color="text.secondary">
-              {t('common.total')}: {filteredRows.length}
-            </Typography>
-
-            <Pagination
-              count={pageCount}
-              page={page}
-              onChange={handleChangePage}
-              color="primary"
-              showFirstButton
-              showLastButton
-              siblingCount={1}
-              size="small"
-            />
-          </Box>
-        )}
+        <TablePagination
+          page={page}
+          component="div"
+          count={filteredRows.length}
+          rowsPerPage={rowsPerPage}
+          onPageChange={handleChangePage}
+          rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          showFirstButton
+          showLastButton
+        />
       </Card>
 
       {/* 删除确认对话框 */}
