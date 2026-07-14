@@ -8,12 +8,15 @@ const useRegister = () => {
   const navigate = useNavigate();
   const register = async (input, turnstile) => {
     try {
+      // agreement 是前端勾选字段，转换为后端校验用的 agreed 字段
+      const payload = { ...input, agreed: input.agreement === true };
+      delete payload.agreement;
       let affCode = localStorage.getItem('aff');
       if (affCode) {
-        input = { ...input, aff_code: affCode };
+        payload.aff_code = affCode;
       }
 
-      const res = await API.post(`/api/user/register?turnstile=${turnstile}`, input);
+      const res = await API.post(`/api/user/register?turnstile=${turnstile}`, payload);
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('common.registerOk'));

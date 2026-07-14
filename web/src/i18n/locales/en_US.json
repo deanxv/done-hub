@@ -80,6 +80,16 @@
     "loadingError": "Failed to load about content...",
     "projectRepo": "Project repository:"
   },
+  "userAgreement": {
+    "title": "User Agreement",
+    "emptyDescription": "The administrator has not configured the user agreement content yet.",
+    "loadingError": "Failed to load user agreement content..."
+  },
+  "privacyPolicy": {
+    "title": "Privacy Policy",
+    "emptyDescription": "The administrator has not configured the privacy policy content yet.",
+    "loadingError": "Failed to load privacy policy content..."
+  },
   "alloy 映射": "alloy mapping",
   "analytics": "Analytics",
   "analytics_index": {
@@ -1066,7 +1076,17 @@
     "verificationCodeRequired": "Verification code is required",
     "verificationInfo": "Please try again in a few seconds, Turnstile is checking the user environment!",
     "registering": "Registering...",
-    "inviteCodeRequired": "Invite code is required"
+    "inviteCodeRequired": "Invite code is required",
+    "agreementRequired": "Please read and check to agree to the terms",
+    "agreementPrefix": "I have read and agree to ",
+    "userAgreement": "User Agreement",
+    "privacyPolicy": "Privacy Policy",
+    "agreementAnd": " and "
+  },
+  "legalConsentDialog": {
+    "title": "Terms Update",
+    "description": "The terms have been updated. Please read and agree to continue.",
+    "button": "Agree and continue"
   },
   "registerPage": {
     "alreadyHaveAccount": "Already have an account? Click to login"
@@ -1335,6 +1355,15 @@
         "close": "Close",
         "newVersion": "New Version",
         "viewGitHub": "View on GitHub"
+      },
+      "legalSettings": {
+        "title": "User Agreement / Privacy Policy",
+        "userAgreementLabel": "User Agreement Content",
+        "userAgreementPlaceholder": "Enter the user agreement content here, supports HTML & Markdown",
+        "saveUserAgreement": "Save User Agreement",
+        "privacyPolicyLabel": "Privacy Policy Content",
+        "privacyPolicyPlaceholder": "Enter the privacy policy content here, supports HTML & Markdown",
+        "savePrivacyPolicy": "Save Privacy Policy"
       }
     },
     "systemSettings": {
@@ -1388,7 +1417,9 @@
         "passwordSettings": "Password Login",
         "thirdPartyLogin": "Third-Party Login",
         "turnstileCheck": "Enable Turnstile User Verification",
-        "weChatAuth": "Allow Login & Register via WeChat"
+        "weChatAuth": "Allow Login & Register via WeChat",
+        "userAgreementEnabled": "Enable User Agreement",
+        "privacyPolicyEnabled": "Enable Privacy Policy"
       },
       "configureOIDCAuthorization": {
         "alert1": "Fill in the homepage link",

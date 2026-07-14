@@ -19,40 +19,45 @@ import (
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id                int            `json:"id"`
-	Username          string         `json:"username" gorm:"unique;index" validate:"required,max=12"`
-	Password          string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
-	DisplayName       string         `json:"display_name" gorm:"index" validate:"max=20"`
-	Role              int            `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status            int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
-	Email             string         `json:"email" gorm:"index" validate:"max=50"`
-	AvatarUrl         string         `json:"avatar_url" gorm:"type:varchar(500);column:avatar_url;default:''"`
-	OidcId            string         `json:"oidc_id" gorm:"column:oidc_id;index"`
-	GitHubId          string         `json:"github_id" gorm:"column:github_id;index"`
-	GitHubIdNew       int            `json:"github_id_new" gorm:"column:github_id_new;index"`
-	WeChatId          string         `json:"wechat_id" gorm:"column:wechat_id;index"`
-	TelegramId        int64          `json:"telegram_id" gorm:"type:bigint;column:telegram_id;default:0;"`
-	LarkId            string         `json:"lark_id" gorm:"column:lark_id;index"`
-	LinuxDoId         int            `json:"linuxdo_id" gorm:"type:bigint;column:linuxdo_id;index;default:0;"`
-	LinuxDoUsername   string         `json:"linuxdo_username" gorm:"column:linuxdo_username;index;default:'';"`
-	LinuxDoTrustLevel int            `json:"linuxdo_trust_level" gorm:"type:int;column:linuxdo_trust_level;default:0;"`
-	VerificationCode  string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
-	InviteCode        string         `json:"invite_code" gorm:"-:all"`                                          // this field is only for registration, don't save it to database!
-	UsedInviteCode    string         `json:"used_invite_code" gorm:"type:varchar(32);index;default:''"`         // the invite code used during registration, for statistics
-	AccessToken       string         `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota             int            `json:"quota" gorm:"type:bigint;default:0"`
-	UsedQuota         int            `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
-	RequestCount      int            `json:"request_count" gorm:"type:int;default:0;"`                  // request number
-	Group             string         `json:"group" gorm:"type:varchar(32);default:'default'"`
-	AffCode           string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
-	AffCount          int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota          int            `json:"aff_quota" gorm:"type:bigint;default:0;column:aff_quota"`
-	AffHistoryQuota   int            `json:"aff_history_quota" gorm:"type:bigint;default:0;column:aff_history"`
-	InviterId         int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	LastLoginTime     int64          `json:"last_login_time" gorm:"bigint;default:0"`
-	LastLoginIp       string         `json:"last_login_ip" gorm:"type:varchar(128);default:''"`
-	CreatedTime       int64          `json:"created_time" gorm:"bigint"`
-	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index"`
+	Id                         int            `json:"id"`
+	Username                   string         `json:"username" gorm:"unique;index" validate:"required,max=12"`
+	Password                   string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
+	DisplayName                string         `json:"display_name" gorm:"index" validate:"max=20"`
+	Role                       int            `json:"role" gorm:"type:int;default:1"`   // admin, common
+	Status                     int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	Email                      string         `json:"email" gorm:"index" validate:"max=50"`
+	AvatarUrl                  string         `json:"avatar_url" gorm:"type:varchar(500);column:avatar_url;default:''"`
+	OidcId                     string         `json:"oidc_id" gorm:"column:oidc_id;index"`
+	GitHubId                   string         `json:"github_id" gorm:"column:github_id;index"`
+	GitHubIdNew                int            `json:"github_id_new" gorm:"column:github_id_new;index"`
+	WeChatId                   string         `json:"wechat_id" gorm:"column:wechat_id;index"`
+	TelegramId                 int64          `json:"telegram_id" gorm:"type:bigint;column:telegram_id;default:0;"`
+	LarkId                     string         `json:"lark_id" gorm:"column:lark_id;index"`
+	LinuxDoId                  int            `json:"linuxdo_id" gorm:"type:bigint;column:linuxdo_id;index;default:0;"`
+	LinuxDoUsername            string         `json:"linuxdo_username" gorm:"column:linuxdo_username;index;default:'';"`
+	LinuxDoTrustLevel          int            `json:"linuxdo_trust_level" gorm:"type:int;column:linuxdo_trust_level;default:0;"`
+	VerificationCode           string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
+	InviteCode                 string         `json:"invite_code" gorm:"-:all"`                                          // this field is only for registration, don't save it to database!
+	Agreed                     bool           `json:"agreed" gorm:"-:all"`                                               // this field is only for registration legal consent, don't save it to database!
+	AgreedUserAgreementVersion string         `json:"agreed_user_agreement_version" gorm:"type:varchar(32);default:''"`  // 用户已同意的用户协议版本（正文哈希），空为未同意
+	AgreedPrivacyPolicyVersion string         `json:"agreed_privacy_policy_version" gorm:"type:varchar(32);default:''"`  // 用户已同意的隐私政策版本（正文哈希），空为未同意
+	NeedAgreeUserAgreement     bool           `json:"need_agree_user_agreement" gorm:"-:all"`                            // 运行期计算：该用户是否需要（重新）同意用户协议，不入库
+	NeedAgreePrivacyPolicy     bool           `json:"need_agree_privacy_policy" gorm:"-:all"`                            // 运行期计算：该用户是否需要（重新）同意隐私政策，不入库
+	UsedInviteCode             string         `json:"used_invite_code" gorm:"type:varchar(32);index;default:''"`         // the invite code used during registration, for statistics
+	AccessToken                string         `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	Quota                      int            `json:"quota" gorm:"type:bigint;default:0"`
+	UsedQuota                  int            `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
+	RequestCount               int            `json:"request_count" gorm:"type:int;default:0;"`                  // request number
+	Group                      string         `json:"group" gorm:"type:varchar(32);default:'default'"`
+	AffCode                    string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
+	AffCount                   int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
+	AffQuota                   int            `json:"aff_quota" gorm:"type:bigint;default:0;column:aff_quota"`
+	AffHistoryQuota            int            `json:"aff_history_quota" gorm:"type:bigint;default:0;column:aff_history"`
+	InviterId                  int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	LastLoginTime              int64          `json:"last_login_time" gorm:"bigint;default:0"`
+	LastLoginIp                string         `json:"last_login_ip" gorm:"type:varchar(128);default:''"`
+	CreatedTime                int64          `json:"created_time" gorm:"bigint"`
+	DeletedAt                  gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type UserUpdates func(*User)

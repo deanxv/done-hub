@@ -9,13 +9,16 @@ import { useTheme } from '@mui/material/styles'
 import {
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   FormControl,
+  FormControlLabel,
   FormHelperText,
   Grid,
   IconButton,
   InputAdornment,
   InputLabel,
+  Link,
   OutlinedInput,
   Typography
 } from '@mui/material'
@@ -48,6 +51,8 @@ const RegisterForm = ({ ...others }) => {
 
   const [showEmailVerification, setShowEmailVerification] = useState(false)
   const [showInviteCode, setShowInviteCode] = useState(false)
+  const [showUserAgreement, setShowUserAgreement] = useState(false)
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const [turnstileEnabled, setTurnstileEnabled] = useState(false)
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -94,6 +99,8 @@ const RegisterForm = ({ ...others }) => {
 
     setShowEmailVerification(siteInfo.email_verification)
     setShowInviteCode(siteInfo.invite_code_register)
+    setShowUserAgreement(siteInfo.user_agreement_enabled)
+    setShowPrivacyPolicy(siteInfo.privacy_policy_enabled)
     if (siteInfo.turnstile_check) {
       setTurnstileEnabled(true)
       setTurnstileSiteKey(siteInfo.turnstile_site_key)
@@ -124,6 +131,7 @@ const RegisterForm = ({ ...others }) => {
           email: showEmailVerification ? '' : undefined,
           verification_code: showEmailVerification ? '' : undefined,
           invite_code: showInviteCode ? '' : undefined,
+          agreement: false,
           submit: null
         }}
         validationSchema={Yup.object().shape({
@@ -140,7 +148,11 @@ const RegisterForm = ({ ...others }) => {
             : Yup.mixed(),
           invite_code: showInviteCode
             ? Yup.string().max(255).required(t('registerForm.inviteCodeRequired'))
-            : Yup.mixed()
+            : Yup.mixed(),
+          agreement:
+            showUserAgreement || showPrivacyPolicy
+              ? Yup.boolean().oneOf([true], t('registerForm.agreementRequired'))
+              : Yup.mixed()
         })}
         onSubmit={async(values, { setErrors, setStatus, setSubmitting }) => {
           if (turnstileEnabled && turnstileToken === '') {
@@ -338,6 +350,43 @@ const RegisterForm = ({ ...others }) => {
                 {touched.invite_code && errors.invite_code && (
                   <FormHelperText error id="standard-weight-helper-text-invite-code-register">
                     {errors.invite_code}
+                  </FormHelperText>
+                )}
+              </FormControl>
+            )}
+
+            {(showUserAgreement || showPrivacyPolicy) && (
+              <FormControl fullWidth error={Boolean(touched.agreement && errors.agreement)} sx={{ mt: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={values.agreement === true}
+                      name="agreement"
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Typography variant="body2">
+                      {t('registerForm.agreementPrefix')}
+                      {showUserAgreement && (
+                        <Link href="/user-agreement" target="_blank" rel="noopener noreferrer" underline="hover">
+                          {t('registerForm.userAgreement')}
+                        </Link>
+                      )}
+                      {showUserAgreement && showPrivacyPolicy && t('registerForm.agreementAnd')}
+                      {showPrivacyPolicy && (
+                        <Link href="/privacy-policy" target="_blank" rel="noopener noreferrer" underline="hover">
+                          {t('registerForm.privacyPolicy')}
+                        </Link>
+                      )}
+                    </Typography>
+                  }
+                />
+                {touched.agreement && errors.agreement && (
+                  <FormHelperText error id="standard-weight-helper-text-agreement-register">
+                    {errors.agreement}
                   </FormHelperText>
                 )}
               </FormControl>

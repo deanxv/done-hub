@@ -31,7 +31,9 @@ const OtherSetting = () => {
     SystemName: '',
     Logo: '',
     HomePageContent: '',
-    AnalyticsCode: ''
+    AnalyticsCode: '',
+    UserAgreement: '',
+    PrivacyPolicy: ''
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -319,6 +321,50 @@ const OtherSetting = () => {
             <Grid xs={12}>
               <Button variant="contained" onClick={submitAnalyticsCode}>
                 保存统计代码
+              </Button>
+            </Grid>
+          </Grid>
+        </SubCard>
+        <SubCard title={t('setting_index.otherSettings.legalSettings.title')}>
+          <Grid container spacing={{ xs: 3, sm: 2, md: 4 }}>
+            <Grid xs={12}>
+              <FormControl fullWidth>
+                <TextField
+                  multiline
+                  maxRows={15}
+                  id="UserAgreement"
+                  label={t('setting_index.otherSettings.legalSettings.userAgreementLabel')}
+                  value={inputs.UserAgreement}
+                  name="UserAgreement"
+                  onChange={handleInputChange}
+                  minRows={10}
+                  placeholder={t('setting_index.otherSettings.legalSettings.userAgreementPlaceholder')}
+                />
+              </FormControl>
+            </Grid>
+            <Grid xs={12}>
+              <Button variant="contained" onClick={() => submitOption('UserAgreement')}>
+                {t('setting_index.otherSettings.legalSettings.saveUserAgreement')}
+              </Button>
+            </Grid>
+            <Grid xs={12}>
+              <FormControl fullWidth>
+                <TextField
+                  multiline
+                  maxRows={15}
+                  id="PrivacyPolicy"
+                  label={t('setting_index.otherSettings.legalSettings.privacyPolicyLabel')}
+                  value={inputs.PrivacyPolicy}
+                  name="PrivacyPolicy"
+                  onChange={handleInputChange}
+                  minRows={10}
+                  placeholder={t('setting_index.otherSettings.legalSettings.privacyPolicyPlaceholder')}
+                />
+              </FormControl>
+            </Grid>
+            <Grid xs={12}>
+              <Button variant="contained" onClick={() => submitOption('PrivacyPolicy')}>
+                {t('setting_index.otherSettings.legalSettings.savePrivacyPolicy')}
               </Button>
             </Grid>
           </Grid>

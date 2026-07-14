@@ -16,6 +16,8 @@ const ForgetPassword = Loadable(lazy(() => import('views/Authentication/Auth/For
 const ResetPassword = Loadable(lazy(() => import('views/Authentication/Auth/ResetPassword')));
 const Home = Loadable(lazy(() => import('views/Home')));
 const About = Loadable(lazy(() => import('views/About')));
+const UserAgreement = Loadable(lazy(() => import('views/UserAgreement')));
+const PrivacyPolicy = Loadable(lazy(() => import('views/PrivacyPolicy')));
 const NotFoundView = Loadable(lazy(() => import('views/Error')));
 const Jump = Loadable(lazy(() => import('views/Jump')));
 const Playground = Loadable(lazy(() => import('views/Playground')));
@@ -46,6 +48,14 @@ const OtherRoutes = {
     {
       path: '/about',
       element: <About />
+    },
+    {
+      path: '/user-agreement',
+      element: <UserAgreement />
+    },
+    {
+      path: '/privacy-policy',
+      element: <PrivacyPolicy />
     },
     {
       path: '/login',

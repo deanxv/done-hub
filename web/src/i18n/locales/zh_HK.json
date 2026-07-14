@@ -70,6 +70,16 @@
     "loadingError": "加載關於內容失敗...",
     "projectRepo": "項目倉庫地址："
   },
+  "userAgreement": {
+    "title": "用戶協議",
+    "emptyDescription": "管理員尚未配置用戶協議內容。",
+    "loadingError": "加載用戶協議內容失敗..."
+  },
+  "privacyPolicy": {
+    "title": "隱私政策",
+    "emptyDescription": "管理員尚未配置隱私政策內容。",
+    "loadingError": "加載隱私政策內容失敗..."
+  },
   "alloy 映射": "alloy 映射",
   "analytics": "分析",
   "plauground": "聊天",
@@ -1046,7 +1056,17 @@
     "usernameRequired": "用戶名是必填項",
     "validEmailRequired": "必須是有效的電郵地址",
     "verificationCodeRequired": "驗證碼是必填項",
-    "verificationInfo": "請稍後幾秒重試，Turnstile 正在檢查用戶環境！"
+    "verificationInfo": "請稍後幾秒重試，Turnstile 正在檢查用戶環境！",
+    "agreementRequired": "請先閱讀並勾選同意相關協議",
+    "agreementPrefix": "我已閱讀並同意",
+    "userAgreement": "用戶協議",
+    "privacyPolicy": "隱私政策",
+    "agreementAnd": "和"
+  },
+  "legalConsentDialog": {
+    "title": "協議更新",
+    "description": "相關協議已更新，請閱讀並同意後繼續使用。",
+    "button": "同意並繼續"
   },
   "registerPage": {
     "alreadyHaveAccount": "已經有帳號了? 點擊登入"
@@ -1307,6 +1327,15 @@
         "close": "關閉",
         "newVersion": "新版本",
         "viewGitHub": "去 GitHub 查看"
+      },
+      "legalSettings": {
+        "title": "用戶協議 / 隱私政策",
+        "userAgreementLabel": "用戶協議內容",
+        "userAgreementPlaceholder": "在此輸入用戶協議內容，支持 HTML & Markdown",
+        "saveUserAgreement": "保存用戶協議",
+        "privacyPolicyLabel": "隱私政策內容",
+        "privacyPolicyPlaceholder": "在此輸入隱私政策內容，支持 HTML & Markdown",
+        "savePrivacyPolicy": "保存隱私政策"
       }
     },
     "systemSettings": {
@@ -1360,7 +1389,9 @@
         "thirdPartyLogin": "第三方登錄",
         "turnstileCheck": "啟用 Turnstile 用戶校驗",
         "weChatAuth": "允許通過微信登錄 & 註冊",
-        "gitHubOldIdClose": "關閉 GitHub 老 ID 登錄"
+        "gitHubOldIdClose": "關閉 GitHub 老 ID 登錄",
+        "userAgreementEnabled": "啟用用戶協議",
+        "privacyPolicyEnabled": "啟用隱私政策"
       },
       "configureOIDCAuthorization": {
         "alert1": "首頁鏈接填",

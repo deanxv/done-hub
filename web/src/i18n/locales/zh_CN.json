@@ -85,7 +85,17 @@
     "verificationInfo": "请稍后几秒重试，Turnstile 正在检查用户环境！",
     "restSendEmail": "重置邮件发送成功，请检查邮箱！",
     "registering": "注册中...",
-    "inviteCodeRequired": "邀请码是必填项"
+    "inviteCodeRequired": "邀请码是必填项",
+    "agreementRequired": "请先阅读并勾选同意相关协议",
+    "agreementPrefix": "我已阅读并同意",
+    "userAgreement": "用户协议",
+    "privacyPolicy": "隐私政策",
+    "agreementAnd": "和"
+  },
+  "legalConsentDialog": {
+    "title": "协议更新",
+    "description": "相关协议已更新，请阅读并同意后继续使用。",
+    "button": "同意并继续"
   },
   "registerPage": {
     "alreadyHaveAccount": "已经有帐号了?点击登录"
@@ -1153,7 +1163,9 @@
         "gitHubOldIdClose": "关闭 GitHub 老 ID 登录",
         "linuxDoOAuth": "允许通过 LINUX DO 账户登录 & 注册",
         "linuxDoOAuthTrustLevel": "启用 LINUX DO 信任等级限制",
-        "linuxDoOAuthDynamicTrustLevel": "LINUX DO 动态限制已注册用户（关闭后老用户不受新等级限制）"
+        "linuxDoOAuthDynamicTrustLevel": "LINUX DO 动态限制已注册用户（关闭后老用户不受新等级限制）",
+        "userAgreementEnabled": "启用用户协议",
+        "privacyPolicyEnabled": "启用隐私政策"
       },
       "configureEmailDomainWhitelist": {
         "title": "配置邮箱域名白名单",
@@ -1294,6 +1306,15 @@
         "newVersion": "新版本",
         "close": "关闭",
         "viewGitHub": "去GitHub查看"
+      },
+      "legalSettings": {
+        "title": "用户协议 / 隐私政策",
+        "userAgreementLabel": "用户协议内容",
+        "userAgreementPlaceholder": "在此输入用户协议内容，支持 HTML & Markdown",
+        "saveUserAgreement": "保存用户协议",
+        "privacyPolicyLabel": "隐私政策内容",
+        "privacyPolicyPlaceholder": "在此输入隐私政策内容，支持 HTML & Markdown",
+        "savePrivacyPolicy": "保存隐私政策"
       }
     }
   },
@@ -1349,6 +1370,16 @@
     "aboutTitle": "关于",
     "aboutDescription": "可在设置页面设置关于内容，支持 HTML & Markdown",
     "projectRepo": "项目仓库地址："
+  },
+  "userAgreement": {
+    "title": "用户协议",
+    "emptyDescription": "管理员尚未配置用户协议内容。",
+    "loadingError": "加载用户协议内容失败..."
+  },
+  "privacyPolicy": {
+    "title": "隐私政策",
+    "emptyDescription": "管理员尚未配置隐私政策内容。",
+    "loadingError": "加载隐私政策内容失败..."
   },
   "footer": {
     "developedBy": "由",

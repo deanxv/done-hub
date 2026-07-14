@@ -60,6 +60,8 @@ const SystemSetting = () => {
     WeChatAccountQRCodeImageURL: '',
     TurnstileCheckEnabled: '',
     InviteCodeRegisterEnabled: '',
+    UserAgreementEnabled: '',
+    PrivacyPolicyEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
@@ -124,6 +126,8 @@ const SystemSetting = () => {
       case 'EmailDomainRestrictionEnabled':
       case 'RegisterEnabled':
       case 'InviteCodeRegisterEnabled':
+      case 'UserAgreementEnabled':
+      case 'PrivacyPolicyEnabled':
         value = inputs[key] === 'true' ? 'false' : 'true'
         break
       default:
@@ -402,6 +406,24 @@ const SystemSetting = () => {
                 control={
                   <Checkbox checked={inputs.TurnstileCheckEnabled === 'true'} onChange={handleInputChange}
                             name="TurnstileCheckEnabled"/>
+                }
+              />
+            </Grid>
+            <Grid xs={12} md={3}>
+              <FormControlLabel
+                label={t('setting_index.systemSettings.configureLoginRegister.userAgreementEnabled')}
+                control={
+                  <Checkbox checked={inputs.UserAgreementEnabled === 'true'} onChange={handleInputChange}
+                            name="UserAgreementEnabled"/>
+                }
+              />
+            </Grid>
+            <Grid xs={12} md={3}>
+              <FormControlLabel
+                label={t('setting_index.systemSettings.configureLoginRegister.privacyPolicyEnabled')}
+                control={
+                  <Checkbox checked={inputs.PrivacyPolicyEnabled === 'true'} onChange={handleInputChange}
+                            name="PrivacyPolicyEnabled"/>
                 }
               />
             </Grid>

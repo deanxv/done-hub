@@ -81,6 +81,16 @@
     "loadingError": "「About」の内容の読み込みに失敗しました...",
     "projectRepo": "プロジェクトリポジトリ："
   },
+  "userAgreement": {
+    "title": "利用規約",
+    "emptyDescription": "管理者はまだ利用規約の内容を設定していません。",
+    "loadingError": "利用規約の内容の読み込みに失敗しました..."
+  },
+  "privacyPolicy": {
+    "title": "プライバシーポリシー",
+    "emptyDescription": "管理者はまだプライバシーポリシーの内容を設定していません。",
+    "loadingError": "プライバシーポリシーの内容の読み込みに失敗しました..."
+  },
   "alloy 映射": "合金マッピング",
   "analytics": "分析",
   "analytics_index": {
@@ -1056,7 +1066,17 @@
     "usernameRequired": "ユーザー名は必須項目です",
     "validEmailRequired": "有効なメールアドレスである必要があります",
     "verificationCodeRequired": "確認コードは必須項目です",
-    "verificationInfo": "数秒後に再試行してください。Turnstile がユーザー環境をチェックしています！"
+    "verificationInfo": "数秒後に再試行してください。Turnstile がユーザー環境をチェックしています！",
+    "agreementRequired": "関連規約をお読みになり、同意にチェックを入れてください",
+    "agreementPrefix": "私は以下を読み、同意します：",
+    "userAgreement": "利用規約",
+    "privacyPolicy": "プライバシーポリシー",
+    "agreementAnd": "および"
+  },
+  "legalConsentDialog": {
+    "title": "規約の更新",
+    "description": "規約が更新されました。お読みになり、同意のうえご利用ください。",
+    "button": "同意して続行"
   },
   "registerPage": {
     "alreadyHaveAccount": "既にアカウントをお持ちですか？ログインをクリック"
@@ -1301,6 +1321,15 @@
         "close": "閉じる",
         "newVersion": "新しいバージョン",
         "viewGitHub": "GitHubで表示する"
+      },
+      "legalSettings": {
+        "title": "利用規約 / プライバシーポリシー",
+        "userAgreementLabel": "利用規約の内容",
+        "userAgreementPlaceholder": "ここに利用規約の内容を入力してください。HTML & Markdownをサポートしています",
+        "saveUserAgreement": "利用規約を保存",
+        "privacyPolicyLabel": "プライバシーポリシーの内容",
+        "privacyPolicyPlaceholder": "ここにプライバシーポリシーの内容を入力してください。HTML & Markdownをサポートしています",
+        "savePrivacyPolicy": "プライバシーポリシーを保存"
       }
     },
     "systemSettings": {
@@ -1354,7 +1383,9 @@
         "passwordSettings": "パスワードログイン",
         "thirdPartyLogin": "サードパーティログイン",
         "turnstileCheck": "Turnstileユーザー検証を有効にする",
-        "weChatAuth": "WeChatでのログイン＆登録を許可"
+        "weChatAuth": "WeChatでのログイン＆登録を許可",
+        "userAgreementEnabled": "利用規約を有効化",
+        "privacyPolicyEnabled": "プライバシーポリシーを有効化"
       },
       "configureOIDCAuthorization": {
         "alert1": "ホームページリンクを入力してください",

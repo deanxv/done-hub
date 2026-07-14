@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"crypto/sha256"
 	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/stmp"
@@ -29,48 +30,50 @@ func GetStatus(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"version":              config.Version,
-			"start_time":           config.StartTime,
-			"email_verification":   config.EmailVerificationEnabled,
-			"github_oauth":         config.GitHubOAuthEnabled,
-			"github_client_id":     config.GitHubClientId,
-			"linuxDo_oauth":        config.LinuxDoOAuthEnabled,
-			"linuxDo_client_id":    config.LinuxDoClientId,
-			"oidc_auth":            config.OIDCAuthEnabled,
-			"lark_login":           config.LarkAuthEnabled,
-			"lark_client_id":       config.LarkClientId,
-			"system_name":          config.SystemName,
-			"logo":                 config.Logo,
-			"language":             config.Language,
-			"footer_html":          config.Footer,
-			"analytics_code":       config.AnalyticsCode,
-			"wechat_qrcode":        config.WeChatAccountQRCodeImageURL,
-			"invite_code_register": config.InviteCodeRegisterEnabled,
-			"wechat_login":         config.WeChatAuthEnabled,
-			"server_address":       config.ServerAddress,
-			"turnstile_check":      config.TurnstileCheckEnabled,
-			"turnstile_site_key":   config.TurnstileSiteKey,
-			"top_up_link":          config.TopUpLink,
-			"chat_link":            config.ChatLink,
-			"quota_per_unit":       config.QuotaPerUnit,
-			"display_in_currency":  config.DisplayInCurrencyEnabled,
-			"telegram_bot":         telegramBot,
-			"mj_notify_enabled":    config.MjNotifyEnabled,
-			"builtin_chat_enabled": config.BuiltinChatEnabled,
-			"chat_links":           config.ChatLinks,
-			"PaymentUSDRate":       config.PaymentUSDRate,
-			"PaymentMinAmount":     config.PaymentMinAmount,
-			"RechargeDiscount":     config.RechargeDiscount,
-			"EnableSafe":           config.EnableSafe,
-			"SafeToolName":         config.SafeToolName,
-			"SafeKeyWords":         config.SafeKeyWords,
-			"UserInvoiceMonth":     config.UserInvoiceMonth,
-			"UptimeDomain":         config.UPTIMEKUMA_DOMAIN,
-			"UptimePageName":       config.UPTIMEKUMA_STATUS_PAGE_NAME,
-			"UptimeEnabled":        config.UPTIMEKUMA_ENABLE,
-			"GeminiAPIEnabled":     config.GeminiAPIEnabled,
-			"ClaudeAPIEnabled":     config.ClaudeAPIEnabled,
-			"max_log_query_days":   MaxLogQueryDays,
+			"version":                config.Version,
+			"start_time":             config.StartTime,
+			"email_verification":     config.EmailVerificationEnabled,
+			"github_oauth":           config.GitHubOAuthEnabled,
+			"github_client_id":       config.GitHubClientId,
+			"linuxDo_oauth":          config.LinuxDoOAuthEnabled,
+			"linuxDo_client_id":      config.LinuxDoClientId,
+			"oidc_auth":              config.OIDCAuthEnabled,
+			"lark_login":             config.LarkAuthEnabled,
+			"lark_client_id":         config.LarkClientId,
+			"system_name":            config.SystemName,
+			"logo":                   config.Logo,
+			"language":               config.Language,
+			"footer_html":            config.Footer,
+			"analytics_code":         config.AnalyticsCode,
+			"wechat_qrcode":          config.WeChatAccountQRCodeImageURL,
+			"invite_code_register":   config.InviteCodeRegisterEnabled,
+			"user_agreement_enabled": config.UserAgreementEnabled,
+			"privacy_policy_enabled": config.PrivacyPolicyEnabled,
+			"wechat_login":           config.WeChatAuthEnabled,
+			"server_address":         config.ServerAddress,
+			"turnstile_check":        config.TurnstileCheckEnabled,
+			"turnstile_site_key":     config.TurnstileSiteKey,
+			"top_up_link":            config.TopUpLink,
+			"chat_link":              config.ChatLink,
+			"quota_per_unit":         config.QuotaPerUnit,
+			"display_in_currency":    config.DisplayInCurrencyEnabled,
+			"telegram_bot":           telegramBot,
+			"mj_notify_enabled":      config.MjNotifyEnabled,
+			"builtin_chat_enabled":   config.BuiltinChatEnabled,
+			"chat_links":             config.ChatLinks,
+			"PaymentUSDRate":         config.PaymentUSDRate,
+			"PaymentMinAmount":       config.PaymentMinAmount,
+			"RechargeDiscount":       config.RechargeDiscount,
+			"EnableSafe":             config.EnableSafe,
+			"SafeToolName":           config.SafeToolName,
+			"SafeKeyWords":           config.SafeKeyWords,
+			"UserInvoiceMonth":       config.UserInvoiceMonth,
+			"UptimeDomain":           config.UPTIMEKUMA_DOMAIN,
+			"UptimePageName":         config.UPTIMEKUMA_STATUS_PAGE_NAME,
+			"UptimeEnabled":          config.UPTIMEKUMA_ENABLE,
+			"GeminiAPIEnabled":       config.GeminiAPIEnabled,
+			"ClaudeAPIEnabled":       config.ClaudeAPIEnabled,
+			"max_log_query_days":     MaxLogQueryDays,
 		},
 	})
 }
@@ -97,6 +100,40 @@ func GetHomePageContent(c *gin.Context) {
 		"message": "",
 		"data":    config.GlobalOption.Get("HomePageContent"),
 	})
+}
+
+func GetUserAgreement(c *gin.Context) {
+	content := ""
+	if config.UserAgreementEnabled {
+		content = config.GlobalOption.Get("UserAgreement")
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    content,
+	})
+}
+
+func GetPrivacyPolicy(c *gin.Context) {
+	content := ""
+	if config.PrivacyPolicyEnabled {
+		content = config.GlobalOption.Get("PrivacyPolicy")
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    content,
+	})
+}
+
+// agreementVersion 用协议正文的哈希作为版本标识：正文变则版本变，正文为空则无版本。
+// 注册写入、GetSelf 判定、AgreeToTerms 写入三处同源同算法。
+func agreementVersion(content string) string {
+	if content == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(content))
+	return fmt.Sprintf("%x", sum)[:32]
 }
 
 func SendEmailVerification(c *gin.Context) {
