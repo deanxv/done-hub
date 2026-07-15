@@ -41,10 +41,18 @@ func (p *OpenAIProvider) CreateResponses(request *types.OpenAIResponsesRequest) 
 	defer req.Body.Close()
 
 	response := &types.OpenAIResponsesResponses{}
+	// 开启渠道 PassThroughBody 且 relay 层已放行（入口协议 == responses、响应原样直返）时，
+	// 用 outputResp=true 让 SendRequest 回填 resp.Body：既 unmarshal 一份供计费，又能拿到上游
+	// 原始字节用于响应字节透传（保留未知字段 / 字段顺序）。chat 兼容路径（need2Response）不放行，
+	// 避免把 responses 字节当 chat 返回。
+	passThrough := p.Channel.PassThroughBody && p.Context != nil && p.Context.GetBool(config.GinRawPassThroughAllowedKey)
 	// 发送请求
-	_, errWithCode = p.Requester.SendRequest(req, response, false)
+	resp, errWithCode := p.Requester.SendRequest(req, response, passThrough)
 	if errWithCode != nil {
 		return nil, errWithCode
+	}
+	if passThrough {
+		defer resp.Body.Close()
 	}
 
 	// 仅在 usage 完全缺失、或有响应内容却把 output_tokens 算成 0（解析异常）时才兜底估算，
@@ -62,6 +70,18 @@ func (p *OpenAIProvider) CreateResponses(request *types.OpenAIResponsesRequest) 
 	*p.Usage = *response.Usage.ToOpenAIUsage()
 
 	getResponsesExtraBilling(response, p.Usage)
+
+	// 暂存上游原始字节，由 relay 层字节透传，保留未知字段 / 字段顺序。
+	// 有别名映射需改 model 时，在原始字节上就地 sjson 改写顶层 model（不改字段顺序 / 不丢未知字段）；
+	// 无映射时 UnifyModelInJSONBytes 恒 no-op。
+	if passThrough {
+		if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
+			if patched, changed := base.UnifyModelInJSONBytes(p.Context, rawBytes, "model"); changed {
+				rawBytes = patched
+			}
+			p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
+		}
+	}
 
 	return response, nil
 }
@@ -179,9 +199,17 @@ func (p *OpenAIProvider) CreateResponsesCompaction(request *types.OpenAIResponse
 	defer req.Body.Close()
 
 	response := &types.OpenAIResponsesResponses{}
-	_, errWithCode = p.Requester.SendRequest(req, response, false)
+	// 开启渠道 PassThroughBody 且 relay 层已放行（入口协议 == responses、响应原样直返）时，
+	// 用 outputResp=true 让 SendRequest 回填 resp.Body：既 unmarshal 一份供计费，又能拿到上游
+	// 原始字节用于响应字节透传（保留未知字段 / 字段顺序）。chat 兼容路径（need2Response）不放行，
+	// 避免把 responses 字节当 chat 返回。
+	passThrough := p.Channel.PassThroughBody && p.Context != nil && p.Context.GetBool(config.GinRawPassThroughAllowedKey)
+	resp, errWithCode := p.Requester.SendRequest(req, response, passThrough)
 	if errWithCode != nil {
 		return nil, errWithCode
+	}
+	if passThrough {
+		defer resp.Body.Close()
 	}
 
 	// 与 CreateResponses 同款兜底：上游漏返 usage、或有响应内容却把 output_tokens 算成 0（解析异常）时，
@@ -198,6 +226,18 @@ func (p *OpenAIProvider) CreateResponsesCompaction(request *types.OpenAIResponse
 	}
 
 	*p.Usage = *response.Usage.ToOpenAIUsage()
+
+	// 暂存上游原始字节，由 relay 层字节透传，保留未知字段 / 字段顺序。
+	// 有别名映射需改 model 时，在原始字节上就地 sjson 改写顶层 model（不改字段顺序 / 不丢未知字段）；
+	// 无映射时 UnifyModelInJSONBytes 恒 no-op。
+	if passThrough {
+		if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
+			if patched, changed := base.UnifyModelInJSONBytes(p.Context, rawBytes, "model"); changed {
+				rawBytes = patched
+			}
+			p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
+		}
+	}
 
 	return response, nil
 }

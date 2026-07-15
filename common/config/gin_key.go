@@ -27,4 +27,11 @@ const (
 	// 由 responseJsonClient 直接写回客户端，保留字段顺序 / 未知字段 / model 原名。
 	// 与 Bedrock 专用字节 key 的区别：供 Claude 官方等渠道复用。
 	GinRawResponseBodyKey = "raw_response_body"
+
+	// GinRawPassThroughAllowedKey 由 relay 层在「入口协议 == provider 输出协议、响应会原样直返」
+	// 的分支设置，作为 provider 暂存 GinRawResponseBodyKey 的前置许可。
+	// 原因：OpenAI 的 CreateChatCompletion / CreateResponses 会被 responses/claude/search 等
+	// 异协议兼容路径复用（响应还要经 ToResponses / convertOpenAIResponseToClaude 等结构体转换），
+	// 此时若字节透传就会把 chat 字节当作目标协议返回，造成协议错乱。故仅在同构直返分支放行。
+	GinRawPassThroughAllowedKey = "raw_passthrough_allowed"
 )

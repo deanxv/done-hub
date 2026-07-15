@@ -120,6 +120,9 @@ func (r *relayChat) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
 	}
 
 	r.chatRequest.Model = r.modelName
+	// 入口协议 == chat 且响应原样直返，放行 provider 的响应字节透传（保留上游指纹）。
+	// image / need2Response 等异协议兼容分支在上方已提前返回，不会走到这里。
+	r.c.Set(config.GinRawPassThroughAllowedKey, true)
 	// 内容审查
 	if config.EnableSafe {
 		for _, message := range r.chatRequest.Messages {

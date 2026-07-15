@@ -2,6 +2,7 @@ package relay
 
 import (
 	"done-hub/common"
+	"done-hub/common/config"
 	"done-hub/common/requester"
 	providersBase "done-hub/providers/base"
 	"done-hub/relay/relay_util"
@@ -83,6 +84,10 @@ func (r *relayResponses) send() (err *types.OpenAIErrorWithStatusCode, done bool
 		return r.compatibleSend(chatProvider)
 	}
 
+	// 入口协议 == responses 且走 responses provider 原样直返，放行响应字节透传；
+	// 上方 chat 兼容路径（compatibleSend）已提前返回，不会走到这里。
+	r.c.Set(config.GinRawPassThroughAllowedKey, true)
+
 	if r.responsesRequest.Stream {
 		var response requester.StreamReaderInterface[string]
 		response, err = responsesProvider.CreateResponsesStream(&r.responsesRequest)
@@ -126,6 +131,9 @@ func (r *relayResponses) sendCompact() (err *types.OpenAIErrorWithStatusCode, do
 		done = true
 		return
 	}
+
+	// compact 端点：responses 协议原样直返，放行响应字节透传。
+	r.c.Set(config.GinRawPassThroughAllowedKey, true)
 
 	response, err := compactProvider.CreateResponsesCompaction(&r.responsesRequest)
 	if err != nil {

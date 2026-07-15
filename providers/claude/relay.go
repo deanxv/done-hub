@@ -146,16 +146,16 @@ func (p *ClaudeProvider) CreateClaudeChat(request *ClaudeRequest) (*ClaudeRespon
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 
-	// 上游回显的 model 名 == 用户请求名时字节透传，保留字段顺序 / 未知字段 / model 原名；
-	// 不相等（配了别名映射、需改回请求名）时不暂存字节，交给结构体路径 unifyResponseModel 改写。
-	// 判据是本次响应实际回显的 claudeResponse.Model，而非渠道是否配了映射表。
+	// 字节透传保留字段顺序 / 未知字段。有别名映射需改回请求名时，在原始字节上就地 sjson
+	// 改写顶层 model（不改字段顺序 / 不丢未知字段）；无映射时 UnifyModelInJSONBytes 恒 no-op。
 	if passThrough && resp != nil {
-		// 透传上游响应头（限流 / 退避等）：无论走字节透传还是结构体改写分支都需要。
+		// 透传上游响应头（限流 / 退避等）：无论字节是否改写都需要。
 		p.storeClaudeUpstreamHeaders(resp.Header)
-		if !base.HasResponseModelMapping(p.Context, claudeResponse.Model) {
-			if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
-				p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
+		if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
+			if patched, changed := base.UnifyModelInJSONBytes(p.Context, rawBytes, "model"); changed {
+				rawBytes = patched
 			}
+			p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
 		}
 		resp.Body.Close()
 	}
