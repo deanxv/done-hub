@@ -25,6 +25,13 @@ func readBody(c *gin.Context) ([]byte, error) {
 		}
 	}
 
+	// body 为 nil 时（如渠道测试用 http.NewRequest(..., nil) 构造的伪请求）直接返回空字节，
+	// 避免 buf.ReadFrom(nil) 触发 nil-pointer panic。上层透传逻辑读到空 body 会回退结构体序列化。
+	if c.Request == nil || c.Request.Body == nil {
+		c.Set(config.GinRequestBodyKey, []byte{})
+		return []byte{}, nil
+	}
+
 	size := c.Request.ContentLength
 	if size <= 0 || size > 100<<20 {
 		size = 512
