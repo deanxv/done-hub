@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"done-hub/common/logger"
+	"done-hub/common/utils"
 	"done-hub/providers/gemini"
 )
 
@@ -109,14 +110,14 @@ func (c *OAuth2Credentials) Refresh(ctx context.Context, proxyURL string, maxRet
 			Timeout: 30 * time.Second,
 		}
 
-		// 如果有代理配置，设置代理
+		// 如果有代理配置，设置代理（支持 http/https/socks5）
 		if proxyURL != "" {
-			proxyURLParsed, err := url.Parse(proxyURL)
-			if err == nil {
-				client.Transport = &http.Transport{
-					Proxy: http.ProxyURL(proxyURLParsed),
-				}
+			proxyClient, err := utils.NewProxyHTTPClient(proxyURL)
+			if err != nil {
+				return fmt.Errorf("failed to create proxy http client: %w", err)
 			}
+			proxyClient.Timeout = 30 * time.Second
+			client = proxyClient
 		}
 
 		// 发送刷新请求
