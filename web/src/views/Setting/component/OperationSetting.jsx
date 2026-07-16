@@ -51,6 +51,7 @@ const OperationSetting = () => {
     QuotaForInvitee: 0,
     InviterRewardType: 'fixed',
     InviterRewardValue: 0,
+    QuotaRemindEnabled: 'true',
     QuotaRemindThreshold: 0,
     PreConsumedQuota: 0,
     TopUpLink: '',
@@ -1089,7 +1090,7 @@ const OperationSetting = () => {
 
       <SubCard title={t('setting_index.operationSettings.monitoringSettings.title')}>
         <Grid container spacing={{ xs: 3, sm: 2, md: 4 }}>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={6}>
             <FormControl fullWidth>
               <InputLabel htmlFor="ChannelDisableThreshold">
                 {t('setting_index.operationSettings.monitoringSettings.channelDisableThreshold.label')}
@@ -1106,7 +1107,7 @@ const OperationSetting = () => {
               />
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={6}>
             <QuotaInput
               id="QuotaRemindThreshold"
               name="QuotaRemindThreshold"
@@ -1155,6 +1156,20 @@ const OperationSetting = () => {
                   checked={dataLoaded ? inputs.AutomaticDisableChannelNotifyEnabled === 'true' : false}
                   onChange={handleInputChange}
                   name="AutomaticDisableChannelNotifyEnabled"
+                  disabled={!dataLoaded || loading}
+                />
+              }
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControlLabel
+              sx={{ marginLeft: '0px' }}
+              label={t('setting_index.operationSettings.monitoringSettings.quotaRemindEnabled')}
+              control={
+                <Checkbox
+                  checked={dataLoaded ? inputs.QuotaRemindEnabled === 'true' : false}
+                  onChange={handleInputChange}
+                  name="QuotaRemindEnabled"
                   disabled={!dataLoaded || loading}
                 />
               }

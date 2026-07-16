@@ -47,6 +47,8 @@ type User struct {
 	AccessToken                string         `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota                      int            `json:"quota" gorm:"type:bigint;default:0"`
 	UsedQuota                  int            `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
+	QuotaRemindThreshold       *int           `json:"quota_remind_threshold" gorm:"type:bigint;default:null"`    // 每用户额度提醒阈值；nil 回退全局 config.QuotaRemindThreshold，非 nil 按字面值生效（含 0，表示仅额度用尽时提醒）
+	QuotaRemindEnabled         *bool          `json:"quota_remind_enabled" gorm:"default:null"`                  // 每用户额度提醒开关；nil 视为开启，false 时该用户不接收额度提醒
 	RequestCount               int            `json:"request_count" gorm:"type:int;default:0;"`                  // request number
 	Group                      string         `json:"group" gorm:"type:varchar(32);default:'default'"`
 	AffCode                    string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
@@ -615,6 +617,24 @@ func GetUserFields(id int, fields []string) (map[string]interface{}, error) {
 func GetUserQuota(id int) (quota int, err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Select("quota").Find(&quota).Error
 	return quota, err
+}
+
+// GetUserQuotaWithRemindSetting 一次查询取回用户余额与额度提醒设置，供扣费热路径复用同一次单行查询（避免对 users 表重复 SELECT）。
+// threshold：nil 表示未设置（回退全局默认），非 nil 时按字面值生效（含 0）。
+// enabled：仅在用户显式关闭（列为 false）时返回 false，NULL 视为开启，保持原有行为。
+func GetUserQuotaWithRemindSetting(id int) (quota int, threshold *int, enabled bool, err error) {
+	var row struct {
+		Quota                int
+		QuotaRemindThreshold *int
+		QuotaRemindEnabled   *bool
+	}
+	err = DB.Model(&User{}).Where("id = ?", id).
+		Select("quota", "quota_remind_threshold", "quota_remind_enabled").Find(&row).Error
+	if err != nil {
+		return 0, nil, true, err
+	}
+	enabled = row.QuotaRemindEnabled == nil || *row.QuotaRemindEnabled
+	return row.Quota, row.QuotaRemindThreshold, enabled, nil
 }
 
 func GetUserUsedQuota(id int) (quota int, err error) {

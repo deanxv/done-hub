@@ -965,6 +965,10 @@
     "displayName": "顯示名稱",
     "generateToken": "生成訪問令牌",
     "inputDisplayNamePlaceholder": "請輸入顯示名稱",
+    "quotaRemindEnabled": "接收額度提醒郵件",
+    "quotaRemindThreshold": "額度提醒閾值",
+    "quotaRemindThresholdPlaceholder": "剩餘額度低於此值時郵件提醒，填 0 表示僅在額度用盡時提醒",
+    "quotaRemindThresholdDefault": "留空使用系統預設：{{default}}",
     "inputPasswordPlaceholder": "請輸入密碼",
     "inputUsernamePlaceholder": "請輸入用戶名",
     "keepSafe": "請妥善保管。如有洩漏，請立即重置。",
@@ -1174,6 +1178,7 @@
           "label": "額度提醒閾值",
           "placeholder": "低於此額度時將發送郵件提醒用戶"
         },
+        "quotaRemindEnabled": "啟用額度提醒郵件",
         "saveMonitoringSettings": "保存監控設置",
         "title": "監控設置"
       },

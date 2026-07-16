@@ -983,6 +983,10 @@
     "displayName": "Display Name",
     "generateToken": "Generate Access Token",
     "inputDisplayNamePlaceholder": "Enter display name",
+    "quotaRemindEnabled": "Receive Quota Reminder Emails",
+    "quotaRemindThreshold": "Quota Remind Threshold",
+    "quotaRemindThresholdPlaceholder": "Email reminder when remaining quota falls below this value; set 0 to notify only when quota is exhausted",
+    "quotaRemindThresholdDefault": "Leave empty to use the system default: {{default}}",
     "inputPasswordPlaceholder": "Enter password",
     "inputUsernamePlaceholder": "Enter username",
     "keepSafe": "Keep it safe. Reset immediately if leaked.",
@@ -1203,6 +1207,7 @@
           "label": "Quota Reminder Threshold",
           "placeholder": "When below this quota, an email will be sent to remind the user"
         },
+        "quotaRemindEnabled": "Enable Quota Reminder Emails",
         "saveMonitoringSettings": "Save Monitoring Settings",
         "title": "Monitoring Settings"
       },

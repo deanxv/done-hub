@@ -103,6 +103,7 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterInt("QuotaForInvitee", &config.QuotaForInvitee)
 	config.GlobalOption.RegisterString("InviterRewardType", &config.InviterRewardType)
 	config.GlobalOption.RegisterInt("InviterRewardValue", &config.InviterRewardValue)
+	config.GlobalOption.RegisterBool("QuotaRemindEnabled", &config.QuotaRemindEnabled)
 	config.GlobalOption.RegisterInt("QuotaRemindThreshold", &config.QuotaRemindThreshold)
 	config.GlobalOption.RegisterInt("PreConsumedQuota", &config.PreConsumedQuota)
 

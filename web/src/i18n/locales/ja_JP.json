@@ -975,6 +975,10 @@
     "displayName": "表示名",
     "generateToken": "アクセストークンの生成",
     "inputDisplayNamePlaceholder": "表示名を入力してください",
+    "quotaRemindEnabled": "クォータ通知メールを受信する",
+    "quotaRemindThreshold": "クォータ通知しきい値",
+    "quotaRemindThresholdPlaceholder": "残りクォータがこの値を下回るとメールで通知します。0 でクォータ枯渇時のみ通知します",
+    "quotaRemindThresholdDefault": "空欄でシステム既定値を使用：{{default}}",
     "inputPasswordPlaceholder": "パスワードを入力してください",
     "inputUsernamePlaceholder": "ユーザー名を入力してください",
     "keepSafe": "安全に保管してください。漏洩した場合はすぐにリセットしてください。",
@@ -1168,6 +1172,7 @@
           "label": "クォータ通知しきい値",
           "placeholder": "このクォータを下回ると、ユーザーに通知メールが送信されます"
         },
+        "quotaRemindEnabled": "クォータ通知メールを有効化",
         "saveMonitoringSettings": "モニタリング設定を保存",
         "title": "モニタリング設定"
       },

@@ -56,6 +56,7 @@ func GetStatus(c *gin.Context) {
 			"top_up_link":            config.TopUpLink,
 			"chat_link":              config.ChatLink,
 			"quota_per_unit":         config.QuotaPerUnit,
+			"quota_remind_threshold": config.QuotaRemindThreshold,
 			"display_in_currency":    config.DisplayInCurrencyEnabled,
 			"telegram_bot":           telegramBot,
 			"mj_notify_enabled":      config.MjNotifyEnabled,

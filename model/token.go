@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -530,17 +531,30 @@ func PreConsumeTokenQuota(tokenId int, quota int) (err error) {
 	if !token.UnlimitedQuota && token.RemainQuota < quota {
 		return errors.New("令牌额度不足")
 	}
-	userQuota, err := GetUserQuota(token.UserId)
+	userQuota, remindThreshold, remindEnabled, err := GetUserQuotaWithRemindSetting(token.UserId)
 	if err != nil {
 		return err
 	}
 	if userQuota < quota {
 		return errors.New("用户额度不足")
 	}
-	quotaTooLow := userQuota >= config.QuotaRemindThreshold && userQuota-quota < config.QuotaRemindThreshold
-	noMoreQuota := userQuota-quota <= 0
-	if quotaTooLow || noMoreQuota {
-		go sendQuotaWarningEmail(token.UserId, userQuota, noMoreQuota)
+	// 额度提醒：全局总开关开启、且用户未单独关闭时才评估触发。
+	if config.QuotaRemindEnabled && remindEnabled {
+		threshold := config.QuotaRemindThreshold
+		if remindThreshold != nil {
+			threshold = *remindThreshold
+		}
+		quotaTooLow := userQuota >= threshold && userQuota-quota < threshold
+		noMoreQuota := userQuota-quota <= 0
+		if noMoreQuota {
+			if shouldSendQuotaWarningNotify(token.UserId, true) {
+				go sendQuotaWarningEmail(token.UserId, userQuota, true)
+			}
+		} else if quotaTooLow {
+			if shouldSendQuotaWarningNotify(token.UserId, false) {
+				go sendQuotaWarningEmail(token.UserId, userQuota, false)
+			}
+		}
 	}
 	if token.UnlimitedQuota {
 		// 无限额度令牌没有上限，只累计用量，不扣减 remain_quota
@@ -553,6 +567,25 @@ func PreConsumeTokenQuota(tokenId int, quota int) (err error) {
 	}
 	err = DecreaseUserQuota(token.UserId, quota)
 	return err
+}
+
+// quotaWarningNotifyDedupTTL 控制额度提醒在跨节点/并发之间的去重窗口：
+// 阈值边界附近的并发请求会各自命中触发条件，靠此窗口保证同类型告警只发一封。
+const quotaWarningNotifyDedupTTL = 10 * time.Minute
+
+// shouldSendQuotaWarningNotify 对额度提醒去重：同一用户、同一告警类型（即将用尽/已用尽）
+// 在窗口内只放行第一次。Redis 未启用时 fail-open（照旧发送）；SETNX 抖动失败时宁可多发也不静默丢。
+func shouldSendQuotaWarningNotify(userId int, noMoreQuota bool) bool {
+	if !config.RedisEnabled {
+		return true
+	}
+	key := fmt.Sprintf("notify_lock:quota_warning:%d:%t", userId, noMoreQuota)
+	ok, err := redis.RedisSetNX(key, "1", quotaWarningNotifyDedupTTL)
+	if err != nil {
+		logger.SysError(fmt.Sprintf("quota warning notify dedup SETNX failed (user=%d): %v", userId, err))
+		return true
+	}
+	return ok
 }
 
 func sendQuotaWarningEmail(userId int, userQuota int, noMoreQuota bool) {

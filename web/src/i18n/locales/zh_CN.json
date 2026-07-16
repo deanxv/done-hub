@@ -729,6 +729,10 @@
     "inputUsernamePlaceholder": "请输入用户名",
     "inputPasswordPlaceholder": "请输入密码",
     "inputDisplayNamePlaceholder": "请输入显示名称",
+    "quotaRemindEnabled": "接收额度提醒邮件",
+    "quotaRemindThreshold": "额度提醒阈值",
+    "quotaRemindThresholdPlaceholder": "剩余额度低于此值时邮件提醒，填 0 表示仅在额度用尽时提醒",
+    "quotaRemindThresholdDefault": "留空使用系统默认：{{default}}",
     "submit": "提交",
     "accountBinding": "账号绑定",
     "bindWechatAccount": "绑定微信账号",
@@ -1031,6 +1035,7 @@
         "automaticDisableChannel": "失败时自动禁用通道",
         "automaticEnableChannel": "成功时自动启用通道",
         "automaticDisableChannelNotify": "自动禁用通道时发送通知",
+        "quotaRemindEnabled": "启用额度提醒邮件",
         "saveMonitoringSettings": "保存监控设置"
       },
       "quotaSettings": {

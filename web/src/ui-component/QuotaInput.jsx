@@ -105,7 +105,11 @@ const QuotaInput = ({
   };
 
   const handleInput = (e) => {
-    const raw = e.target.value;
+    let raw = e.target.value;
+    // maxDeduct==null 表示只接受非负额度：直接剔除负号（min:0 只约束校验/步进，不拦手输），与 numberInputProps 的 min:0 保持一致
+    if (maxDeduct == null && raw.includes('-')) {
+      raw = raw.replace(/-/g, '');
+    }
     // 两种模式都保留 raw 字符串供 display；token 仅在 emit 时 trunc，避免用户输入过程中 "5." 被立即压成 "5"
     setDisplayValue(raw);
     if (raw === '' || raw === '-') {

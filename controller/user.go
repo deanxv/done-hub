@@ -689,6 +689,22 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
+	// 额度提醒设置单独用 map 更新：结构体 Updates 会跳过零值/false，而“阈值设为 0/清空回退默认”“关闭提醒”都必须能落库。
+	// /api/user/self 只有个人设置页一个调用方且总是携带这两个字段，故阈值直接写指针：nil→SQL NULL（回退系统默认）、非 nil→字面值。
+	remindFields := map[string]interface{}{
+		"quota_remind_threshold": user.QuotaRemindThreshold,
+	}
+	if user.QuotaRemindEnabled != nil {
+		remindFields["quota_remind_enabled"] = *user.QuotaRemindEnabled
+	}
+	if err := model.UpdateUser(c.GetInt("id"), remindFields); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
