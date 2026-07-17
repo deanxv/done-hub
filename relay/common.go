@@ -498,6 +498,8 @@ type StreamEndHandler func() string
 
 func responseStreamClient(c *gin.Context, stream requester.StreamReaderInterface[string], endHandler StreamEndHandler) (firstResponseTime time.Time, errWithOP *types.OpenAIErrorWithStatusCode) {
 	requester.SetEventStreamHeaders(c)
+	// 指纹保真：透传上游响应头（OpenAI x-ratelimit-* 等）。必须在首次写入前设置。
+	applyPassThroughHeaders(c)
 	dataChan, errChan := stream.Recv()
 
 	done := make(chan struct{})

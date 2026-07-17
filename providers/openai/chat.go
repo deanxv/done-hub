@@ -64,6 +64,9 @@ func (p *OpenAIProvider) CreateChatCompletion(request *types.ChatCompletionReque
 		defer resp.Body.Close()
 	}
 
+	// 透传上游响应头（限流指纹等）：与字节透传解耦，成功响应即捕获。
+	p.storeOpenAIUpstreamHeaders(resp.Header)
+
 	// 检测是否错误
 	openaiErr := ErrorHandle(&response.OpenAIErrorResponse)
 	if openaiErr != nil {
@@ -148,6 +151,9 @@ func (p *OpenAIProvider) CreateChatCompletionStream(request *types.ChatCompletio
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
+
+	// 透传上游响应头（限流指纹等）：与字节透传解耦，成功响应即捕获。
+	p.storeOpenAIUpstreamHeaders(resp.Header)
 
 	chatHandler := OpenAIStreamHandler{
 		Usage:      p.Usage,

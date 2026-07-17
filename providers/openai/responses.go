@@ -55,6 +55,9 @@ func (p *OpenAIProvider) CreateResponses(request *types.OpenAIResponsesRequest) 
 		defer resp.Body.Close()
 	}
 
+	// 透传上游响应头（限流指纹等）：与字节透传解耦，成功响应即捕获。
+	p.storeOpenAIUpstreamHeaders(resp.Header)
+
 	// 仅在 usage 完全缺失、或有响应内容却把 output_tokens 算成 0（解析异常）时才兜底估算，
 	// 避免误杀上游真实返回的空响应（output_tokens=0 且无内容是合法的）而覆盖其 input/details。
 	if response.Usage == nil || (response.Usage.OutputTokens == 0 && response.GetContent() != "") {
@@ -98,6 +101,9 @@ func (p *OpenAIProvider) CreateResponsesStream(request *types.OpenAIResponsesReq
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
+
+	// 透传上游响应头（限流指纹等）：与字节透传解耦，成功响应即捕获。
+	p.storeOpenAIUpstreamHeaders(resp.Header)
 
 	chatHandler := OpenAIResponsesStreamHandler{
 		Usage:  p.Usage,

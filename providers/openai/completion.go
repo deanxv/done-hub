@@ -20,10 +20,13 @@ func (p *OpenAIProvider) CreateCompletion(request *types.CompletionRequest) (ope
 
 	response := &OpenAIProviderCompletionResponse{}
 	// 发送请求
-	_, errWithCode = p.Requester.SendRequest(req, response, false)
+	resp, errWithCode := p.Requester.SendRequest(req, response, false)
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
+
+	// 透传上游响应头（限流指纹等）：与字节透传解耦，成功响应即捕获。
+	p.storeOpenAIUpstreamHeaders(resp.Header)
 
 	// 检测是否错误
 	openaiErr := ErrorHandle(&response.OpenAIErrorResponse)
@@ -65,6 +68,9 @@ func (p *OpenAIProvider) CreateCompletionStream(request *types.CompletionRequest
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
+
+	// 透传上游响应头（限流指纹等）：与字节透传解耦，成功响应即捕获。
+	p.storeOpenAIUpstreamHeaders(resp.Header)
 
 	chatHandler := OpenAIStreamHandler{
 		Usage:     p.Usage,
