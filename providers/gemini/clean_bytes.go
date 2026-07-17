@@ -3,6 +3,7 @@ package gemini
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -45,7 +46,37 @@ const SkipThoughtSignatureValidator = "skip_thought_signature_validator"
 // ThoughtSignatureInvalidMsg 是上游 400 错误信息中识别 thoughtSignature 校验失败
 // 的稳定子串，统一在此声明避免 relay 层硬编码。匹配时调用方应先 ToLower 再判子串，
 // 因为不同 backend 大小写不统一。
+//
+// 注意：判断"签名是否不可用"请统一走 IsThoughtSignatureFailure，不要直接 Contains
+// 这个常量——上游对同一语义有多种文案（见 thoughtSignatureFailureSignals），单串匹配会漏。
 const ThoughtSignatureInvalidMsg = "thought signature is not valid"
+
+// thoughtSignatureFailureSignals 收敛上游对 thoughtSignature "不可用"的各种文案。
+// 全部为小写子串，IsThoughtSignatureFailure 会先把 message ToLower 再匹配。
+//
+// 这些文案语义同类——客户端 history 携带的签名在当前 channel/account 上无法校验——
+// 补救手段也一致：ReplaceThoughtSignaturesBytes 把签名换成官方哨兵
+// skip_thought_signature_validator 后换渠道重试一次，因此不需要按文案区分处理。
+//   - "thought signature is not valid" : 原 channel 签发的签名在新 channel/key 上无法识别
+//   - "corrupted thought signature"    : 签名字节损坏/截断（2026-07 起在多 key 渠道高频出现）
+//   - "thought_signature is invalid"   : snake_case 变体，防御性纳入
+var thoughtSignatureFailureSignals = []string{
+	ThoughtSignatureInvalidMsg,
+	"corrupted thought signature",
+	"thought_signature is invalid",
+}
+
+// IsThoughtSignatureFailure 判断上游 message 是否属于"thoughtSignature 不可用"这一类
+// 可通过"剥签名换哨兵 + 换渠道重试"补救的错误。message 传原文即可，函数内部做 ToLower。
+func IsThoughtSignatureFailure(message string) bool {
+	msg := strings.ToLower(message)
+	for _, signal := range thoughtSignatureFailureSignals {
+		if strings.Contains(msg, signal) {
+			return true
+		}
+	}
+	return false
+}
 
 // ReplaceThoughtSignaturesBytes 在字节层面把请求中所有 thoughtSignature 字段
 // 替换为 SkipThoughtSignatureValidator 哨兵字符串。

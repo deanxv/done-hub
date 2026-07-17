@@ -725,26 +725,31 @@ func shouldRetryBadRequest(c *gin.Context, channelType int, apiErr *types.OpenAI
 				strings.Contains(msg, "api key expired") {
 				return true
 			}
-			// Gemini 3 thoughtSignature 跨 channel 校验失败：原 channel 签发的签名
-			// 在 retry 到新 channel/key 后无法识别 → 400 INVALID_ARGUMENT
-			// "Thought signature is not valid"。
-			//
-			// 首次撞到（thought_signature_retried 未置）：在此置标志位并返回 true，
-			// 进入 retry 循环，retry 前由 relayGeminiOnly.handleThoughtSignatureFailure
-			// 将请求里的 thoughtSignature 替换为官方哨兵 skip_thought_signature_validator。
-			// 已剥过哨兵还挂说明上游有别的问题，不再死磕。
-			//
-			// 标志位置位由 shouldRetryBadRequest 集中负责（而非 handleX），保证：
-			//   - "决定是否重试" 与 "改写 body" 的责任分离
-			//   - 即使没有 bytes 缓存（如不带签名的请求误命中），也不会因 handleX 走空路径
-			//     而漏置标志位、退化为无限重试
-			if strings.Contains(msg, gemini.ThoughtSignatureInvalidMsg) {
-				if c.GetBool("thought_signature_retried") {
-					return false
-				}
-				c.Set("thought_signature_retried", true)
-				return true
+		}
+		// Gemini 3 thoughtSignature 不可用：客户端 history 携带的签名在当前 channel/account
+		// 上无法校验，上游回 400。文案有多种变体（"Thought signature is not valid" /
+		// "Corrupted thought signature" / …），统一由 gemini.IsThoughtSignatureFailure 判定，
+		// 不再逐字符串硬编码。
+		//
+		// 这里刻意不再要求 Param == "INVALID_ARGUMENT"：不同文案对应的 errorInfo.status
+		// 不完全一致（如 corrupted 一类可能落在别的枚举），而补救手段都相同，因此只以
+		// 消息语义为准；无限重试由 thought_signature_retried 幂等标志兜底。
+		//
+		// 首次撞到（thought_signature_retried 未置）：在此置标志位并返回 true，进入 retry
+		// 循环，retry 前由 relayGeminiOnly.handleThoughtSignatureFailure 将请求里的
+		// thoughtSignature 替换为官方哨兵 skip_thought_signature_validator。已剥过哨兵还挂
+		// 说明上游有别的问题，不再死磕。
+		//
+		// 标志位置位由 shouldRetryBadRequest 集中负责（而非 handleX），保证：
+		//   - "决定是否重试" 与 "改写 body" 的责任分离
+		//   - 即使没有 bytes 缓存（如不带签名的请求误命中），也不会因 handleX 走空路径
+		//     而漏置标志位、退化为无限重试
+		if gemini.IsThoughtSignatureFailure(apiErr.OpenAIError.Message) {
+			if c.GetBool("thought_signature_retried") {
+				return false
 			}
+			c.Set("thought_signature_retried", true)
+			return true
 		}
 		return false
 	}

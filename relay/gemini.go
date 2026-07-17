@@ -248,12 +248,13 @@ func (r *relayGeminiOnly) handleCachedContentFailure(apiErr *types.OpenAIErrorWi
 		r.modelName, channelId))
 }
 
-// handleThoughtSignatureFailure 撞上 "Thought signature is not valid" 后把请求
-// 里所有 thoughtSignature 替换为官方哨兵 skip_thought_signature_validator，
-// 让下一轮 retry 在新 channel 上跳过签名校验。
+// handleThoughtSignatureFailure 撞上 thoughtSignature 不可用类错误后（文案见
+// gemini.IsThoughtSignatureFailure，如 "Thought signature is not valid" /
+// "Corrupted thought signature"）把请求里所有 thoughtSignature 替换为官方哨兵
+// skip_thought_signature_validator，让下一轮 retry 在新 channel 上跳过签名校验。
 //
 // 触发场景：客户端 history 携带的 thoughtSignature 由原 channel 的上游账号签发，
-// 当前请求被调度到新 channel/key → 上游回 400 INVALID_ARGUMENT。
+// 当前请求被调度到新 channel/key → 上游回 400（签名无法识别或被判损坏）。
 // 实测在 done-hub 上 gemini-3.1-flash-lite-preview 多 key 渠道下 5 次有 4 次撞。
 //
 // 缓存策略与 handleCachedContentFailure 对齐：只处理 GinProcessedBytesKey
@@ -267,7 +268,7 @@ func (r *relayGeminiOnly) handleThoughtSignatureFailure(apiErr *types.OpenAIErro
 	if apiErr == nil || apiErr.StatusCode != http.StatusBadRequest {
 		return
 	}
-	if !strings.Contains(strings.ToLower(apiErr.OpenAIError.Message), gemini.ThoughtSignatureInvalidMsg) {
+	if !gemini.IsThoughtSignatureFailure(apiErr.OpenAIError.Message) {
 		return
 	}
 
