@@ -442,9 +442,10 @@ type ResponsesTools struct {
 	MaxNumResults  uint     `json:"max_num_results,omitempty"`
 	RankingOptions any      `json:"ranking_options,omitempty"`
 	// Computer Use
-	DisplayWidth  uint   `json:"display_width,omitempty"`
-	DisplayHeight uint   `json:"display_height,omitempty"`
-	Environment   string `json:"environment,omitempty"`
+	DisplayWidth  uint `json:"display_width,omitempty"`
+	DisplayHeight uint `json:"display_height,omitempty"`
+	// environment 为 string（computer_use 枚举）或 object（shell 工具的 {type, skills...}），故用 any 兼容两种形态
+	Environment any `json:"environment,omitempty"`
 	// Function / Namespace shared
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
