@@ -13,6 +13,7 @@ import (
 	"done-hub/providers/baidu"
 	"done-hub/providers/base"
 	"done-hub/providers/bedrock"
+	"done-hub/providers/bedrockmessages"
 	"done-hub/providers/claude"
 	"done-hub/providers/claudecode"
 	"done-hub/providers/cloudflareAI"
@@ -103,6 +104,7 @@ func init() {
 		config.ChannelTypeCodex:           codex.CodexProviderFactory{},
 		config.ChannelTypeAntigravity:     antigravity.AntigravityProviderFactory{},
 		config.ChannelTypeVertexAIExpress: vertexai_express.VertexAIExpressProviderFactory{},
+		config.ChannelTypeBedrockMessages: bedrockmessages.BedrockMessagesProviderFactory{},
 	}
 }
 

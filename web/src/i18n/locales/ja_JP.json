@@ -724,7 +724,9 @@
     "signup": "サインアップ",
     "status": "ステータス",
     "unknownVersion": "未知バージョン",
-    "welcomeBack": "おかえりなさい"
+    "welcomeBack": "おかえりなさい",
+    "userAgreement": "利用規約",
+    "privacyPolicy": "プライバシーポリシー"
   },
   "midjourneyPage": {
     "channel": "チャネル",

@@ -64,7 +64,9 @@
     "console": "控制台",
     "error": "错误",
     "unknownVersion": "未知版本",
-    "welcomeBack": "欢迎回来"
+    "welcomeBack": "欢迎回来",
+    "userAgreement": "用户协议",
+    "privacyPolicy": "隐私政策"
   },
   "sidebar": {
     "totalQuota": "总额度",

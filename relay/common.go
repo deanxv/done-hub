@@ -706,7 +706,7 @@ func shouldRetry(c *gin.Context, apiErr *types.OpenAIErrorWithStatusCode, channe
 
 func shouldRetryBadRequest(c *gin.Context, channelType int, apiErr *types.OpenAIErrorWithStatusCode) bool {
 	switch channelType {
-	case config.ChannelTypeAnthropic:
+	case config.ChannelTypeAnthropic, config.ChannelTypeBedrockMessages:
 		return strings.Contains(apiErr.OpenAIError.Message, "Your credit balance is too low")
 	case config.ChannelTypeBedrock:
 		return strings.Contains(apiErr.OpenAIError.Message, "Operation not allowed")

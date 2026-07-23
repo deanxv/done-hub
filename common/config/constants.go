@@ -406,6 +406,7 @@ const (
 	ChannelTypeCodex           = 59
 	ChannelTypeAntigravity     = 60
 	ChannelTypeVertexAIExpress = 61
+	ChannelTypeBedrockMessages = 62
 )
 
 const (

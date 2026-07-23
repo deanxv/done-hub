@@ -67,7 +67,9 @@
     "console": "Console",
     "error": "Error",
     "unknownVersion": "Unknown Version",
-    "welcomeBack": "Welcome Back"
+    "welcomeBack": "Welcome Back",
+    "userAgreement": "User Agreement",
+    "privacyPolicy": "Privacy Policy"
   },
   "sidebar": {
     "totalQuota": "Total Quota",

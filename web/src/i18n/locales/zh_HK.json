@@ -715,7 +715,9 @@
     "signout": "登出",
     "signup": "註冊",
     "unknownVersion": "未知版本",
-    "welcomeBack": "歡迎回來"
+    "welcomeBack": "歡迎回來",
+    "userAgreement": "用戶協議",
+    "privacyPolicy": "隱私政策"
   },
   "midjourneyPage": {
     "channel": "渠道",

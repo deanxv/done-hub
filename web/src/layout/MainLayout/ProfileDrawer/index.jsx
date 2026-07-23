@@ -35,6 +35,7 @@ const ProfileDrawer = ({ open, onClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user, userGroup } = useSelector((state) => state.account);
+  const siteInfo = useSelector((state) => state.siteInfo);
 
   const { logout } = useLogin();
 
@@ -251,6 +252,34 @@ const ProfileDrawer = ({ open, onClose }) => {
               </ListItemButton>
             </List>
           </Box>
+
+          {/* 法律条款入口：登录后随时可查阅，仅在管理员启用对应协议时显示 */}
+          {(siteInfo.user_agreement_enabled || siteInfo.privacy_policy_enabled) && (
+            <>
+              <Divider sx={{ borderWidth: '1px', borderStyle: 'dashed', mt: 2, mb: 2 }} />
+              <Box>
+                <List>
+                  {siteInfo.user_agreement_enabled && (
+                    <ListItemButton onClick={() => handleNavigate('/user-agreement')} sx={{ py: 1.5 }}>
+                      <ListItemIcon sx={{ minWidth: 40 }}>
+                        <Icon icon="mingcute:document-2-line" width="1.2rem" color={theme.palette.text.secondary} />
+                      </ListItemIcon>
+                      <ListItemText primary={t('menu.userAgreement')} />
+                    </ListItemButton>
+                  )}
+
+                  {siteInfo.privacy_policy_enabled && (
+                    <ListItemButton onClick={() => handleNavigate('/privacy-policy')} sx={{ py: 1.5 }}>
+                      <ListItemIcon sx={{ minWidth: 40 }}>
+                        <Icon icon="mingcute:shield-shape-line" width="1.2rem" color={theme.palette.text.secondary} />
+                      </ListItemIcon>
+                      <ListItemText primary={t('menu.privacyPolicy')} />
+                    </ListItemButton>
+                  )}
+                </List>
+              </Box>
+            </>
+          )}
         </Box>
 
         {/* 退出按钮 - 固定在底部 */}

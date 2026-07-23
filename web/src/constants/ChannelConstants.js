@@ -306,6 +306,13 @@ export const CHANNEL_OPTIONS = {
     color: 'orange',
     url: 'https://console.cloud.google.com/'
   },
+  62: {
+    key: 62,
+    text: 'Amazon Bedrock (Messages)',
+    value: 62,
+    color: 'orange',
+    url: 'https://console.aws.amazon.com/bedrock/home'
+  },
   8: {
     key: 8,
     text: '自定义渠道',
