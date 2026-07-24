@@ -208,6 +208,14 @@ var QuotaRemindThreshold = 500000
 var PreConsumedQuota = 500
 var ApproximateTokenEnabled = false
 var EmptyResponseBillingEnabled = true
+
+// MaxPromptTokens 输入 token 上限的粗粒度守卫（仅对 AWS/Bedrock 渠道生效）。
+// AWS 对超过模型上下文窗口（尤其 >1M）的请求既不快速报错也不拒绝，会一直挂起直到
+// 墙钟超时才被砍掉（表现为长时间等待后中断、计费 $0）。在发送上游前用本值预拦截，
+// 直接返回明确的 400。有效上限优先取 model_info.ContextLength(>0)，否则回落到本值。
+// 注意 ContextLength 是整个上下文窗口（含输出侧），这里直接当输入上限使用，不为输出
+// 预留 headroom——作为"防挂死"守卫偏宽松、不会误杀，足够。设为 0 可禁用该守卫。
+var MaxPromptTokens = 1000000
 var DisableTokenEncoders = false
 var RetryTimes = 0
 var RetryTimeOut = 10

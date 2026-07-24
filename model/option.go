@@ -52,6 +52,7 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterBool("LogAutoDeleteEnabled", &config.LogAutoDeleteEnabled)
 	config.GlobalOption.RegisterInt("LogAutoDeleteDays", &config.LogAutoDeleteDays)
 	config.GlobalOption.RegisterBool("EmptyResponseBillingEnabled", &config.EmptyResponseBillingEnabled)
+	config.GlobalOption.RegisterInt("MaxPromptTokens", &config.MaxPromptTokens)
 	config.GlobalOption.RegisterBool("DisplayInCurrencyEnabled", &config.DisplayInCurrencyEnabled)
 	config.GlobalOption.RegisterBool("DisplayTokenStatEnabled", &config.DisplayTokenStatEnabled)
 	config.GlobalOption.RegisterFloat("ChannelDisableThreshold", &config.ChannelDisableThreshold)

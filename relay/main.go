@@ -200,10 +200,70 @@ func Relay(c *gin.Context) {
 	}
 }
 
+// promptTokenForcer 由能在忽略 PreCost 开关的前提下强制计算输入 token 的 relay 实现。
+// 当渠道关闭预扣费（getPromptTokens 返回 0）时，超限守卫用它兜底，避免被绕过。
+type promptTokenForcer interface {
+	forcePromptTokens() int
+}
+
+// checkPromptTokenLimit 在发送上游前拦截超过模型上下文上限的请求（仅 AWS/Bedrock 渠道）。
+// 有效上限：优先 model_info.ContextLength(>0)，否则回落全局 config.MaxPromptTokens；<=0 视为不限。
+func checkPromptTokenLimit(relay RelayBaseInterface, promptTokens int) *types.OpenAIErrorWithStatusCode {
+	provider := relay.getProvider()
+	if provider == nil {
+		return nil
+	}
+	ch := provider.GetChannel()
+	if ch == nil || (ch.Type != config.ChannelTypeBedrock && ch.Type != config.ChannelTypeBedrockMessages) {
+		return nil
+	}
+
+	limit := config.MaxPromptTokens
+	// GetPrice 未命中也返回默认 Price（ModelInfo 为 nil），不会返回 nil，故只需判 ModelInfo。
+	if price := model.PricingInstance.GetPrice(relay.getModelName()); price.ModelInfo != nil && price.ModelInfo.ContextLength > 0 {
+		limit = price.ModelInfo.ContextLength
+	}
+	if limit <= 0 {
+		return nil
+	}
+
+	tokens := promptTokens
+	if tokens <= 0 {
+		// 渠道关闭预扣费时 promptTokens 为 0，强制计一次数
+		if forcer, ok := relay.(promptTokenForcer); ok {
+			tokens = forcer.forcePromptTokens()
+		}
+	}
+
+	if tokens > limit {
+		// 文案对齐 Anthropic 官方超上下文的 400：`prompt is too long: N tokens > M maximum`，
+		// 且 Type=invalid_request_error。这样经 done-hub 的 Claude Code / Anthropic SDK 客户端
+		// 能像识别官方 400 一样识别它（触发 /compact 或提示压缩），而非当成陌生的自定义错误。
+		msg := fmt.Sprintf("prompt is too long: %d tokens > %d maximum", tokens, limit)
+		return &types.OpenAIErrorWithStatusCode{
+			OpenAIError: types.OpenAIError{
+				Message: msg,
+				Type:    "invalid_request_error",
+				Code:    "prompt_tokens_exceed_limit",
+			},
+			StatusCode: http.StatusBadRequest,
+			LocalError: true,
+		}
+	}
+	return nil
+}
+
 func RelayHandler(relay RelayBaseInterface) (err *types.OpenAIErrorWithStatusCode, done bool) {
 	promptTokens, tonkeErr := relay.getPromptTokens()
 	if tonkeErr != nil {
 		err = common.ErrorWrapperLocal(tonkeErr, "token_error", http.StatusBadRequest)
+		done = true
+		return
+	}
+
+	// 超大请求预拦截（仅 AWS/Bedrock）：在预扣费与发送上游之前拦下，避免超限请求
+	// 在上游静默挂起直到墙钟超时。拒绝时不预扣费、不触发 undo。
+	if err = checkPromptTokenLimit(relay, promptTokens); err != nil {
 		done = true
 		return
 	}

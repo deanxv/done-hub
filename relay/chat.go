@@ -78,6 +78,11 @@ func (r *relayChat) getPromptTokens() (int, error) {
 	return common.CountTokenMessages(r.chatRequest.Messages, r.modelName, channel.PreCost), nil
 }
 
+// forcePromptTokens 强制计算输入 token（忽略 PreCost 开关），供超限守卫使用。
+func (r *relayChat) forcePromptTokens() int {
+	return common.CountTokenMessages(r.chatRequest.Messages, r.modelName, config.PreCostDefault)
+}
+
 var need2Response = map[string]bool{
 	"o3-pro-2025-06-10":                true,
 	"o3-pro":                           true,

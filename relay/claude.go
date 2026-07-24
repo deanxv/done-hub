@@ -228,6 +228,12 @@ func CountTokenMessages(request *claude.ClaudeRequest, preCostType int) (int, er
 		return 0, nil
 	}
 
+	return countClaudeMessageTokens(request), nil
+}
+
+// countClaudeMessageTokens 计算 Claude 请求的输入 token，不受 PreCost 开关影响。
+// 供 CountTokenMessages（受 PreCost 控制）与超限守卫（需强制计数）复用。
+func countClaudeMessageTokens(request *claude.ClaudeRequest) int {
 	tokenEncoder := common.GetTokenEncoder(request.Model)
 
 	tokenNum := 0
@@ -258,7 +264,13 @@ func CountTokenMessages(request *claude.ClaudeRequest, preCostType int) (int, er
 		tokenNum += common.GetTokenNum(tokenEncoder, textMsg.String())
 	}
 
-	return tokenNum, nil
+	return tokenNum
+}
+
+// forcePromptTokens 强制计算输入 token（忽略 PreCost 开关），供超限守卫在
+// getPromptTokens 返回 0（渠道关闭预扣费）时使用，避免守卫被绕过。
+func (r *relayClaudeOnly) forcePromptTokens() int {
+	return countClaudeMessageTokens(r.claudeRequest)
 }
 
 // sendCustomChannelWithClaudeFormat 处理自定义渠道的Claude格式请求

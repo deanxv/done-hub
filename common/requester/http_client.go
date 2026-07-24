@@ -12,6 +12,11 @@ import (
 var HTTPClient *http.Client
 var relayRequestTimeout time.Duration
 
+// streamIdleTimeout 流式空闲超时：每收到一段数据就重置，上游静默超过该时长即中止。
+// 与墙钟总超时（HTTPClient.Timeout）互补——墙钟是硬总封顶，本值精准处理"卡死流"。
+// 设为 0 禁用（回到旧的纯阻塞读行为）。
+var streamIdleTimeout time.Duration
+
 func InitHttpClient() {
 	// TLS 握手超时配置，默认 30 秒，可通过环境变量 TLS_HANDSHAKE_TIMEOUT 配置
 	tlsHandshakeSeconds := utils.GetOrDefault("tls_handshake_timeout", 30)
@@ -71,6 +76,13 @@ func InitHttpClient() {
 		relayRequestTimeout = time.Duration(requestTimeout) * time.Second
 	}
 
-	logger.SysLog(fmt.Sprintf("HTTP Client: relay_timeout=%ds, response_header_timeout=%ds, relay_request_timeout=%ds, tls_handshake_timeout=%ds, tls_insecure_skip_verify=%v, max_conns_per_host=%d, max_idle_conns_per_host=%d, max_idle_conns=%d",
-		relayTimeout, responseHeaderSeconds, requestTimeout, tlsHandshakeSeconds, tlsInsecureSkipVerify, maxConnsPerHost, maxIdleConnsPerHost, maxIdleConns))
+	// 流式空闲超时，默认 300 秒，可通过 STREAM_IDLE_TIMEOUT 配置，设为 0 禁用。
+	// 上游流式响应期间每收到数据即重置；静默超过该时长则中止流，避免卡死流拖满墙钟总超时。
+	streamIdleSeconds := utils.GetOrDefault("stream_idle_timeout", 300)
+	if streamIdleSeconds > 0 {
+		streamIdleTimeout = time.Duration(streamIdleSeconds) * time.Second
+	}
+
+	logger.SysLog(fmt.Sprintf("HTTP Client: relay_timeout=%ds, response_header_timeout=%ds, relay_request_timeout=%ds, stream_idle_timeout=%ds, tls_handshake_timeout=%ds, tls_insecure_skip_verify=%v, max_conns_per_host=%d, max_idle_conns_per_host=%d, max_idle_conns=%d",
+		relayTimeout, responseHeaderSeconds, requestTimeout, streamIdleSeconds, tlsHandshakeSeconds, tlsInsecureSkipVerify, maxConnsPerHost, maxIdleConnsPerHost, maxIdleConns))
 }
