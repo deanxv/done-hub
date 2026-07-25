@@ -249,12 +249,13 @@ func (candidate *GeminiChatCandidate) ToOpenAIStreamChoice(request *types.ChatCo
 					imgText = fmt.Sprintf("%s(%s)", GeminiImageSymbol, url)
 				}
 				content = append(content, imgText)
+			} else if strings.HasPrefix(part.InlineData.MimeType, "audio/") {
+				// Lyria 等音频模型：inlineData 为 base64 音频（如 audio/mpeg 的 MP3），
+				// 按 OpenAI 音频输出放到 delta.audio，歌词由后续文本 part 汇总进 content。
+				choice.Delta.Audio = types.MultimediaData{
+					Data: part.InlineData.Data,
+				}
 			}
-			//  else if strings.HasPrefix(part.InlineData.MimeType, "audio/") {
-			// 	choice.Message.Audio = types.MultimediaData{
-			// 		Data: part.InlineData.Data,
-			// 	}
-			// }
 		} else {
 			if part.ExecutableCode != nil {
 				content = append(content, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```")
@@ -350,12 +351,13 @@ func (candidate *GeminiChatCandidate) ToOpenAIChoice(request *types.ChatCompleti
 					imgText = fmt.Sprintf("%s(%s)", GeminiImageSymbol, url)
 				}
 				content = append(content, imgText)
+			} else if strings.HasPrefix(part.InlineData.MimeType, "audio/") {
+				// Lyria 等音频模型：inlineData 为 base64 音频（如 audio/mpeg 的 MP3），
+				// 按 OpenAI 音频输出放到 message.audio，歌词由后续文本 part 汇总进 content。
+				choice.Message.Audio = types.MultimediaData{
+					Data: part.InlineData.Data,
+				}
 			}
-			//  else if strings.HasPrefix(part.InlineData.MimeType, "audio/") {
-			// 	choice.Message.Audio = types.MultimediaData{
-			// 		Data: part.InlineData.Data,
-			// 	}
-			// }
 		} else {
 			if part.ExecutableCode != nil {
 				content = append(content, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```")

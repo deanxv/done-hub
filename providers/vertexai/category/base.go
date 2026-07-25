@@ -25,7 +25,7 @@ func GetCategory(modelName string) (*Category, error) {
 
 	category := ""
 
-	if model_utils.HasPrefixCaseInsensitive(modelName, "gemini") || model_utils.HasPrefixCaseInsensitive(modelName, "imagen") {
+	if model_utils.HasPrefixCaseInsensitive(modelName, "gemini") || model_utils.HasPrefixCaseInsensitive(modelName, "imagen") || model_utils.HasPrefixCaseInsensitive(modelName, "lyria") {
 		category = "gemini"
 	} else if model_utils.HasPrefixCaseInsensitive(modelName, "claude") {
 		category = "claude"

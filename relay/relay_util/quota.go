@@ -357,8 +357,10 @@ func (q *Quota) calcQuota(promptTokens, completionTokens int, inputRatio, output
 		quota = 0
 	}
 
-	// 如果禁用了空回复计费且没有输出token，则不计费
-	if !config.EmptyResponseBillingEnabled && completionTokens == 0 {
+	// 空回复计费闸对按次计费（times）属于误伤：按次语义是"调用成功即全额收"，
+	// 与 completion token 无关（Lyria 等音乐模型成功返回音频时 completionTokens 常为 0）。
+	// 仅对 token 计费类型生效；闸1（totalTokens==0，上游未成功返回）对两类都保留。
+	if q.price.Type != model.TimesPriceType && !config.EmptyResponseBillingEnabled && completionTokens == 0 {
 		quota = 0
 	}
 

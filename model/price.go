@@ -536,6 +536,22 @@ func GetDefaultPrice() []*Price {
 		})
 	}
 
+	// Lyria 3 音乐生成（Gemini API generateContent）：官方按次（每首）计费，
+	// clip=$0.04/首、pro=$0.08/首。QuotaPerUnit=500000 对应 $0.002，故倍率 = 价格($) / 0.002。
+	var DefaultLyriaPrice = map[string]float64{
+		"lyria-3-clip-preview": 20, // $0.04 / 首
+		"lyria-3-pro-preview":  40, // $0.08 / 首
+	}
+	for model, lyriaPrice := range DefaultLyriaPrice {
+		prices = append(prices, &Price{
+			Model:       model,
+			Type:        TimesPriceType,
+			ChannelType: config.ChannelTypeGemini,
+			Input:       lyriaPrice,
+			Output:      lyriaPrice,
+		})
+	}
+
 	return prices
 }
 
