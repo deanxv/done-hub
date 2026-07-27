@@ -34,7 +34,7 @@ func (p *BedrockProvider) CreateChatCompletion(request *types.ChatCompletionRequ
 		Body:        body,
 	})
 	if err != nil {
-		return nil, awsErrorToOpenAI(err)
+		return nil, p.awsErrorToOpenAI(err)
 	}
 
 	// Category.ResponseChatComplete 只读 response.Body，用上游原始字节合成一个最小 *http.Response 复用之。
@@ -67,7 +67,7 @@ func (p *BedrockProvider) CreateChatCompletionStream(request *types.ChatCompleti
 		Body:        body,
 	})
 	if err != nil {
-		return nil, awsErrorToOpenAI(err)
+		return nil, p.awsErrorToOpenAI(err)
 	}
 
 	return newAWSStreamReader(out.GetStream(), p.Category.ResponseChatCompleteStrem(p, request)), nil

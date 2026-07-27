@@ -40,7 +40,7 @@ func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*clau
 		Body:        body,
 	})
 	if err != nil {
-		return nil, awsErrorToOpenAI(err)
+		return nil, p.awsErrorToOpenAI(err)
 	}
 
 	// out.Body 就是上游原始响应字节：既 unmarshal 一份供计费，
@@ -92,7 +92,7 @@ func (p *BedrockProvider) CreateClaudeChatStream(request *claude.ClaudeRequest) 
 		Body:        body,
 	})
 	if err != nil {
-		return nil, awsErrorToOpenAI(err)
+		return nil, p.awsErrorToOpenAI(err)
 	}
 
 	// x-amzn-* 响应头由 captureResponseMiddleware 存入 context。

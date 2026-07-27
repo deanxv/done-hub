@@ -41,6 +41,10 @@ type BedrockProvider struct {
 	APIToken        string
 	Category        *category.Category
 	client          *bedrockruntime.Client
+	// errBody 缓存最近一次上游错误响应的原始 body（由 captureResponseMiddleware 在
+	// Deserialize 前 tee 出来）。用于在 SDK 反序列化失败（如中间层返回 HTML）时，
+	// 让 awsErrorToOpenAI 拿到上游真实返回而非 SDK 的解析器噪声。
+	errBody []byte
 }
 
 func getConfig() base.ProviderConfig {
