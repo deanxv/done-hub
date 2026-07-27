@@ -1,22 +1,15 @@
 package bedrock
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"done-hub/common/requester"
 	"done-hub/model"
 	"done-hub/providers/base"
-	"done-hub/types"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"done-hub/providers/bedrock/category"
-	"done-hub/providers/bedrock/sigv4"
+
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 )
 
 type BedrockProviderFactory struct{}
@@ -26,9 +19,11 @@ func (f BedrockProviderFactory) Create(channel *model.Channel) base.ProviderInte
 
 	bedrockProvider := &BedrockProvider{
 		BaseProvider: base.BaseProvider{
-			Config:    getConfig(),
-			Channel:   channel,
-			Requester: requester.NewHTTPRequester(channel.GetProxy(), requestErrorHandle),
+			Config:  getConfig(),
+			Channel: channel,
+			// Requester 仅用于复用 NewRequestWithCustomParams* 的请求体构造逻辑；
+			// 实际发送由 bedrockruntime SDK 完成，故不需要错误处理回调。
+			Requester: requester.NewHTTPRequester(channel.GetProxy(), nil),
 		},
 	}
 
@@ -45,6 +40,7 @@ type BedrockProvider struct {
 	SessionToken    string
 	APIToken        string
 	Category        *category.Category
+	client          *bedrockruntime.Client
 }
 
 func getConfig() base.ProviderConfig {
@@ -54,40 +50,9 @@ func getConfig() base.ProviderConfig {
 	}
 }
 
-// 请求错误处理
-func requestErrorHandle(resp *http.Response) *types.OpenAIError {
-	bedrockError := &BedrockError{}
-	err := json.NewDecoder(resp.Body).Decode(bedrockError)
-	if err != nil {
-		return nil
-	}
-
-	return errorHandle(bedrockError)
-}
-
-// 错误处理
-func errorHandle(bedrockError *BedrockError) *types.OpenAIError {
-	if bedrockError.Message == "" {
-		return nil
-	}
-	return &types.OpenAIError{
-		Message: bedrockError.Message,
-		Type:    "Bedrock Error",
-	}
-}
-
-func (p *BedrockProvider) GetFullRequestURL(requestURL string, modelName string) string {
-	baseURL := strings.TrimSuffix(p.GetBaseURL(), "/")
-
-	return fmt.Sprintf(baseURL+requestURL, p.Region, modelName)
-}
-
 func (p *BedrockProvider) GetRequestHeaders() (headers map[string]string) {
 	headers = make(map[string]string)
 	p.CommonRequestHeaders(headers)
-	if p.APIToken != "" {
-		headers["Authorization"] = "Bearer " + p.APIToken
-	}
 	headers["Accept"] = "*/*"
 
 	return headers
@@ -149,30 +114,4 @@ func filterAWSResponseHeaders(src http.Header) http.Header {
 		return nil
 	}
 	return out
-}
-
-func (p *BedrockProvider) Sign(req *http.Request) error {
-	var body []byte
-	if req.Body == nil {
-		body = []byte("")
-	} else {
-		var err error
-		body, err = io.ReadAll(req.Body)
-		if err != nil {
-			return errors.New("error getting request body: " + err.Error())
-		}
-		req.Body = io.NopCloser(bytes.NewReader(body))
-	}
-	if p.APIToken != "" {
-		return nil
-	}
-	sig, err := sigv4.New(sigv4.WithCredential(p.AccessKeyID, p.SecretAccessKey, p.SessionToken), sigv4.WithRegionService(p.Region, awsService))
-	if err != nil {
-		return err
-	}
-
-	reqBodyHashHex := fmt.Sprintf("%x", sha256.Sum256(body))
-	sig.Sign(req, reqBodyHashHex, sigv4.NewTime(time.Now()))
-
-	return nil
 }

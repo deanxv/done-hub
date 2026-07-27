@@ -7,37 +7,52 @@ import (
 	"done-hub/providers/bedrock/category"
 	"done-hub/providers/claude"
 	"done-hub/types"
+	"encoding/json"
 	"io"
 	"net/http"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
+const (
+	awsAccept      = "application/json"
+	awsContentType = "application/json"
+)
+
 func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*claude.ClaudeResponse, *types.OpenAIErrorWithStatusCode) {
-	req, errWithCode := p.getClaudeRequest(request)
+	body, modelID, errWithCode := p.buildInvokeBody(request)
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
-	defer req.Body.Close()
 
-	claudeResponse := &claude.ClaudeResponse{}
-	// 指纹保真开启时用 outputResp=true：TeeReader 会把上游原始字节回填 resp.Body，
-	// 既能 unmarshal 一份供计费，又能拿到原始字节透传给客户端（保留字段顺序/未知字段/AWS model 原名）。
-	passThrough := config.FingerprintPassThroughEnabled && p.Context != nil
-	resp, openaiErr := p.Requester.SendRequest(req, claudeResponse, passThrough)
-	if openaiErr != nil {
-		return nil, openaiErr
+	client, err := p.getAwsClient()
+	if err != nil {
+		return nil, common.ErrorWrapper(err, "aws_client_error", http.StatusInternalServerError)
 	}
 
-	if passThrough && resp != nil {
-		if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil {
-			p.Context.Set(config.GinBedrockRawResponseBodyKey, rawBytes)
-		}
-		if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
-			p.Context.Set(config.GinPassThroughHeaders, headers)
-		}
-		resp.Body.Close()
+	out, err := client.InvokeModel(p.invokeContext(), &bedrockruntime.InvokeModelInput{
+		ModelId:     aws.String(modelID),
+		Accept:      aws.String(awsAccept),
+		ContentType: aws.String(awsContentType),
+		Body:        body,
+	})
+	if err != nil {
+		return nil, awsErrorToOpenAI(err)
+	}
+
+	// out.Body 就是上游原始响应字节：既 unmarshal 一份供计费，
+	// 指纹保真开启时又原样透传给客户端（保留字段顺序 / 未知字段 / AWS model 原名）。
+	// x-amzn-* 响应头由 captureResponseMiddleware 存入 context。
+	claudeResponse := &claude.ClaudeResponse{}
+	if jsonErr := json.Unmarshal(out.Body, claudeResponse); jsonErr != nil {
+		return nil, common.ErrorWrapper(jsonErr, "unmarshal_response_failed", http.StatusInternalServerError)
+	}
+
+	if config.FingerprintPassThroughEnabled && p.Context != nil {
+		p.Context.Set(config.GinBedrockRawResponseBodyKey, out.Body)
 	}
 
 	usage := p.GetUsage()
@@ -50,11 +65,15 @@ func (p *BedrockProvider) CreateClaudeChat(request *claude.ClaudeRequest) (*clau
 }
 
 func (p *BedrockProvider) CreateClaudeChatStream(request *claude.ClaudeRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
-	req, errWithCode := p.getClaudeRequest(request)
+	body, modelID, errWithCode := p.buildInvokeBody(request)
 	if errWithCode != nil {
 		return nil, errWithCode
 	}
-	defer req.Body.Close()
+
+	client, err := p.getAwsClient()
+	if err != nil {
+		return nil, common.ErrorWrapper(err, "aws_client_error", http.StatusInternalServerError)
+	}
 
 	chatHandler := &claude.ClaudeRelayStreamHandler{
 		Usage:     p.Usage,
@@ -66,82 +85,60 @@ func (p *BedrockProvider) CreateClaudeChatStream(request *claude.ClaudeRequest) 
 		SkipModelUnify: config.FingerprintPassThroughEnabled,
 	}
 
-	// 发送请求
-	resp, openaiErr := p.Requester.SendRequestRaw(req)
-	if openaiErr != nil {
-		return nil, openaiErr
+	out, err := client.InvokeModelWithResponseStream(p.invokeContext(), &bedrockruntime.InvokeModelWithResponseStreamInput{
+		ModelId:     aws.String(modelID),
+		Accept:      aws.String(awsAccept),
+		ContentType: aws.String(awsContentType),
+		Body:        body,
+	})
+	if err != nil {
+		return nil, awsErrorToOpenAI(err)
 	}
 
-	if config.FingerprintPassThroughEnabled && p.Context != nil {
-		if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
-			p.Context.Set(config.GinPassThroughHeaders, headers)
-		}
-	}
-
-	stream, openaiErr := RequestStream(resp, chatHandler.HandlerStream)
-	if openaiErr != nil {
-		return nil, openaiErr
-	}
-
-	return stream, nil
+	// x-amzn-* 响应头由 captureResponseMiddleware 存入 context。
+	return newAWSStreamReader(out.GetStream(), chatHandler.HandlerStream), nil
 }
 
-func (p *BedrockProvider) getClaudeRequest(request *claude.ClaudeRequest) (*http.Request, *types.OpenAIErrorWithStatusCode) {
+// buildInvokeBody 复用现有请求体构造逻辑（字节级透传 / custom_params 合并 / thinking 约束），
+// 产出可直接作为 InvokeModelInput.Body 的字节，并返回目标 AWS modelId。
+// 借道 NewRequestWithCustomParams* 构造 *http.Request 只为复用其 body 处理，随后取出 body 字节。
+func (p *BedrockProvider) buildInvokeBody(request *claude.ClaudeRequest) ([]byte, string, *types.OpenAIErrorWithStatusCode) {
 	var err error
 	p.Category, err = category.GetCategory(request.Model, p.Region)
 	if err != nil || p.Category == nil {
-		return nil, common.StringErrorWrapperLocal("bedrock provider not found", "bedrock_err", http.StatusInternalServerError)
-	}
-
-	url, errWithCode := p.GetSupportedAPIUri(config.RelayModeChatCompletions)
-	if errWithCode != nil {
-		return nil, common.StringErrorWrapperLocal("bedrock config error", "invalid_bedrock_config", http.StatusInternalServerError)
-	}
-
-	if request.Stream {
-		url += "-with-response-stream"
-	}
-
-	// 获取请求地址
-	fullRequestURL := p.GetFullRequestURL(url, p.Category.ModelName)
-	if fullRequestURL == "" {
-		return nil, common.StringErrorWrapperLocal("bedrock config error", "invalid_bedrock_config", http.StatusInternalServerError)
+		return nil, "", common.StringErrorWrapperLocal("bedrock provider not found", "bedrock_err", http.StatusInternalServerError)
 	}
 
 	headers := p.GetRequestHeaders()
 
-	if headers == nil {
-		return nil, common.StringErrorWrapperLocal("bedrock config error", "invalid_bedrock_config", http.StatusInternalServerError)
-	}
-
+	var req *http.Request
+	var errWithCode *types.OpenAIErrorWithStatusCode
 	// Bedrock 跑的就是 Claude，与 Anthropic 渠道一致：原生请求恒字节透传（保留客户端
 	// 指纹/未知字段），仅去掉 Bedrock 不接受的 model/stream 并注入 anthropic_version；
 	// 取不到原始字节时回退结构体序列化。两条路径都经 custom_params 合并。
 	if patched, ok := p.patchPassThroughBody(request); ok {
-		req, errWithCode := p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, patched, headers, request.Model)
-		if errWithCode != nil {
-			return nil, errWithCode
+		req, errWithCode = p.NewRequestWithCustomParamsBytes(http.MethodPost, "", patched, headers, request.Model)
+	} else {
+		copyRequest := *request
+		bedrockRequest := &category.ClaudeRequest{
+			ClaudeRequest:    &copyRequest,
+			AnthropicVersion: category.AnthropicVersion,
 		}
-		p.Sign(req)
-		return req, nil
+		bedrockRequest.Model = ""
+		bedrockRequest.Stream = false
+		req, errWithCode = p.NewRequestWithCustomParams(http.MethodPost, "", bedrockRequest, headers, request.Model)
 	}
-
-	copyRequest := *request
-	bedrockRequest := &category.ClaudeRequest{
-		ClaudeRequest:    &copyRequest,
-		AnthropicVersion: category.AnthropicVersion,
-	}
-	bedrockRequest.Model = ""
-	bedrockRequest.Stream = false
-
-	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, bedrockRequest, headers, request.Model)
 	if errWithCode != nil {
-		return nil, errWithCode
+		return nil, "", errWithCode
 	}
 
-	p.Sign(req)
+	body, readErr := io.ReadAll(req.Body)
+	req.Body.Close()
+	if readErr != nil {
+		return nil, "", common.ErrorWrapper(readErr, "read_request_body_failed", http.StatusInternalServerError)
+	}
 
-	return req, nil
+	return body, p.Category.ModelName, nil
 }
 
 // patchPassThroughBody 读取 gin 缓存的原始 Claude 原生请求体，去掉 Bedrock 不接受的
