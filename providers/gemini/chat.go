@@ -9,7 +9,6 @@ import (
 	"done-hub/providers/base"
 	"done-hub/types"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -753,28 +752,23 @@ func ConvertToChatOpenai(provider base.ProviderInterface, response *GeminiChatRe
 		Choices: make([]types.ChatCompletionChoice, 0, len(response.Candidates)),
 	}
 
-	// 检查是否是 countTokens 请求
-	// Gemini 直连：有 UsageMetadata 且 Candidates 为空
-	// Vertex AI：有 TotalTokens 且 Candidates 为空
-	isCountTokens := len(response.Candidates) == 0 &&
-		(response.UsageMetadata != nil || response.TotalTokens > 0)
-
-	if !isCountTokens && len(response.Candidates) == 0 {
-		errWithCode = common.StringErrorWrapper("no candidates", "no_candidates", http.StatusInternalServerError)
-		return
-	}
-
-	// 如果是 countTokens 请求，创建一个特殊的响应
-	if isCountTokens {
-		// 为 countTokens 创建一个包含 token 信息的响应
+	// 空 candidates 一律按成功响应处理并照常计 input 费——绝不退款白嫖。
+	// OpenAI 兼容路径没有 countTokens 语义（原生 :countTokens 走 relay.go 的 CreateGeminiChat，永不到这里），
+	// 所以旧代码靠“空 candidates + usage”猜 countTokens、回传伪造的 "Token count: N" 是错的。真实语义只有
+	// 两种：prompt 被安全策略拦截、或上游已处理但空返回——两者 Gemini 都按 promptTokenCount 对平台计 input 费。
+	// 因此这里返回空内容的成功响应，落到下面的 usage 计费路径：有真实 usage 用真实值，被中转商裁成 0 或纯空
+	// 则用本地预估兜底（见下方 *usage 赋值前）。与 new-api、以及本文件流式路径口径一致。
+	// blocked 用 content_filter 如实告知客户端；其余空返回用 stop。
+	if len(response.Candidates) == 0 {
+		finishReason := types.FinishReasonStop
+		if response.PromptFeedback != nil && response.PromptFeedback.BlockReason != "" {
+			finishReason = types.FinishReasonContentFilter
+		}
 		openaiResponse.Choices = []types.ChatCompletionChoice{
 			{
-				Index: 0,
-				Message: types.ChatCompletionMessage{
-					Role:    types.ChatMessageRoleAssistant,
-					Content: fmt.Sprintf("Token count: %d", response.UsageMetadata.TotalTokenCount),
-				},
-				FinishReason: types.FinishReasonStop,
+				Index:        0,
+				Message:      types.ChatCompletionMessage{Role: types.ChatMessageRoleAssistant, Content: ""},
+				FinishReason: finishReason,
 			},
 		}
 	} else {
