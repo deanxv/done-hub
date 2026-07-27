@@ -633,6 +633,12 @@ export function removeTrailingSlash(url) {
 }
 
 export function trims(values) {
+  // typeof null === 'object'，若不先拦截会走进下面的对象分支被递归成 {}，
+  // 导致后端 *int/*bool 等指针字段反序列化失败（见编辑用户提交“无效的参数”）。
+  if (values === null || values === undefined) {
+    return values;
+  }
+
   if (typeof values === 'string') {
     return values.trim();
   }
