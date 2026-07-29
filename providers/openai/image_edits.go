@@ -5,8 +5,10 @@ import (
 	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -18,8 +20,15 @@ func (p *OpenAIProvider) CreateImageEdits(request *types.ImageEditRequest) (*typ
 	defer req.Body.Close()
 
 	response := &OpenAIProviderImageResponse{}
+	// 开启渠道 PassThroughBody 且 relay 层已放行（入口协议 == image edits、响应原样直返）时，
+	// 用 outputResp=true 让 SendRequest 回填 resp.Body：既 unmarshal 一份供计费，又能拿到上游
+	// 原始字节用于响应字节透传，保留 output_tokens_details.image_tokens/text_tokens 等未知字段。
+	passThrough := p.Channel.PassThroughBody && p.Context != nil && p.Context.GetBool(config.GinRawPassThroughAllowedKey)
 	// 发送请求
-	_, errWithCode = p.Requester.SendRequest(req, response, false)
+	resp, errWithCode := p.Requester.SendRequest(req, response, passThrough)
+	if passThrough && resp != nil {
+		defer resp.Body.Close()
+	}
 
 	// 即便后续判错也先落 usage：覆盖"HTTP 200 + body 带 error 字段 + 仍含 usage"这种聚合上游场景。
 	if response.Usage != nil && response.Usage.TotalTokens > 0 {
@@ -40,10 +49,34 @@ func (p *OpenAIProvider) CreateImageEdits(request *types.ImageEditRequest) (*typ
 	}
 
 	if p.Usage.TotalTokens == 0 {
-		// 上游未返回 usage，按生成图像数量兜底，避免空回复计费
+		// 上游漏返 usage 兜底：与 generations 对齐——gpt-image-* 走 OpenAI 官方 quality+size
+		// 公式，避免恒定 258 对 gpt-image edits（单图 1056~6240）低估最多 24 倍的白嫖；dall-e
+		// 等其他维持 258 常数。ImageEditRequest 无 quality 字段，故档位主要依赖响应回显，size
+		// 回显缺失时回落请求值。
 		imageCount := len(response.Data)
-		p.Usage.CompletionTokens = imageCount * 258
+		quality := rawMessageToString(response.Quality)
+		size := request.Size
+		if v := rawMessageToString(response.Size); v != "" {
+			size = v
+		}
+		perImage := ImageFallbackOutputTokens(request.Model, quality, size)
+		p.Usage.CompletionTokens = imageCount * perImage
 		p.Usage.TotalTokens = p.Usage.PromptTokens + p.Usage.CompletionTokens
+	}
+
+	// 暂存上游原始字节，由 relay 层字节透传，保留未知字段 / 字段顺序。
+	// 有别名映射需改 model 时，在原始字节上就地 sjson 改写顶层 model；无映射时恒 no-op。
+	// images 官方响应无顶层 model 字段，此处仅兜聚合上游额外回显 model 的情形。
+	// 必须放在 ErrorHandle 之后：出错时若落键，错误 body 会残留在同一 gin.Context 上
+	// （relay/main.go 的 defer 不清理此 key），被后续重试成功但不落键的渠道经
+	// writeRawResponseBodyIfPresent 当 200 直返给客户端。
+	if passThrough && resp != nil {
+		if rawBytes, readErr := io.ReadAll(resp.Body); readErr == nil && len(rawBytes) > 0 {
+			if patched, changed := base.UnifyModelInJSONBytes(p.Context, rawBytes, "model"); changed {
+				rawBytes = patched
+			}
+			p.Context.Set(config.GinRawResponseBodyKey, rawBytes)
+		}
 	}
 
 	return &response.ImageResponse, nil

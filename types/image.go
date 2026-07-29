@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"mime/multipart"
 	"strings"
 )
@@ -60,7 +61,20 @@ type ImageRequest struct {
 type ImageResponse struct {
 	Created any                      `json:"created,omitempty"`
 	Data    []ImageResponseDataInner `json:"data,omitempty"`
-	Usage   *ResponsesUsage          `json:"usage,omitempty"`
+	// gpt-image-* 系列顶层附带 background/output_format/quality/size 等参数回显。
+	// 结构体编码路径（未开 PassThroughBody）下若不显式接住会被丢弃，导致返回体与官方不一致。
+	//
+	// 用 json.RawMessage 而非 string：这几个字段仅做原样回显、本地从不读取其值，用 string 会
+	// 在聚合上游把 quality/size 返成数字（如 size:1024）时触发 json 类型不匹配 →
+	// decode_response_failed(500)。而该 500 非 LocalError、shouldRetry 对 5xx 返 true，叠加
+	// image_generations.go「先落 usage 再判错」，会导致本次已 Consume、重试成功再 Consume 一次
+	// 的重复扣费。RawMessage 接受任意 JSON 值（字符串/数字/对象）不报错，且比 string 更保真
+	// （原样透传上游写法）。全部 omitempty：nil（上游未返回，如 dall-e）时不输出零值。
+	Background   json.RawMessage `json:"background,omitempty"`
+	OutputFormat json.RawMessage `json:"output_format,omitempty"`
+	Quality      json.RawMessage `json:"quality,omitempty"`
+	Size         json.RawMessage `json:"size,omitempty"`
+	Usage        *ResponsesUsage `json:"usage,omitempty"`
 }
 
 type ImageResponseDataInner struct {

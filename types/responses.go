@@ -727,6 +727,11 @@ type ResponsesUsage struct {
 
 type ResponsesUsageOutputTokensDetails struct {
 	ReasoningTokens int `json:"reasoning_tokens"`
+	// image/text 明细：image generation 端点（gpt-image-*）的 output_tokens_details
+	// 官方同时返回 image_tokens 与 text_tokens。omitempty 使 Responses 端点（输出侧
+	// 仅有 reasoning）不多输出零值字段，保持与官方对齐。
+	ImageTokens int `json:"image_tokens,omitempty"`
+	TextTokens  int `json:"text_tokens,omitempty"`
 }
 
 type ResponsesUsageInputTokensDetails struct {
@@ -744,6 +749,8 @@ func (u *ResponsesUsage) ToOpenAIUsage() *Usage {
 
 	if u.OutputTokensDetails != nil {
 		usage.CompletionTokensDetails.ReasoningTokens = u.OutputTokensDetails.ReasoningTokens
+		usage.CompletionTokensDetails.ImageTokens = u.OutputTokensDetails.ImageTokens
+		usage.CompletionTokensDetails.TextTokens = u.OutputTokensDetails.TextTokens
 	}
 
 	if u.InputTokensDetails != nil {
@@ -762,9 +769,13 @@ func (u *Usage) ToResponsesUsage() *ResponsesUsage {
 		TotalTokens:  u.TotalTokens,
 	}
 
-	if u.CompletionTokensDetails.ReasoningTokens > 0 {
+	if u.CompletionTokensDetails.ReasoningTokens > 0 ||
+		u.CompletionTokensDetails.ImageTokens > 0 ||
+		u.CompletionTokensDetails.TextTokens > 0 {
 		responsesUsage.OutputTokensDetails = &ResponsesUsageOutputTokensDetails{
 			ReasoningTokens: u.CompletionTokensDetails.ReasoningTokens,
+			ImageTokens:     u.CompletionTokensDetails.ImageTokens,
+			TextTokens:      u.CompletionTokensDetails.TextTokens,
 		}
 	}
 

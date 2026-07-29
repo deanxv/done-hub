@@ -291,10 +291,8 @@ func (p *CodexProvider) parseImagesStream(body io.Reader, responseFormat string,
 		*p.Usage = *usage.ToOpenAIUsage()
 	}
 	if p.Usage.TotalTokens == 0 {
-		perImage := 258
-		if openai.IsGPTImageModel(fallback.Model) {
-			perImage = openai.GPTImageOutputTokens(fallback.Quality, fallback.Size)
-		}
+		// 与 openai/image_generations.go 共用同一兜底口径，避免三处拷贝靠注释维系而漂移。
+		perImage := openai.ImageFallbackOutputTokens(fallback.Model, fallback.Quality, fallback.Size)
 		p.Usage.CompletionTokens = len(items) * perImage
 		p.Usage.TotalTokens = p.Usage.PromptTokens + p.Usage.CompletionTokens
 	}
