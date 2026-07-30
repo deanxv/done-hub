@@ -17,6 +17,7 @@ var (
 	imageGenerationModelPrefixes = []string{
 		"gpt-image-",
 		"chatgpt-image-",
+		"imagen-", // imagen 只支持 predict，chat 请求需降级到 image 协议（Gemini/Vertex 的 CreateImageGenerations）
 	}
 )
 
