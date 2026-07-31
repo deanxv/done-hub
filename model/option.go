@@ -76,6 +76,8 @@ func InitOptionMap() {
 	config.GlobalOption.RegisterValue("UserAgreement")
 	config.GlobalOption.RegisterValue("PrivacyPolicy")
 	config.GlobalOption.RegisterString("Footer", &config.Footer)
+	config.GlobalOption.RegisterString("Language", &config.Language)
+	config.GlobalOption.RegisterBool("LanguageSwitchPromptEnabled", &config.LanguageSwitchPromptEnabled)
 	config.GlobalOption.RegisterString("SystemName", &config.SystemName)
 	config.GlobalOption.RegisterString("Logo", &config.Logo)
 	config.GlobalOption.RegisterString("AnalyticsCode", &config.AnalyticsCode)

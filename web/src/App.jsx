@@ -20,6 +20,7 @@ import StatusProvider from 'contexts/StatusContext';
 import { NoticeProvider, NoticeDialogs } from 'ui-component/notice';
 import { SnackbarProvider } from 'notistack';
 import CopySnackbar from 'ui-component/Snackbar';
+import LanguageSwitchPrompt from 'ui-component/LanguageSwitchPrompt';
 
 // locales
 import i18n from 'i18n/i18n';
@@ -72,6 +73,7 @@ const App = () => {
                   <UserProvider>
                     <Routes />
                     <NoticeDialogs />
+                    <LanguageSwitchPrompt />
                   </UserProvider>
                 </NoticeProvider>
               </I18nextProvider>

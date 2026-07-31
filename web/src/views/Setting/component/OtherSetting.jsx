@@ -13,7 +13,11 @@ import {
   DialogActions,
   DialogContent,
   Divider,
-  Typography
+  Typography,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 import { showError, showSuccess } from 'utils/common'; //,
@@ -21,6 +25,7 @@ import { API } from 'utils/api';
 import { marked } from 'marked';
 import { LoadStatusContext } from 'contexts/StatusContext';
 import { useTranslation } from 'react-i18next';
+import i18nList from 'i18n/i18nList';
 
 const OtherSetting = () => {
   const { t } = useTranslation();
@@ -33,7 +38,9 @@ const OtherSetting = () => {
     HomePageContent: '',
     AnalyticsCode: '',
     UserAgreement: '',
-    PrivacyPolicy: ''
+    PrivacyPolicy: '',
+    Language: '',
+    LanguageSwitchPromptEnabled: ''
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -122,6 +129,11 @@ const OtherSetting = () => {
     await updateOption(key, inputs[key]);
   };
 
+  // 语言切换提示开关：勾选状态即时落库，成功后由 getOptions() 回填，失败则保持服务端原值
+  const handleLanguagePromptToggle = async (event) => {
+    await updateOption('LanguageSwitchPromptEnabled', event.target.checked ? 'true' : 'false');
+  };
+
   const openGitHubRelease = () => {
     window.location = 'https://github.com/deanxv/done-hub/releases/latest';
   };
@@ -197,6 +209,49 @@ const OtherSetting = () => {
               <Button variant="contained" onClick={submitNotice}>
                 {t('setting_index.otherSettings.generalSettings.saveNotice')}
               </Button>
+            </Grid>
+          </Grid>
+        </SubCard>
+        <SubCard title={t('setting_index.otherSettings.languageSettings.title')}>
+          <Grid container spacing={{ xs: 3, sm: 2, md: 4 }}>
+            <Grid xs={12}>
+              <FormControl fullWidth>
+                <InputLabel htmlFor="Language">{t('setting_index.otherSettings.languageSettings.defaultLanguageLabel')}</InputLabel>
+                <Select
+                  id="Language"
+                  name="Language"
+                  value={inputs.Language || ''}
+                  label={t('setting_index.otherSettings.languageSettings.defaultLanguageLabel')}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                >
+                  {i18nList.map((item) => (
+                    <MenuItem key={item.lng} value={item.lng}>
+                      {item.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid xs={12}>
+              <Button variant="contained" onClick={() => submitOption('Language')}>
+                {t('setting_index.otherSettings.languageSettings.setDefaultLanguage')}
+              </Button>
+            </Grid>
+            <Grid xs={12}>
+              <FormControlLabel
+                sx={{ marginLeft: '0px' }}
+                label={t('setting_index.otherSettings.languageSettings.switchPromptEnabled')}
+                control={
+                  <Checkbox
+                    checked={inputs.LanguageSwitchPromptEnabled === 'true'}
+                    onChange={handleLanguagePromptToggle}
+                    name="LanguageSwitchPromptEnabled"
+                    disabled={loading}
+                  />
+                }
+              />
+              <Alert severity="info">{t('setting_index.otherSettings.languageSettings.switchPromptTip')}</Alert>
             </Grid>
           </Grid>
         </SubCard>

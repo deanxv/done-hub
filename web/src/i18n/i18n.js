@@ -8,9 +8,9 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'zh_CN',
+    fallbackLng: 'en_US',
     debug: false,
-    lng: 'zh_CN',
+    lng: 'en_US',
     interpolation: {
       escapeValue: false
     }

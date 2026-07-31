@@ -217,7 +217,20 @@
     "clearModels": "Reset",
     "clearModelsTip": "Reset all selected models",
     "tagMembersTitle": "{{count}} member channels in this group",
-    "tagMembersHint": "Each member's Key is independent and unaffected by the shared config. To add or remove members, expand this tag's row in the list."
+    "tagMembersHint": "Each member's Key is independent and unaffected by the shared config. To add or remove members, expand this tag's row in the list.",
+    "baseUrl": "API URL",
+    "existingModels": "Selected Models",
+    "fetchModels": "Fetch Models",
+    "invertSelection": "Invert Selection",
+    "modelSelector": "Model Selector",
+    "noMatchingModels": "No matching models",
+    "noModels": "No models",
+    "openaiBaseUrlTip": "Enter an OpenAI-format API URL, e.g., https://api.openai.com",
+    "openaiMode": "Switch to OpenAI format to fetch models",
+    "otherModels": "Other Models",
+    "searchModels": "Search Models",
+    "selectAll": "Select All",
+    "selectedCount": "{{count}} models selected"
   },
   "channel_index": {
     "AzureApiVersion": "Azure version number",
@@ -323,7 +336,12 @@
     "deleting": "Deleting...",
     "modelToDelete": "Model name to delete (exact match)",
     "delModelEmptyHint": "Enter a model name above and press Enter to search matching channels",
-    "azureApiSearchPlaceholder": "API version to search (leave blank for all Azure channels)"
+    "azureApiSearchPlaceholder": "API version to search (leave blank for all Azure channels)",
+    "batchDeleteChannels": "Batch Delete Channels",
+    "batchDeleteChannelsConfirm": "Are you sure you want to delete the selected {{count}} channels? This action cannot be undone.",
+    "batchDeleteChannelsSuccess": "Successfully deleted {{count}} channels",
+    "deleteChannels": "Delete Channels",
+    "pleaseSelectChannels": "Please select channels to delete first"
   },
   "channel_row": {
     "auto": "automatic",
@@ -410,6 +428,9 @@
   },
   "common": {
     "again": "Retry ({{count}})",
+    "languageSwitchPrompt": "It looks like your browser is set to {{language}}. Switch to it?",
+    "languageSwitchConfirm": "Switch",
+    "languageSwitchDismiss": "Not now",
     "back": "return",
     "bindOk": "Binding successful!",
     "cancel": "Cancel",
@@ -465,7 +486,8 @@
       "toggleToCurrency": "Input as USD",
       "toggleToToken": "Input as tokens",
       "overDeductLimit": "⚠ Exceeds deduction limit ({{max}})"
-    }
+    },
+    "loading": "Loading..."
   },
   "dashboard": "Dashboard",
   "dashboard_index": {
@@ -503,7 +525,9 @@
     "availability": "Availability",
     "tab_status": "Status",
     "tab_dashboard": "Dashboard",
-    "title": "Dashboard"
+    "title": "Dashboard",
+    "status_abnormal": "Abnormal",
+    "status_normal": "Normal"
   },
   "description": "All-in-one OpenAI interface\nIntegrates various API access methods\nOne-click deployment, ready to use",
   "echo 映射": "echo mapping",
@@ -592,6 +616,7 @@
   "jump": "Redirecting...",
   "log": "Log",
   "invoice": "Monthly Bill",
+  "multi_user_stats": "Multi-User Token Stats",
   "midjourney": "Midjourney",
   "invoice_index": {
     "invoice": "Monthly Bill",
@@ -709,7 +734,9 @@
     "cachedWriteTokens": "Write tokens to cache (* {{ ratio }})",
     "cachedWrite1hTokens": "Write tokens to cache 1h (* {{ ratio }})",
     "openaiCacheWriteTokens": "Write tokens to cache (OpenAI) (* {{ ratio }})",
-    "reasoningTokens": "Deduction Tokens (* {{ ratio }})"
+    "reasoningTokens": "Deduction Tokens (* {{ ratio }})",
+    "inputImageTokens": "Input Image Tokens (* {{ ratio }})",
+    "outputImageTokens": "Output Image Tokens (* {{ ratio }})"
   },
   "login": {
     "codeRequired": "verification code must be filled",
@@ -734,7 +761,10 @@
     "wechatLoginInfo": "Please use WeChat to scan the QR code to follow the official account and enter the \"verification code\" to obtain the verification code (valid within three minutes)",
     "wechatVerificationCodeLogin": "WeChat verification code login",
     "useLinuxDoLogin": "Log in with LINUX DO",
-    "loggingIn": "Logging in..."
+    "loggingIn": "Logging in...",
+    "linuxDoCountError": "An error occurred, retrying for the {{count}} time...",
+    "linuxDoError": "Operation failed, redirecting to the login page...",
+    "linuxDoLogin": "LINUX DO Login"
   },
   "midjourneyPage": {
     "channel": "Channel",
@@ -1122,7 +1152,8 @@
       "chatLinkSettings": {
         "info": "Configure chat links that take effect for chat in tokens and chat in Playground on the homepage. <br />In the links, you can use {key} to replace the user's token, {server} to replace the server address, and base64<[xxxxxx]> for base64 encoding. For example: {'https://chat.oneapi.pro/#/?settings={\"key\":\"sk-{key}\",\"url\":\"{server}\"}'}<br />If not configured, the following 4 links will be configured by default:<br />ChatGPT Next: {'https://chat.oneapi.pro/#/?settings={\"key\":\"{key}\",\"url\":\"{server}\"}'}<br />chatgpt-web-midjourney-proxy: {'https://vercel.ddaiai.com/#/?settings={\"key\":\"{key}\",\"url\":\"{server}\"}'}<br />AMA: {'ama://set-api-key?server={server}&key={key}'}<br />opencat: {'opencat://team/join?domain={server}&token={key}'}<br />Sort order: Higher values first, if values are equal then by configuration order",
         "save": "Save Chat Link Settings",
-        "title": "Chat Link Settings"
+        "title": "Chat Link Settings",
+        "builtinChatEnabled": "Enable Built-in Chat"
       },
       "generalSettings": {
         "approximateToken": "Use approximate method to estimate token count to reduce computation",
@@ -1318,7 +1349,8 @@
           "label": "Default MaxToken quantity",
           "placeholder": "Please enter the default MaxToken quantity in JSON format, where \"default\" represents the default value. For example: {\"default\": 1000, \"claude-3-7-sonnet-latest\": 128000}"
         },
-        "save": "Save Claude's settings"
+        "save": "Save Claude's settings",
+        "title": "Claude Settings"
       },
       "geminiSettings": {
         "title": "Gemini Settings",
@@ -1327,9 +1359,22 @@
           "placeholder": "Please enter the models that need reasoning output enabled in JSON format, for example: {\"gemini-2.5-pro-preview-05-06\": true}"
         },
         "save": "Save Gemini Settings"
+      },
+      "invoice": {
+        "title": "Invoice Settings",
+        "genTime": "Invoice Time",
+        "genMonthInvoice": "Generate Monthly Invoice",
+        "updateMonthInvoice": "Update Monthly Invoice"
       }
     },
     "otherSettings": {
+      "languageSettings": {
+        "title": "Language Settings",
+        "defaultLanguageLabel": "Default Language",
+        "setDefaultLanguage": "Set Default Language",
+        "switchPromptEnabled": "Prompt users to switch language based on browser language",
+        "switchPromptTip": "When enabled, if a visitor's browser language differs from the current display language, they will be prompted once to switch. They will not be prompted again unless their browser language changes."
+      },
       "customSettings": {
         "aboutLabel": "About",
         "aboutPlaceholder": "Enter new about content here, supports Markdown & HTML code. If a link is entered, it will be used as the src attribute of the iframe, allowing you to set any web page as the about page.",
@@ -1610,8 +1655,8 @@
     "selectGroupInfo": "Select the channel group you want to use here. When the channel group is unavailable, backup channels will be used",
     "userGroup": "Group",
     "userBackupGroup": "Backup group",
-    "apiRate": "",
-    "apiRateTip": "",
+    "apiRate": "API Rate",
+    "apiRateTip": "The number of requests allowed per minute. When the rate is below 60, a counter limiter is used; when the rate is 60 or above, a token bucket limiter is used. Only effective when Redis is enabled.",
     "heartbeat": "Heartbeat setting (Experimental)",
     "heartbeatTip": "Heartbeat setting means that when you make a stream request, if there is no response for a long time, your client may disconnect due to the timeout mechanism. To prevent this, you can enable the heartbeat setting. When the request exceeds the start time you set and there is no response, we will send a heartbeat request every 5 seconds to keep the connection. Note: If you are using a relay program, please do not enable this setting, it may cause unexpected issues.",
     "heartbeatTimeout": "Heartbeat start time (unit: seconds)",

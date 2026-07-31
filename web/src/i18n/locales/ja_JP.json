@@ -127,7 +127,14 @@
     "cpmDescription": "CPM",
     "ppmDescription": "PPM",
     "last60SecondsStats": "最近60秒の統計",
-    "autoRefresh": "自動"
+    "autoRefresh": "自動",
+    "timeFilter": {
+      "all": "すべて",
+      "day": "今日",
+      "month": "今月",
+      "week": "今週",
+      "year": "今年"
+    }
   },
   "auth": {
     "invalidLink": "無効なリンク",
@@ -201,7 +208,28 @@
     "collapseList": "リストを折りたたむ",
     "expandList": "リストを展開",
     "tagMembersTitle": "グループ内のメンバーチャンネル {{count}} 件",
-    "tagMembersHint": "各メンバーの Key は独立しており、共有設定の影響を受けません。メンバーの追加・削除は一覧でこのタグ行を展開して個別に行ってください。"
+    "tagMembersHint": "各メンバーの Key は独立しており、共有設定の影響を受けません。メンバーの追加・削除は一覧でこのタグ行を展開して個別に行ってください。",
+    "baseUrl": "APIアドレス",
+    "existingModels": "選択済みモデル",
+    "fetchModels": "モデルを取得",
+    "invertSelection": "選択を反転",
+    "modelSelector": "モデルセレクター",
+    "noMatchingModels": "一致するモデルがありません",
+    "noModels": "モデルがありません",
+    "openaiBaseUrlTip": "OpenAI形式のAPIアドレスを入力してください。例：https://api.openai.com",
+    "openaiMode": "OpenAI形式に切り替えてモデルを取得",
+    "otherModels": "その他のモデル",
+    "searchModels": "モデルを検索",
+    "selectAll": "すべて選択",
+    "selectedCount": "{{count}}個のモデルを選択",
+    "clearModels": "リセット",
+    "clearModelsTip": "選択したすべてのモデルをリセット",
+    "convertToLowercase": "モデル名を小文字に変換",
+    "filterMappedModels": "マッピング前のモデル名を入力しない",
+    "overwriteMappings": "既存のマッピングを上書き",
+    "overwriteMappingsTip": "有効にすると、既存のマッピングがクリアされ、新しいマッピングのみが保持されます",
+    "overwriteModels": "既存のモデルリストを上書き",
+    "overwriteModelsTip": "有効にすると、既存のモデルリストがクリアされ、選択したモデルのみが保持されます"
   },
   "channel_index": {
     "AzureApiVersion": "Azureのバージョン番号",
@@ -306,7 +334,13 @@
     "deleting": "削除中...",
     "modelToDelete": "削除するモデル名（完全一致）",
     "delModelEmptyHint": "上の入力欄に削除対象のモデル名を入力し Enter で該当チャネルを検索",
-    "azureApiSearchPlaceholder": "検索する API バージョン（空欄で全 Azure チャネル）"
+    "azureApiSearchPlaceholder": "検索する API バージョン（空欄で全 Azure チャネル）",
+    "batchDeleteChannels": "チャネルを一括削除",
+    "batchDeleteChannelsConfirm": "選択した {{count}} 個のチャネルを削除してもよろしいですか？この操作は元に戻せません。",
+    "batchDeleteChannelsSuccess": "{{count}} 個のチャネルを削除しました",
+    "deleteChannels": "チャネルを削除",
+    "pleaseSelectChannels": "削除するチャネルを先に選択してください",
+    "channelApiAddress": "チャネルAPIアドレス"
   },
   "channel_row": {
     "auto": "自動",
@@ -393,6 +427,9 @@
   },
   "common": {
     "again": "再試行 ({{count}})",
+    "languageSwitchPrompt": "ブラウザの言語が{{language}}に設定されています。{{language}}に切り替えますか？",
+    "languageSwitchConfirm": "切り替える",
+    "languageSwitchDismiss": "後で",
     "back": "戻る",
     "bindOk": "バインド成功！",
     "cancel": "キャンセル",
@@ -446,7 +483,10 @@
       "toggleToCurrency": "USD で入力",
       "toggleToToken": "トークン数で入力",
       "overDeductLimit": "⚠ 控除上限を超えています（{{max}}）"
-    }
+    },
+    "loading": "読み込み中...",
+    "currency": "USD",
+    "reset": "リセット"
   },
   "dashboard": "ダッシュボード",
   "dashboard_index": {
@@ -483,7 +523,10 @@
     "availability": "稼働率",
     "tab_status": "ステータス",
     "tab_dashboard": "ダッシュボード",
-    "title": "ダッシュボード"
+    "title": "ダッシュボード",
+    "status_abnormal": "異常",
+    "status_normal": "正常",
+    "week_total_consumption": "今週の総消費"
   },
   "description": "All in one の OpenAI インターフェース\nさまざまな API アクセス方法を統合\nワンクリックで展開、即座に使用可能",
   "echo 映射": "エコーマッピング",
@@ -572,6 +615,7 @@
   "jump": "リダイレクト中...",
   "log": "ログ",
   "invoice": "月次請求書",
+  "multi_user_stats": "マルチユーザートークン統計",
   "midjourney": "Midjourney",
   "invoice_index": {
     "invoice": "月次請求書",
@@ -688,7 +732,10 @@
     "cachedWriteTokens": "トークンのキャッシュ書き込み（* {{ ratio }} ）",
     "cachedWrite1hTokens": "トークンのキャッシュ書き込み 1h（* {{ ratio }} ）",
     "openaiCacheWriteTokens": "トークンのキャッシュ書き込み（OpenAI）（* {{ ratio }} ）",
-    "reasoningTokens": "推理トークン"
+    "reasoningTokens": "推理トークン",
+    "inputImageTokens": "入力画像トークン (* {{ ratio }})",
+    "outputImageTokens": "出力画像トークン (* {{ ratio }})",
+    "unknown": "不明"
   },
   "login": {
     "codeRequired": "確認コードを入力する必要があります",
@@ -712,7 +759,11 @@
     "usernameRequired": "ユーザー名/メールは必須です",
     "wechatLoginInfo": "WeChatでQRコードをスキャンして公式アカウントをフォローし、「認証コード」を入力して認証コードを取得してください（3分以内有効）",
     "wechatVerificationCodeLogin": "WeChat認証コードログイン",
-    "useLinuxDoLogin": "LINUX DOでログイン"
+    "useLinuxDoLogin": "LINUX DOでログイン",
+    "linuxDoCountError": "エラーが発生しました。{{count}} 回目の再試行中...",
+    "linuxDoError": "操作に失敗しました。ログイン画面へリダイレクトしています...",
+    "linuxDoLogin": "LINUX DO ログイン",
+    "loggingIn": "ログイン中..."
   },
   "menu": {
     "about": "概要",
@@ -1077,7 +1128,9 @@
     "agreementPrefix": "私は以下を読み、同意します：",
     "userAgreement": "利用規約",
     "privacyPolicy": "プライバシーポリシー",
-    "agreementAnd": "および"
+    "agreementAnd": "および",
+    "inviteCodeRequired": "招待コードは必須です",
+    "registering": "登録中..."
   },
   "legalConsentDialog": {
     "title": "規約の更新",
@@ -1099,7 +1152,8 @@
       "chatLinkSettings": {
         "info": "チャット リンクを設定します。この設定はトークンのチャットと、ホームページの Playground のチャットに適用されます。<br />リンク内で &#123;key&#125; をユーザーのトークンに、&#123;server&#125; をサーバーアドレスに置き換えることができます。base64<[xxxxxx]> で base64 エンコードを行うことができます。例：{'https://chat.oneapi.pro/#/?settings={\"key\":\"sk-{key}\",\"url\":\"{server}\"}'}<br />設定しない場合、デフォルトで以下の4つのリンクが設定されます:<br />ChatGPT Next：{'https://chat.oneapi.pro/#/?settings={\"key\":\"{key}\",\"url\":\"{server}\"}'}<br />chatgpt-web-midjourney-proxy：{'https://vercel.ddaiai.com/#/?settings={\"key\":\"{key}\",\"url\":\"{server}\"}'}<br />AMA 问天：{'ama://set-api-key?server={server}&key={key}'}<br />opencat：{'opencat://team/join?domain={server}&token={key}'}<br />並び順：値が大きいほど上位に表示され、値が同じ場合は設定順に表示されます。",
         "save": "チャットリンク設定を保存",
-        "title": "チャットリンク設定"
+        "title": "チャットリンク設定",
+        "builtinChatEnabled": "組み込みチャットを有効にする"
       },
       "generalSettings": {
         "approximateToken": "計算量を減らすためにトークン数を概算する方法を使用",
@@ -1151,9 +1205,21 @@
           "label": "チャネル失敗時の統一メッセージ",
           "placeholder": "400 以外のすべての上流エラー（401/403/404/429/5xx）はこのメッセージ + 503 に集約されます。空欄でデフォルト値を使用"
         },
-        "emptyResponseBilling": "空応答課金"
+        "emptyResponseBilling": "空応答課金",
+        "modelNameCaseInsensitive": "モデル名の大文字小文字を区別しない",
+        "modelNameCaseInsensitiveTooltip": "有効にすると、モデルマッチング時に大文字小文字を無視します。例：GPT-4、gpt-4、Gpt-4 はすべて同じモデルにマッチします",
+        "subGroups": {
+          "displayOptions": "表示と課金オプション",
+          "linkAndBilling": "リンクと課金",
+          "retry": "リトライポリシー",
+          "upstreamError": "アップストリームエラー処理"
+        },
+        "unifiedRequestResponseModel": "統一リクエストレスポンスモデル",
+        "unifiedRequestResponseModelTooltip": "モデルマッピングが存在する場合、レスポンス内のmodel値は実際に呼び出されたモデル名ではなく、リクエストされたmodel値になります"
       },
       "logSettings": {
+        "autoDelete": "消費ログの自動削除を有効にする",
+        "autoDeleteDays": "自動削除の保持日数",
         "clearLogs": "履歴ログをクリア",
         "logCleanupTime": {
           "label": "ログクリーニング時間",
@@ -1293,9 +1359,22 @@
           "placeholder": "推論出力を有効にするモデルをJSON形式で入力してください。例：{\"gemini-2.5-pro-preview-05-06\": true}"
         },
         "save": "Gemini設定を保存"
+      },
+      "invoice": {
+        "title": "請求書設定",
+        "genTime": "請求書の日時",
+        "genMonthInvoice": "月次請求書を生成",
+        "updateMonthInvoice": "月次請求書を更新"
       }
     },
     "otherSettings": {
+      "languageSettings": {
+        "title": "言語設定",
+        "defaultLanguageLabel": "デフォルト言語",
+        "setDefaultLanguage": "デフォルト言語を設定",
+        "switchPromptEnabled": "ブラウザの言語に基づいて言語切り替えを提案する",
+        "switchPromptTip": "有効にすると、訪問者のブラウザ言語が現在の表示言語と異なる場合、一度だけ切り替えを提案します。ブラウザの言語が再び変更されない限り、再度提案されることはありません。"
+      },
       "customSettings": {
         "aboutLabel": "概要",
         "aboutPlaceholder": "ここに新しい概要内容を入力してください。MarkdownおよびHTMLコードがサポートされています。リンクを入力した場合、そのリンクはiframeのsrc属性として使用され、任意のウェブページを概要ページとして設定できます。",
@@ -1576,8 +1655,8 @@
     "selectGroupInfo": "使用したいチャネルグループを選択してください。チャネルグループが利用できない場合はバックアップチャネルが使用されます",
     "userGroup": "グループ",
     "userBackupGroup": "バックアップグループ",
-    "apiRate": "",
-    "apiRateTip": "",
+    "apiRate": "APIレート",
+    "apiRateTip": "1分あたりに許可されるリクエスト数。レートが60未満の場合はカウンターリミッター、60以上の場合はトークンバケットリミッターを使用します。Redisが有効な場合のみ有効です。",
     "heartbeat": "心拍設定（実験的）",
     "heartbeatTip": "心拍設定とは、リクエスト時に長時間データが返ってこない場合、クライアントがタイムアウト機構によって接続を切断する可能性があることを指します。TCP接続がタイムアウトによって中断されないようにするため、心拍設定を有効にすることができます。設定した開始時間を超えて応答がない場合、5秒ごとにハートビートリクエスト（ストリームでないリクエストは空行、ストリームの場合は::PING）を送信し、接続を維持します。ご注意：中継プログラムを使用している場合は、この設定を有効にしないでください。予期しない問題が発生する可能性があります。",
     "heartbeatTimeout": "ハートビート開始時間(単位：秒)",

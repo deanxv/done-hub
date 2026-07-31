@@ -20,6 +20,9 @@ var Debug = false
 var OldTokenMaxId = 0
 
 var Language = ""
+
+// LanguageSwitchPromptEnabled 控制前端是否在检测到浏览器语言与当前显示语言不一致时，提示用户切换语言。
+var LanguageSwitchPromptEnabled = true
 var Footer = ""
 var Logo = ""
 var TopUpLink = ""

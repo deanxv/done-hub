@@ -43,7 +43,7 @@
     "to": "變為",
     "url": "URL",
     "priceServerTotal": "價格服務器總數",
-    "overwriteData": "",
+    "overwriteData": "覆蓋數據",
     "added": "新增",
     "extraRatiosAdded": "新增擴展倍率",
     "extraRatiosChanged": "擴展倍率變化",
@@ -117,7 +117,14 @@
     "cpmDescription": "CPM",
     "ppmDescription": "PPM",
     "last60SecondsStats": "最近60秒統計",
-    "autoRefresh": "自動"
+    "autoRefresh": "自動",
+    "timeFilter": {
+      "all": "全部",
+      "day": "今日",
+      "month": "本月",
+      "week": "本週",
+      "year": "本年"
+    }
   },
   "auth": {
     "invalidLink": "無效的鏈接",
@@ -192,7 +199,27 @@
     "collapseList": "收起列表",
     "expandList": "展開列表",
     "tagMembersTitle": "組內共 {{count}} 個成員渠道",
-    "tagMembersHint": "各成員的 Key 相互獨立、不受共享配置影響；如需增刪成員，請在列表中展開該標籤行逐個管理。"
+    "tagMembersHint": "各成員的 Key 相互獨立、不受共享配置影響；如需增刪成員，請在列表中展開該標籤行逐個管理。",
+    "baseUrl": "API地址",
+    "existingModels": "已選模型",
+    "fetchModels": "獲取模型",
+    "invertSelection": "反選",
+    "modelSelector": "模型選擇器",
+    "noMatchingModels": "沒有匹配的模型",
+    "noModels": "沒有模型",
+    "openaiBaseUrlTip": "請輸入OpenAI格式的API地址，例如：https://api.openai.com",
+    "openaiMode": "切換OpenAI格式獲取模型",
+    "searchModels": "搜索模型",
+    "selectAll": "全選",
+    "selectedCount": "已選{{count}}個模型",
+    "clearModels": "重置",
+    "clearModelsTip": "重置所有已選擇的模型",
+    "convertToLowercase": "模型名稱轉小寫",
+    "filterMappedModels": "不填充映射前的模型名稱",
+    "overwriteMappings": "覆蓋原有映射關係",
+    "overwriteMappingsTip": "啟用後將清空原有的映射關係，僅保留此次創建的映射",
+    "overwriteModels": "覆蓋原有模型列表",
+    "overwriteModelsTip": "啟用後將清空原有的模型列表，僅保留此次選擇的模型"
   },
   "channel_index": {
     "AzureApiVersion": "Azure 版本號",
@@ -297,7 +324,13 @@
     "deleting": "刪除中...",
     "modelToDelete": "要刪除的模型名（完整匹配）",
     "delModelEmptyHint": "請在上方輸入要刪除的模型名後按 Enter 搜索匹配渠道",
-    "azureApiSearchPlaceholder": "輸入要查找的 API 版本（留空查詢全部 Azure 渠道）"
+    "azureApiSearchPlaceholder": "輸入要查找的 API 版本（留空查詢全部 Azure 渠道）",
+    "batchDeleteChannels": "批量刪除渠道",
+    "batchDeleteChannelsConfirm": "確定要刪除選中的 {{count}} 個渠道嗎？此操作不可撤銷。",
+    "batchDeleteChannelsSuccess": "成功刪除 {{count}} 個渠道",
+    "deleteChannels": "刪除渠道",
+    "pleaseSelectChannels": "請先選擇要刪除的渠道",
+    "channelApiAddress": "渠道API地址"
   },
   "channel_row": {
     "auto": "自動",
@@ -384,6 +417,9 @@
   },
   "common": {
     "again": "重試 ({{count}})",
+    "languageSwitchPrompt": "偵測到您的瀏覽器語言為{{language}}，是否切換為{{language}}？",
+    "languageSwitchConfirm": "切換",
+    "languageSwitchDismiss": "暫不",
     "back": "返回",
     "bindOk": "綁定成功！",
     "cancel": "取消",
@@ -437,7 +473,10 @@
       "toggleToCurrency": "按美元輸入",
       "toggleToToken": "按 token 數輸入",
       "overDeductLimit": "⚠ 超出可扣除上限（{{max}}）"
-    }
+    },
+    "loading": "加載中...",
+    "currency": "USD",
+    "reset": "重置"
   },
   "dashboard": "儀表板",
   "dashboard_index": {
@@ -474,7 +513,10 @@
     "availability": "可用率",
     "tab_status": "狀態",
     "tab_dashboard": "儀表板",
-    "title": "儀表板"
+    "title": "儀表板",
+    "status_abnormal": "異常",
+    "status_normal": "正常",
+    "week_total_consumption": "本週總消費"
   },
   "description": "一站式的 OpenAI 接口\n整合各種 API 訪問方式\n一鍵部署，開箱即用",
   "echo 映射": "echo 映射",
@@ -680,7 +722,10 @@
     "reasoningTokens": "推理Tokens (* {{ ratio }})",
     "cachedWriteTokens": "緩存寫入 Tokens (* {{ ratio }})",
     "cachedWrite1hTokens": "緩存寫入(1h) Tokens (* {{ ratio }})",
-    "openaiCacheWriteTokens": "緩存寫入 Tokens(OpenAI) (* {{ ratio }})"
+    "openaiCacheWriteTokens": "緩存寫入 Tokens(OpenAI) (* {{ ratio }})",
+    "inputImageTokens": "輸入圖像Tokens (* {{ ratio }})",
+    "outputImageTokens": "輸出圖像Tokens (* {{ ratio }})",
+    "unknown": "未知"
   },
   "login": {
     "codeRequired": "驗證碼不能為空",
@@ -704,7 +749,11 @@
     "usernameRequired": "用戶名/電郵為必填項",
     "wechatLoginInfo": "請使用微信掃描二維碼關注公眾號，輸入「驗證碼」獲取驗證碼（有效期三分鐘）",
     "wechatVerificationCodeLogin": "微信驗證碼登錄",
-    "useLinuxDoLogin": "使用 LINUX DO 登入"
+    "useLinuxDoLogin": "使用 LINUX DO 登入",
+    "linuxDoCountError": "出現錯誤，第 {{count}} 次重試中...",
+    "linuxDoError": "操作失敗，重定向至登錄界面中...",
+    "linuxDoLogin": "LINUX DO 登錄",
+    "loggingIn": "登錄中..."
   },
   "menu": {
     "about": "關於",
@@ -717,7 +766,8 @@
     "unknownVersion": "未知版本",
     "welcomeBack": "歡迎回來",
     "userAgreement": "用戶協議",
-    "privacyPolicy": "隱私政策"
+    "privacyPolicy": "隱私政策",
+    "status": "狀態"
   },
   "midjourneyPage": {
     "channel": "渠道",
@@ -1067,7 +1117,9 @@
     "agreementPrefix": "我已閱讀並同意",
     "userAgreement": "用戶協議",
     "privacyPolicy": "隱私政策",
-    "agreementAnd": "和"
+    "agreementAnd": "和",
+    "inviteCodeRequired": "邀請碼是必填項",
+    "registering": "註冊中..."
   },
   "legalConsentDialog": {
     "title": "協議更新",
@@ -1157,9 +1209,19 @@
         },
         "emptyResponseBilling": "空回覆計費",
         "unifiedRequestResponseModel": "統一請求響應模型",
-        "unifiedRequestResponseModelTooltip": "當存在模型映射時，響應中的model值為請求的model值，而非實際調用的模型名稱"
+        "unifiedRequestResponseModelTooltip": "當存在模型映射時，響應中的model值為請求的model值，而非實際調用的模型名稱",
+        "modelNameCaseInsensitive": "模型名稱大小寫不敏感",
+        "modelNameCaseInsensitiveTooltip": "開啟後，模型匹配時將忽略大小寫，例如 GPT-4、gpt-4、Gpt-4 都會匹配到同一個模型",
+        "subGroups": {
+          "displayOptions": "顯示與計費選項",
+          "linkAndBilling": "鏈接與計費",
+          "retry": "重試策略",
+          "upstreamError": "上游錯誤處理"
+        }
       },
       "logSettings": {
+        "autoDelete": "啟用消費日誌自動清理",
+        "autoDeleteDays": "自動清理保留天數",
         "clearLogs": "清理歷史日誌",
         "logCleanupTime": {
           "label": "日誌清理時間",
@@ -1299,9 +1361,22 @@
           "placeholder": "請輸入需要開啟推理輸出的模型，JSON格式，例如：{\"gemini-2.5-pro-preview-05-06\": true}"
         },
         "save": "保存Gemini設置"
+      },
+      "invoice": {
+        "title": "賬單設置",
+        "genTime": "賬單時間",
+        "genMonthInvoice": "生成月賬單",
+        "updateMonthInvoice": "更新月賬單"
       }
     },
     "otherSettings": {
+      "languageSettings": {
+        "title": "語言設置",
+        "defaultLanguageLabel": "默認語言",
+        "setDefaultLanguage": "設置默認語言",
+        "switchPromptEnabled": "根據瀏覽器語言提示用戶切換語言",
+        "switchPromptTip": "開啟後，若訪客的瀏覽器語言與當前顯示語言不一致，將提示一次是否切換。除非其瀏覽器語言再次發生變化，否則不會重複提示。"
+      },
       "customSettings": {
         "aboutLabel": "關於",
         "aboutPlaceholder": "在此輸入新的關於內容，支持 Markdown & HTML 代碼。如果輸入的是一個鏈接，則會使用該鏈接作為 iframe 的 src 屬性，這允許你設置任意網頁作為關於頁面。",
