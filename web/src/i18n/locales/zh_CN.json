@@ -137,8 +137,6 @@
     "RPM": "当前RPM",
     "TPM": "当前TPM",
     "availability": "可用率",
-    "status_normal": "正常",
-    "status_abnormal": "异常",
     "week_total_consumption": "本周总消费"
   },
   "analytics_index": {
@@ -349,7 +347,9 @@
     "openaiBaseUrlTip": "请输入OpenAI格式的API地址，例如：https://api.openai.com",
     "fetchModels": "获取模型",
     "selectAll": "全选",
+    "selectAllTooltip": "选择全部模型",
     "invertSelection": "反选",
+    "invertSelectionTooltip": "反转当前选择",
     "noModels": "没有模型",
     "noMatchingModels": "没有匹配的模型",
     "selectedCount": "已选{{count}}个模型",
@@ -378,6 +378,7 @@
     "overwriteMappingsTip": "启用后将清空原有的映射关系，仅保留此次创建的映射",
     "clearModels": "重置",
     "clearModelsTip": "重置所有已选择的模型",
+    "clearSearch": "清除",
     "tagMembersTitle": "组内共 {{count}} 个成员渠道",
     "tagMembersHint": "各成员的 Key 相互独立、不受共享配置影响；如需增删成员，请在列表中展开该标签行逐个管理。"
   },

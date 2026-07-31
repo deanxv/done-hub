@@ -85,6 +85,9 @@ const OtherSetting = () => {
       const { success, message } = res.data;
       if (success) {
         showSuccess('保存成功');
+        // 先乐观回填当前值（与 SystemSetting/OperationSetting 一致，避免开关类控件可见滞后），
+        // 再 getOptions() 以服务端为准
+        setInputs((inputs) => ({ ...inputs, [key]: value }));
         getOptions();
         await loadStatus();
       } else {
@@ -251,6 +254,8 @@ const OtherSetting = () => {
                   />
                 }
               />
+            </Grid>
+            <Grid xs={12}>
               <Alert severity="info">{t('setting_index.otherSettings.languageSettings.switchPromptTip')}</Alert>
             </Grid>
           </Grid>

@@ -14,11 +14,9 @@ export const detectBrowserLanguage = () => {
 // mapLanguage 把单个 BCP-47 语言标签归一到受支持的语言代码（zh_CN / zh_HK / en_US / ja_JP）。
 const mapLanguage = (raw) => {
   const lower = (raw || '').toLowerCase();
-  if (!lower.startsWith('zh')) {
-    if (lower.startsWith('ja')) return 'ja_JP';
-    if (lower.startsWith('en')) return 'en_US';
-    return null;
-  }
   // 繁体（台湾/香港/澳门/Hant）归到 zh_HK，其余中文归到 zh_CN
-  return /hant|tw|hk|mo/.test(lower) ? 'zh_HK' : 'zh_CN';
+  if (lower.startsWith('zh')) return /hant|tw|hk|mo/.test(lower) ? 'zh_HK' : 'zh_CN';
+  if (lower.startsWith('ja')) return 'ja_JP';
+  if (lower.startsWith('en')) return 'en_US';
+  return null;
 };

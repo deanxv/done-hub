@@ -5,6 +5,8 @@ import { Button, Stack } from '@mui/material';
 import { enqueueSnackbar, closeSnackbar } from 'notistack';
 import i18nList from 'i18n/i18nList';
 import { detectBrowserLanguage } from 'utils/languageDetect';
+import { isMobile } from 'utils/common';
+import { snackbarConstants } from 'constants/SnackbarConstants';
 
 // 记录“上一次已就该浏览器语言提示过”的标记，避免用户忽略后每次访问都被打扰。
 // 仅当浏览器语言再次变化（例如从中文切到英文）时才会重新提示。
@@ -51,6 +53,8 @@ const LanguageSwitchPrompt = () => {
       variant: 'info',
       persist: true,
       preventDuplicate: true,
+      // 移动端跟随全站约定锚定到底部居中（与 utils/common 的 getSnackbarOptions 一致）
+      ...(isMobile() ? snackbarConstants.Mobile : {}),
       action: (snackbarId) => (
         <Stack direction="row" spacing={1}>
           <Button

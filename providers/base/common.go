@@ -390,6 +390,25 @@ func ExtractResponsesStreamUsage(event *types.OpenAIResponsesStreamResponses, ds
 	return true
 }
 
+// AccumulateResponsesStreamText 累积 responses 流中属于计费 output token 的增量事件到 dst.TextBuilder，
+// 用于终止事件未带 usage 时的 completion 兜底估算。覆盖三类事件：正文文本、推理文本（summary 与原始
+// reasoning）、函数调用参数——三者均计入 output token。openai 与 codex 两条解析链路共用，避免新增 delta
+// 事件时各处重复维护、漏改（新事件只需在此登记一次）。
+func AccumulateResponsesStreamText(event *types.OpenAIResponsesStreamResponses, dst *types.Usage) {
+	if event == nil || dst == nil {
+		return
+	}
+	switch event.Type {
+	case "response.output_text.delta",
+		"response.reasoning_summary_text.delta",
+		"response.reasoning_text.delta",
+		"response.function_call_arguments.delta":
+		if delta, ok := event.Delta.(string); ok {
+			dst.TextBuilder.WriteString(delta)
+		}
+	}
+}
+
 func (p *BaseProvider) GetChannel() *model.Channel {
 	return p.Channel
 }

@@ -90,6 +90,15 @@ func (p *VertexAIExpressProvider) CreateGeminiChat(request *gemini.GeminiChatReq
 	usage := p.GetUsage()
 	*usage = gemini.ConvertOpenAIUsage(geminiResponse.UsageMetadata)
 
+	// 与 gemini.CreateGeminiChat 的非流式兜底对齐：上游漏返/裁掉 usageMetadata 时 CompletionTokens 归零，
+	// 用响应内容估算避免计费归零。原生非流式不写 TextBuilder，relay/main.go 的全局兜底覆盖不到。
+	if usage.CompletionTokens == 0 {
+		if text := gemini.BillingPartsText(geminiResponse.Candidates); text != "" {
+			usage.CompletionTokens = common.CountTokenText(text, request.Model)
+			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+		}
+	}
+
 	return geminiResponse, nil
 }
 

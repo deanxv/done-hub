@@ -79,6 +79,16 @@ func (p *GeminiProvider) CreateGeminiChat(request *GeminiChatRequest) (*GeminiCh
 	}
 	*usage = upstreamUsage
 
+	// 与 chat.go:ConvertToChatOpenai 的非流式兜底对齐：上游漏返/裁掉 usageMetadata 时 CompletionTokens
+	// 归零，用响应内容估算避免计费归零。原生非流式不走 ConvertToChatOpenai、也不写 TextBuilder，
+	// relay/main.go 的全局兜底靠 TextBuilder.Len()>0 覆盖不到，需在此单独兜底。
+	if usage.CompletionTokens == 0 {
+		if text := BillingPartsText(geminiResponse.Candidates); text != "" {
+			usage.CompletionTokens = common.CountTokenText(text, request.Model)
+			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+		}
+	}
+
 	return geminiResponse, nil
 }
 
@@ -153,14 +163,8 @@ func (h *GeminiRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		}
 	}
 
-	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用
-	for _, candidate := range geminiResponse.Candidates {
-		for _, part := range candidate.Content.Parts {
-			if part.Text != "" && !part.Thought {
-				h.Usage.TextBuilder.WriteString(part.Text)
-			}
-		}
-	}
+	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用（见 billingPartsText）。
+	h.Usage.TextBuilder.WriteString(BillingPartsText(geminiResponse.Candidates))
 
 	// 检查 UsageMetadata 是否为 nil 或所有字段都是 0（VertexAI 流式响应中间块只有 trafficType）
 	// 注意 PromptTokenCount/TotalTokenCount 可能被中转商裁掉，需要把 Candidates/Thoughts 也纳入判断，

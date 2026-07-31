@@ -223,6 +223,8 @@ func (h *CohereStreamHandler) convertToOpenaiStream(cohereResponse *ChatStreamRe
 		}
 
 		h.Usage.TextBuilder.WriteString(choice.Delta.Content)
+		// tool call 的 name/arguments 属 output token，流中断兜底估算须计入（与 types.GetResponseText 口径一致）
+		h.Usage.TextBuilder.WriteString(choice.Delta.GetToolCallsText())
 	}
 
 	chatCompletion := types.ChatCompletionStreamResponse{

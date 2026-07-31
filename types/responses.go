@@ -542,9 +542,13 @@ type TextResponses struct {
 }
 
 func (cc *OpenAIResponsesResponses) GetContent() string {
+	// 兼容推理模型/纯 tool_call：非流式输出可能落在 reasoning summary 或 function_call arguments 而非 message。
+	// 仅用于 completion token 兜底估算（billing），reasoning 与 tool_call arguments 均为计费的 output token。
 	var content string
 	for _, output := range cc.Output {
 		content += output.StringContent()
+		content += output.GetSummaryString()
+		content += output.ArgumentsString()
 	}
 	return content
 }

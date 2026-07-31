@@ -740,6 +740,28 @@ func removeAdditionalPropertiesWithDepth(schema interface{}, depth int) interfac
 	return v
 }
 
+// BillingPartsText 汇总 candidates 里计入 output token 计费的文本：正文、thought（计入
+// ThoughtsTokenCount）、functionCall 的 name/args。用于上游 usageMetadata 缺失/被裁时的兜底估算。
+// 不走 ToOpenAIChoice/ToOpenAIStreamChoice 的 Content：那里会拼 base64 图片、grounding 引用
+// markdown、代码块围栏等网关合成文本，算进 output token 会失真（base64 更会打飞量级）。
+// 遍历 parts 天然避开，gemini 及其衍生渠道（geminicli/antigravity）的计费兜底点共用，避免各处重复维护。
+func BillingPartsText(candidates []GeminiChatCandidate) string {
+	var sb strings.Builder
+	for _, candidate := range candidates {
+		for _, part := range candidate.Content.Parts {
+			sb.WriteString(part.Text)
+			if part.FunctionCall != nil {
+				sb.WriteString(part.FunctionCall.Name)
+				if len(part.FunctionCall.Args) > 0 {
+					args, _ := json.Marshal(part.FunctionCall.Args)
+					sb.Write(args)
+				}
+			}
+		}
+	}
+	return sb.String()
+}
+
 func ConvertToChatOpenai(provider base.ProviderInterface, response *GeminiChatResponse, request *types.ChatCompletionRequest) (openaiResponse *types.ChatCompletionResponse, errWithCode *types.OpenAIErrorWithStatusCode) {
 	// 获取响应中应该使用的模型名称
 	responseModel := provider.GetResponseModelName(request.Model)
@@ -799,6 +821,17 @@ func ConvertToChatOpenai(provider base.ProviderInterface, response *GeminiChatRe
 	*usage = upstreamUsage
 	openaiResponse.Usage = usage
 
+	// 与 providers/openai/chat.go:CreateChatCompletion 的非流式兜底对齐：上游漏返 usageMetadata 时
+	// completion 会被 ConvertOpenAIUsageWithFallback 归零，此处用响应内容估算，避免计费归零。
+	// 走 billingPartsText 而非 GetContent：口径与流式 TextBuilder 一致，避免把 base64 图片/grounding
+	// 引用/代码块围栏等网关合成文本算进 output token。
+	if usage.CompletionTokens == 0 {
+		if text := BillingPartsText(response.Candidates); text != "" {
+			usage.CompletionTokens = common.CountTokenText(text, request.Model)
+			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+		}
+	}
+
 	return
 }
 
@@ -854,13 +887,9 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 			candidate.FinishReason = nil
 		}
 		choices = append(choices, candidate.ToOpenAIStreamChoice(h.Request))
-		// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用
-		for _, part := range candidate.Content.Parts {
-			if part.Text != "" && !part.Thought {
-				h.Usage.TextBuilder.WriteString(part.Text)
-			}
-		}
 	}
+	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失或不准确时的 token 计算备用（见 billingPartsText）。
+	h.Usage.TextBuilder.WriteString(BillingPartsText(geminiResponse.Candidates))
 
 	if len(choices) > 0 && (choices[0].Delta.ToolCalls != nil || choices[0].Delta.FunctionCall != nil) {
 		choices := choices[0].ConvertOpenaiStream()

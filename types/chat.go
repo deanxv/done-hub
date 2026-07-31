@@ -61,6 +61,32 @@ type ChatCompletionMessage struct {
 	CacheControl     any                              `json:"cache_control,omitempty"`
 }
 
+// GetReasoningContent 返回推理内容：reasoning_content 与 reasoning 二选一（前者优先）。
+// 二者互斥，相加会在个别网关同时回填两字段时重复计费。
+func (m ChatCompletionMessage) GetReasoningContent() string {
+	if m.ReasoningContent != "" {
+		return m.ReasoningContent
+	}
+	return m.Reasoning
+}
+
+// toolCallsText 返回模型生成的 tool call 文本（name+arguments）。
+// OpenAI 计费口径：模型生成的 tool call name/arguments 属 output token，兜底估算须计入。
+func toolCallsText(toolCalls []*ChatCompletionToolCalls) (text string) {
+	for _, toolCall := range toolCalls {
+		if toolCall == nil || toolCall.Function == nil {
+			continue
+		}
+		text += toolCall.Function.Name + toolCall.Function.Arguments
+	}
+	return
+}
+
+// GetToolCallsText 返回模型生成的 tool call 文本（name+arguments）。
+func (m ChatCompletionMessage) GetToolCallsText() string {
+	return toolCallsText(m.ToolCalls)
+}
+
 func (m ChatCompletionMessage) StringContent() string {
 	content, ok := m.Content.(string)
 	if ok {
@@ -354,9 +380,13 @@ type ChatCompletionResponse struct {
 }
 
 func (cc *ChatCompletionResponse) GetContent() string {
+	// 兼容推理模型：非流式响应输出可能落在 reasoning_content/reasoning 而非 content。
+	// 仅用于 completion token 兜底估算（billing），reasoning 与 tool_calls 均为计费的 output token。
 	var content string
 	for _, choice := range cc.Choices {
 		content += choice.Message.StringContent()
+		content += choice.Message.GetReasoningContent()
+		content += choice.Message.GetToolCallsText()
 	}
 	return content
 }
@@ -443,6 +473,20 @@ type ChatCompletionStreamChoiceDelta struct {
 	Images           []ChatMessagePart                `json:"images,omitempty"`
 }
 
+// GetReasoningContent 返回推理增量：reasoning_content 与 reasoning 二选一（前者优先）。
+// 二者互斥，相加会在个别网关同时回填两字段时重复计费。
+func (m *ChatCompletionStreamChoiceDelta) GetReasoningContent() string {
+	if m.ReasoningContent != "" {
+		return m.ReasoningContent
+	}
+	return m.Reasoning
+}
+
+// GetToolCallsText 返回模型生成的 tool call 增量文本（name+arguments）。
+func (m *ChatCompletionStreamChoiceDelta) GetToolCallsText() string {
+	return toolCallsText(m.ToolCalls)
+}
+
 func (m *ChatCompletionStreamChoiceDelta) ToolToFuncCalls() {
 
 	if m.FunctionCall != nil {
@@ -483,8 +527,12 @@ type ChatCompletionStreamResponse struct {
 }
 
 func (c *ChatCompletionStreamResponse) GetResponseText() (responseText string) {
+	// 兼容推理模型：输出可能落在 reasoning_content/reasoning 而非 content。
+	// 仅用于流中断时的 completion token 兜底估算，reasoning 与 tool_calls 均为计费的 output token。
 	for _, choice := range c.Choices {
 		responseText += choice.Delta.Content
+		responseText += choice.Delta.GetReasoningContent()
+		responseText += choice.Delta.GetToolCallsText()
 	}
 
 	return

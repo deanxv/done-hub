@@ -354,6 +354,10 @@ func (h *AntigravityStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		h.Usage.TotalTokens = totalTokens
 	}
 
+	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失/被裁时 relay/main.go 的全局兜底估算 completion，
+	// 避免计费归零。本 handler 不写则兜不到（全局兜底靠 TextBuilder.Len()>0）。口径与直连 gemini 一致。
+	h.Usage.TextBuilder.WriteString(gemini.BillingPartsText(geminiResponse.Candidates))
+
 	// 转换为 OpenAI 流式响应
 	h.convertToOpenaiStream(geminiResponse, dataChan)
 }

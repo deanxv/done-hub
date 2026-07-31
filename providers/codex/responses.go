@@ -301,12 +301,8 @@ func (h *CodexResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, da
 	// 解析 JSON 以提取 usage 信息（但不修改响应）
 	var responsesEvent types.OpenAIResponsesStreamResponses
 	if err := json.Unmarshal([]byte(dataLine), &responsesEvent); err == nil {
-		// 累积输出文本：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
-		if responsesEvent.Type == "response.output_text.delta" {
-			if delta, ok := responsesEvent.Delta.(string); ok {
-				h.Usage.TextBuilder.WriteString(delta)
-			}
-		}
+		// 累积计费 output 文本（正文/推理/函数调用参数）：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
+		base.AccumulateResponsesStreamText(&responsesEvent, h.Usage)
 		// 终止事件 usage 提取统一走 base helper（覆盖 completed/done/incomplete/failed）。
 		base.ExtractResponsesStreamUsage(&responsesEvent, h.Usage)
 	}

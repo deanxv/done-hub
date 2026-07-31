@@ -349,6 +349,9 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 		return
 	}
 
+	// 累积计费 output 文本（正文/推理/函数调用参数）：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
+	base.AccumulateResponsesStreamText(&openaiResponse, h.Usage)
+
 	switch openaiResponse.Type {
 	case "response.created":
 		if len(openaiResponse.Response.Tools) > 0 {
@@ -360,11 +363,6 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 					}
 				}
 			}
-		}
-	case "response.output_text.delta":
-		delta, ok := openaiResponse.Delta.(string)
-		if ok {
-			h.Usage.TextBuilder.WriteString(delta)
 		}
 	case "response.output_item.added":
 		if openaiResponse.Item != nil {
@@ -420,6 +418,10 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 	}
 	needOutput := false
 
+	// 累积计费 output 文本（正文/推理/函数调用参数）：与 HandlerResponsesStream 口径一致，集中登记于 helper，
+	// 避免新增 delta 事件时此处漏累积（终止事件不在 helper case 列表，上提到 switch 前不会误累积）。
+	base.AccumulateResponsesStreamText(&openaiResponse, h.Usage)
+
 	switch openaiResponse.Type {
 	case "response.created":
 		if openaiResponse.Response != nil {
@@ -444,10 +446,7 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 		})
 		needOutput = true
 	case "response.output_text.delta": // 处理文本输出的增量
-		delta, ok := openaiResponse.Delta.(string)
-		if ok {
-			h.Usage.TextBuilder.WriteString(delta)
-		}
+		delta, _ := openaiResponse.Delta.(string)
 		chatRes.Choices = append(chatRes.Choices, types.ChatCompletionStreamChoice{
 			Index: 0,
 			Delta: types.ChatCompletionStreamChoiceDelta{
@@ -455,11 +454,8 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 			},
 		})
 		needOutput = true
-	case "response.reasoning_summary_text.delta": // 处理文本输出的增量
-		delta, ok := openaiResponse.Delta.(string)
-		if ok {
-			h.Usage.TextBuilder.WriteString(delta)
-		}
+	case "response.reasoning_summary_text.delta", "response.reasoning_text.delta": // 推理文本（summary 与原始 reasoning）增量
+		delta, _ := openaiResponse.Delta.(string)
 		chatRes.Choices = append(chatRes.Choices, types.ChatCompletionStreamChoice{
 			Index: 0,
 			Delta: types.ChatCompletionStreamChoiceDelta{
@@ -468,10 +464,7 @@ func (h *OpenAIResponsesStreamHandler) HandlerChatStream(rawLine *[]byte, dataCh
 		})
 		needOutput = true
 	case "response.function_call_arguments.delta": // 处理函数调用参数的增量
-		delta, ok := openaiResponse.Delta.(string)
-		if ok {
-			h.Usage.TextBuilder.WriteString(delta)
-		}
+		delta, _ := openaiResponse.Delta.(string)
 		chatRes.Choices = append(chatRes.Choices, types.ChatCompletionStreamChoice{
 			Index: 0,
 			Delta: types.ChatCompletionStreamChoiceDelta{

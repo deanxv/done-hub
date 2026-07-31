@@ -216,12 +216,14 @@
     "overwriteMappingsTip": "When enabled, existing mappings will be cleared and only new mappings will be preserved",
     "clearModels": "Reset",
     "clearModelsTip": "Reset all selected models",
+    "clearSearch": "Clear",
     "tagMembersTitle": "{{count}} member channels in this group",
     "tagMembersHint": "Each member's Key is independent and unaffected by the shared config. To add or remove members, expand this tag's row in the list.",
     "baseUrl": "API URL",
     "existingModels": "Selected Models",
     "fetchModels": "Fetch Models",
     "invertSelection": "Invert Selection",
+    "invertSelectionTooltip": "Invert the current selection",
     "modelSelector": "Model Selector",
     "noMatchingModels": "No matching models",
     "noModels": "No models",
@@ -230,6 +232,7 @@
     "otherModels": "Other Models",
     "searchModels": "Search Models",
     "selectAll": "Select All",
+    "selectAllTooltip": "Select all models",
     "selectedCount": "{{count}} models selected"
   },
   "channel_index": {
@@ -525,9 +528,7 @@
     "availability": "Availability",
     "tab_status": "Status",
     "tab_dashboard": "Dashboard",
-    "title": "Dashboard",
-    "status_abnormal": "Abnormal",
-    "status_normal": "Normal"
+    "title": "Dashboard"
   },
   "description": "All-in-one OpenAI interface\nIntegrates various API access methods\nOne-click deployment, ready to use",
   "echo 映射": "echo mapping",

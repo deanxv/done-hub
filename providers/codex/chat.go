@@ -184,15 +184,15 @@ func (h *CodexStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan string
 		return
 	}
 
-	// 处理 response.output_text.delta 事件（文本增量）
+	// 累积计费 output 文本（正文/推理/函数调用参数）：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
+	base.AccumulateResponsesStreamText(&responsesStream, h.Usage)
+
+	// 处理 response.output_text.delta 事件（文本增量）：转换为 Chat 格式下发给客户端。
 	if responsesStream.Type == "response.output_text.delta" {
 		delta, ok := responsesStream.Delta.(string)
 		if !ok {
 			return
 		}
-
-		// 累积输出文本：终止事件未带 usage 时，relay 层据此估算 completion，避免计费归零。
-		h.Usage.TextBuilder.WriteString(delta)
 
 		// 转换为 Chat 格式的流式响应
 		chatResponse := h.convertResponsesStreamToChatStream(&responsesStream, delta)

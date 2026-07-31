@@ -48,6 +48,15 @@ func (p *GeminiCliProvider) CreateGeminiChat(request *gemini.GeminiChatRequest) 
 	usage := p.GetUsage()
 	*usage = gemini.ConvertOpenAIUsage(geminiResponse.UsageMetadata)
 
+	// 与 gemini.CreateGeminiChat 的非流式兜底对齐：上游漏返/裁掉 usageMetadata 时 CompletionTokens 归零，
+	// 用响应内容估算避免计费归零。原生非流式不写 TextBuilder，relay/main.go 的全局兜底覆盖不到。
+	if usage.CompletionTokens == 0 {
+		if text := gemini.BillingPartsText(geminiResponse.Candidates); text != "" {
+			usage.CompletionTokens = common.CountTokenText(text, request.Model)
+			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+		}
+	}
+
 	return geminiResponse, nil
 }
 
@@ -141,6 +150,10 @@ func (h *GeminiCliRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan ch
 		}
 		return
 	}
+
+	// 累积流式内容到 TextBuilder，用于 UsageMetadata 缺失/被裁时 relay/main.go 的全局兜底估算 completion，
+	// 避免计费归零。本 handler 不写则兜不到（全局兜底靠 TextBuilder.Len()>0）。口径与直连 gemini 一致。
+	h.Usage.TextBuilder.WriteString(gemini.BillingPartsText(geminiResponse.Candidates))
 
 	// 更新 usage
 	if geminiResponse.UsageMetadata != nil {

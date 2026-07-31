@@ -23,8 +23,8 @@ const StatusProvider = ({ children }) => {
         if (!data.chat_link) {
           delete data.chat_link;
         }
-        // 设置系统默认语言：用户手动选过的语言优先，其次后台配置的默认语言，最后回退英文
-        const storedLanguage = localStorage.getItem('appLanguage') || data.language || 'en_US';
+        // 设置系统默认语言：用户手动选过的语言优先，其次后台配置的默认语言，最后回退中文（与后端默认一致）
+        const storedLanguage = localStorage.getItem('appLanguage') || data.language || 'zh_CN';
         localStorage.setItem('default_language', storedLanguage);
         i18n.changeLanguage(storedLanguage);
         localStorage.setItem('siteInfo', JSON.stringify(data));

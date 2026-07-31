@@ -26,7 +26,7 @@ const config = {
     server_address: '',
     start_time: 0,
     system_name: 'Done Hub',
-    language: 'en_US',
+    language: 'zh_CN',
     language_switch_prompt_enabled: true,
     top_up_link: '',
     turnstile_check: false,

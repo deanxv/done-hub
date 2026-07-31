@@ -241,6 +241,12 @@ func (h *ClaudeRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 	case "message_start":
 		ClaudeUsageToOpenaiUsage(&claudeResponse.Message.Usage, h.Usage)
 		h.StartUsage = &claudeResponse.Message.Usage
+		// message_start 的 output_tokens 仅为占位(1)，非真实产出。清零 CompletionTokens，
+		// 使流式中断(message_delta 未达)时 relay/main.go 全局兜底的 ==0 条件可达，
+		// 用累积文本估算避免计费归零。StartUsage 保留原值，供 message_delta 的 merge 取大者。
+		h.Usage.CompletionTokens = 0
+		h.Usage.TotalTokens = h.Usage.PromptTokens
+
 		// 统一请求响应模型：model 仅出现在 message_start 的 message.model。
 		// 在剥离前缀的纯 JSON 上字节级改写（gjson 读 + sjson 改，仅动 model 一个字段，
 		// 其余字段顺序/内容不变），再把改写后的 JSON 回填到 rawStr，保留其原有的 data: 前缀与尾部。
@@ -254,7 +260,10 @@ func (h *ClaudeRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 		ClaudeUsageMerge(&claudeResponse.Usage, h.StartUsage)
 		ClaudeUsageToOpenaiUsage(&claudeResponse.Usage, h.Usage)
 	case "content_block_delta":
+		// text_delta / thinking_delta / input_json_delta 均为计费的 output token，一并累积用于兜底估算。
 		h.Usage.TextBuilder.WriteString(claudeResponse.Delta.Text)
+		h.Usage.TextBuilder.WriteString(claudeResponse.Delta.Thinking)
+		h.Usage.TextBuilder.WriteString(claudeResponse.Delta.PartialJson)
 	}
 
 	dataChan <- rawStr

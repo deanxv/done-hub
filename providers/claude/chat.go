@@ -495,6 +495,11 @@ func (h *ClaudeStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan strin
 		h.convertToOpenaiStream(&claudeResponse, dataChan)
 		ClaudeUsageToOpenaiUsage(&claudeResponse.Message.Usage, h.Usage)
 		h.StartUsage = &claudeResponse.Message.Usage
+		// message_start 的 output_tokens 仅为占位(1)，非真实产出。清零 CompletionTokens，
+		// 使流式中断(message_delta 未达)时 relay/main.go 全局兜底的 ==0 条件可达，
+		// 用累积文本估算避免计费归零。StartUsage 保留原值，供 message_delta 的 merge 取大者。
+		h.Usage.CompletionTokens = 0
+		h.Usage.TotalTokens = h.Usage.PromptTokens
 
 	case "message_delta":
 		h.convertToOpenaiStream(&claudeResponse, dataChan)
@@ -503,7 +508,10 @@ func (h *ClaudeStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan strin
 
 	case "content_block_delta":
 		h.convertToOpenaiStream(&claudeResponse, dataChan)
+		// text_delta / thinking_delta / input_json_delta 均为计费的 output token，一并累积用于兜底估算。
 		h.Usage.TextBuilder.WriteString(claudeResponse.Delta.Text)
+		h.Usage.TextBuilder.WriteString(claudeResponse.Delta.Thinking)
+		h.Usage.TextBuilder.WriteString(claudeResponse.Delta.PartialJson)
 	case "content_block_start":
 		h.convertToOpenaiStream(&claudeResponse, dataChan)
 

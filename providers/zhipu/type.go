@@ -246,6 +246,13 @@ func (z CodeInterpreterPlugin) ToMarkdown() string {
 func (z *ZhipuStreamResponse) GetResponseText() (responseText string) {
 	for _, choice := range z.Choices {
 		responseText += choice.Delta.Content
+		// tool call 的 name/arguments 属计费的 output token，兜底估算须计入。
+		for _, toolCall := range choice.Delta.ToolCalls {
+			if toolCall == nil || toolCall.Function == nil {
+				continue
+			}
+			responseText += toolCall.Function.Name + toolCall.Function.Arguments
+		}
 	}
 
 	return
