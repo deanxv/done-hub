@@ -3,6 +3,7 @@ package bedrock
 import (
 	"bytes"
 	"context"
+	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/requester"
@@ -64,7 +65,13 @@ func (p *BedrockProvider) getAwsClient() (*bedrockruntime.Client, error) {
 func (p *BedrockProvider) invokeContext() context.Context {
 	var base context.Context = context.Background()
 	if p.Context != nil {
-		base = p.Context.Request.Context()
+		// 沿用项目"客户端断开不影响上游请求"的设计理念（见 base.SetContext 的 WithoutCancel）：
+		// 客户端提前断开时 gin request context 会被取消，若直接以它为 base，取消信号会透传给
+		// AWS SDK，导致向上游的调用被中断（context canceled / status_code=0），且丢失计费与日志。
+		// WithoutCancel 保留 context 中的值（trace 等），但屏蔽父级取消；墙钟由共享
+		// HTTPClient.Timeout 兜底，不会无限挂起。Bedrock 走 SDK 不经 HTTPRequester，
+		// 故 base.SetContext 对 Requester.Context 的 WithoutCancel 处理对本路径无效，需在此单独处理。
+		base = context.WithoutCancel(p.Context.Request.Context())
 	}
 	return utils.SetProxy(p.Channel.GetProxy(), base)
 }
@@ -175,11 +182,20 @@ func (p *BedrockProvider) customSDKHeaders() map[string]string {
 	return out
 }
 
-// awsErrorStatusCode 从 AWS SDK error 中提取 HTTP 状态码。
+// awsErrorStatusCode 从 AWS SDK error 中提取 HTTP 状态码；返回 0 表示"根本没拿到上游 HTTP 响应"。
+//   - smithy ResponseError 实现 HTTPStatusCode()：有响应时给真实码；客户端断开等场景其内嵌
+//     Response.StatusCode 本就是 0，直接透出 0。
+//   - DNS/TLS/连接重置/建连超时等被 smithy 包成 RequestSendError，它没有 HTTPStatusCode() 但有
+//     ConnectionError()==true（AWS SDK 官方重试分类判连接层错误的同款判据）：归一成 0 哨兵。
+//   - 其余（解析失败等非连接类）无从判断，兜底 500。
 func awsErrorStatusCode(err error) int {
 	var httpErr interface{ HTTPStatusCode() int }
 	if errors.As(err, &httpErr) {
 		return httpErr.HTTPStatusCode()
+	}
+	var connErr interface{ ConnectionError() bool }
+	if errors.As(err, &connErr) && connErr.ConnectionError() {
+		return 0
 	}
 	return http.StatusInternalServerError
 }
@@ -222,6 +238,28 @@ func (p *BedrockProvider) awsErrorToOpenAI(err error) *types.OpenAIErrorWithStat
 		logger.SysError(fmt.Sprintf(
 			"bedrock upstream error (no body captured): channel_id=%d status_code=%d err=%v",
 			p.Channel.Id, statusCode, err))
+	}
+
+	// status_code=0：连接层失败，根本没拿到上游 HTTP 响应（DNS/TLS/连接重置/建连超时/客户端断开）。
+	// 判据见 awsErrorStatusCode（ResponseError.StatusCode==0 或 ConnectionError()==true）。
+	// message / statusCode / code 对齐 common.ErrorWrapper 的网络失败口径：
+	//   - 原始错误已进日志（上方），对外归一成"请求上游地址失败" + 白名单安全短词（如 i/o timeout）；
+	//   - StatusCode 用 500（0 不是合法 HTTP 码，且 http_requester 网络失败统一传 500）；
+	//   - Code 用 http_request_failed（同 http_requester 网络失败路径）：语义上根本没有 response/状态码，
+	//     且能避开 relay.FilterOpenAIErr 对 bad_response_status_code 的文案覆盖（回写成 "bad response status code 0"）。
+	if statusCode == 0 {
+		message := "请求上游地址失败"
+		if hint := common.SafeNetErrHint(err.Error()); hint != "" {
+			message += ": " + hint
+		}
+		return &types.OpenAIErrorWithStatusCode{
+			OpenAIError: types.OpenAIError{
+				Message: message,
+				Type:    "upstream_error",
+				Code:    "http_request_failed",
+			},
+			StatusCode: http.StatusInternalServerError,
+		}
 	}
 
 	return &types.OpenAIErrorWithStatusCode{

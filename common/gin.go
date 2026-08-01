@@ -104,6 +104,17 @@ var safeNetErrPatterns = []string{
 	"EOF",
 }
 
+// SafeNetErrHint 从错误文本中匹配一个已知安全的网络错误短标识：命中白名单返回该短词，
+// 否则返回空串。供各 provider 在不泄露 URL/IP/Key 的前提下，向客户端暴露可读的网络失败原因。
+func SafeNetErrHint(errString string) string {
+	for _, p := range safeNetErrPatterns {
+		if strings.Contains(errString, p) {
+			return p
+		}
+	}
+	return ""
+}
+
 func ErrorWrapper(err error, code string, statusCode int) *types.OpenAIErrorWithStatusCode {
 	errString := "error"
 	if err != nil {
@@ -113,11 +124,8 @@ func ErrorWrapper(err error, code string, statusCode int) *types.OpenAIErrorWith
 	if strings.Contains(errString, "Post") || strings.Contains(errString, "dial") {
 		logger.SysError(fmt.Sprintf("error: %s", errString))
 		errString = "请求上游地址失败"
-		for _, p := range safeNetErrPatterns {
-			if strings.Contains(err.Error(), p) {
-				errString = "请求上游地址失败: " + p
-				break
-			}
+		if hint := SafeNetErrHint(err.Error()); hint != "" {
+			errString = "请求上游地址失败: " + hint
 		}
 	}
 
