@@ -678,6 +678,9 @@
     "typeLabel": "類型",
     "userLabel": "用戶",
     "sourceIp": "Source IP",
+    "requestId": "請求ID",
+    "upstreamRequestId": "上游請求ID",
+    "requestIdentifier": "請求識別符",
     "logType": {
       "all": "全部",
       "recharge": "充值",
@@ -1575,7 +1578,9 @@
     "tokenName": "令牌名稱",
     "type": "類型",
     "username": "用戶名稱",
-    "sourceIp": "Source IP"
+    "sourceIp": "Source IP",
+    "requestId": "請求ID",
+    "upstreamRequestId": "上游請求ID"
   },
   "task": "非同步任務",
   "taskPage": {

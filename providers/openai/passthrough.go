@@ -33,24 +33,20 @@ var openaiUpstreamHeaderExact = map[string]struct{}{
 
 // filterOpenAIUpstreamHeaders 从上游 OpenAI 响应头中挑出可透传给客户端的指纹头，
 // 目的是让 done-hub 中转的响应尽量贴近直连 OpenAI（携带 x-ratelimit-* / retry-after 等）。
-// request-id / x-request-id 不直透（避免覆盖本地追踪 ID），单独提取为字符串返回，
-// 由 relay 层以 X-Upstream-Request-Id 回写。大小写不敏感；多值 header 全部保留；
+// request-id / x-request-id 不直透（避免覆盖本地追踪 ID），由 Requester.ResponseHook
+// 统一采集后经 relay 层以 X-Upstream-Request-Id 回写。大小写不敏感；多值 header 全部保留；
 // 无命中时返回的 http.Header 为 nil。
-func filterOpenAIUpstreamHeaders(src http.Header) (http.Header, string) {
+func filterOpenAIUpstreamHeaders(src http.Header) http.Header {
 	if len(src) == 0 {
-		return nil, ""
+		return nil
 	}
 	out := http.Header{}
-	var requestID string
 	for name, values := range src {
 		lower := strings.ToLower(name)
 		if _, excluded := openaiUpstreamHeaderExcluded[lower]; excluded {
 			continue
 		}
 		if lower == "request-id" || lower == "x-request-id" {
-			if requestID == "" && len(values) > 0 {
-				requestID = values[0]
-			}
 			continue
 		}
 		matched := false
@@ -74,20 +70,16 @@ func filterOpenAIUpstreamHeaders(src http.Header) (http.Header, string) {
 	if len(out) == 0 {
 		out = nil
 	}
-	return out, requestID
+	return out
 }
 
-// storeOpenAIUpstreamHeaders 过滤上游响应头并暂存到 gin.Context，供 relay 层透传写出。
-// 流式与非流式共用；与响应体字节透传解耦，仅受全局 FingerprintPassThroughEnabled 开关控制。
+// storeOpenAIUpstreamHeaders 过滤上游响应头并暂存到 gin.Context，供 relay 层透传写出，
+// 受 FingerprintPassThroughEnabled 开关控制；上游 request-id 由 Requester.ResponseHook 统一采集。
 func (p *OpenAIProvider) storeOpenAIUpstreamHeaders(header http.Header) {
 	if !config.FingerprintPassThroughEnabled || p.Context == nil {
 		return
 	}
-	headers, requestID := filterOpenAIUpstreamHeaders(header)
-	if headers != nil {
+	if headers := filterOpenAIUpstreamHeaders(header); headers != nil {
 		p.Context.Set(config.GinPassThroughHeaders, headers)
-	}
-	if requestID != "" {
-		p.Context.Set(config.GinUpstreamRequestIdKey, requestID)
 	}
 }

@@ -425,9 +425,14 @@ func applyPassThroughHeaders(c *gin.Context) {
 			}
 		}
 	}
-	if v, ok := c.Get(config.GinUpstreamRequestIdKey); ok {
-		if requestID, ok := v.(string); ok && requestID != "" {
-			c.Writer.Header().Set("X-Upstream-Request-Id", requestID)
+	// 采集与落库不看指纹开关（hook 挂在 base.SetContext 上，恒采集），排障始终有据可查；
+	// 但回写给客户端是对外暴露上游痕迹，运营者关掉指纹透传的意图正是不让响应带上游信息，
+	// 故开关判断落在这里而非采集侧——关掉开关只影响响应头，不影响 logs 落库。
+	if config.FingerprintPassThroughEnabled {
+		if v, ok := c.Get(config.GinUpstreamRequestIdKey); ok {
+			if requestID, ok := v.(string); ok && requestID != "" {
+				c.Writer.Header().Set("X-Upstream-Request-Id", requestID)
+			}
 		}
 	}
 }

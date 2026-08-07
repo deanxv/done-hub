@@ -98,6 +98,26 @@ export default function TableToolBar({ filterName, handleFilterName, userIsAdmin
           />
         </FormControl>
         <FormControl>
+          <InputLabel htmlFor="channel-request_id-label">{t('tableToolBar.requestId')}</InputLabel>
+          <OutlinedInput
+            id="request_id"
+            name="request_id"
+            sx={{
+              minWidth: '100%'
+            }}
+            label={t('tableToolBar.requestId')}
+            value={filterName.request_id}
+            onChange={handleFilterName}
+            onKeyDown={handleKeyDown}
+            placeholder={t('tableToolBar.requestId')}
+            startAdornment={
+              <InputAdornment position="start">
+                <Icon icon="solar:hashtag-bold-duotone" width="20" color={grey500} />
+              </InputAdornment>
+            }
+          />
+        </FormControl>
+        <FormControl>
           <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={'zh-cn'}>
             <DateTimePicker
               label={t('tableToolBar.startTime')}
@@ -148,7 +168,7 @@ export default function TableToolBar({ filterName, handleFilterName, userIsAdmin
       {userIsAdmin && (
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
-          spacing={{ xs: 3, sm: 2, md: 4 }}
+          spacing={{ xs: 3, sm: 2, md: 2 }}
           padding={'24px'}
           sx={{ width: '100%', '& > *': { flex: 1 } }}
         >
@@ -189,6 +209,27 @@ export default function TableToolBar({ filterName, handleFilterName, userIsAdmin
               startAdornment={
                 <InputAdornment position="start">
                   <Icon icon="solar:user-bold-duotone" width="20" color={grey500} />
+                </InputAdornment>
+              }
+            />
+          </FormControl>
+
+          <FormControl>
+            <InputLabel htmlFor="channel-upstream_request_id-label">{t('tableToolBar.upstreamRequestId')}</InputLabel>
+            <OutlinedInput
+              id="upstream_request_id"
+              name="upstream_request_id"
+              sx={{
+                minWidth: '100%'
+              }}
+              label={t('tableToolBar.upstreamRequestId')}
+              value={filterName.upstream_request_id}
+              onChange={handleFilterName}
+              onKeyDown={handleKeyDown}
+              placeholder={t('tableToolBar.upstreamRequestId')}
+              startAdornment={
+                <InputAdornment position="start">
+                  <Icon icon="solar:hashtag-square-bold-duotone" width="20" color={grey500} />
                 </InputAdornment>
               }
             />

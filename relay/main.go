@@ -80,8 +80,8 @@ func Relay(c *gin.Context) {
 	totalChannelsAtStart := model.ChannelGroup.CountAvailableChannels(groupName, modelName)
 
 	if done || !shouldRetry(c, apiErr, channel.Type) {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_skip model=%s channel_id=%d status_code=%d done=%t should_retry=%t total_channels=%d error=\"%s\"",
-			modelName, channel.Id, apiErr.StatusCode, done, shouldRetry(c, apiErr, channel.Type), totalChannelsAtStart, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_skip model=%s channel_id=%d status_code=%d upstream_id=%s done=%t should_retry=%t total_channels=%d error=\"%s\"",
+			modelName, channel.Id, apiErr.StatusCode, c.GetString(config.GinUpstreamRequestIdKey), done, shouldRetry(c, apiErr, channel.Type), totalChannelsAtStart, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 		retryTimes = 0
 	}
 
@@ -99,8 +99,8 @@ func Relay(c *gin.Context) {
 	c.Set("attempt_count", 1) // 初始化尝试计数
 
 	// 记录初始失败 - 使用统一的结构化日志格式
-	logger.LogError(c.Request.Context(), fmt.Sprintf("retry_start model=%s channel_id=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d error=\"%s\"",
-		modelName, channel.Id, totalChannelsAtStart, retryTimes, actualRetryTimes, apiErr.StatusCode, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
+	logger.LogError(c.Request.Context(), fmt.Sprintf("retry_start model=%s channel_id=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d upstream_id=%s error=\"%s\"",
+		modelName, channel.Id, totalChannelsAtStart, retryTimes, actualRetryTimes, apiErr.StatusCode, c.GetString(config.GinUpstreamRequestIdKey), utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
 	// breakReason 区分循环退出原因，避免最终日志一律打成 retry_exhausted 而产生误导。
 	// 默认值 "exhausted" 表示循环自然跑完（真的把可用渠道用完了）。
@@ -162,8 +162,8 @@ func Relay(c *gin.Context) {
 		}
 
 		// 记录重试失败
-		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_failed model=%s channel_id=%d attempt=%d/%d status_code=%d error_type=\"%s\" error=\"%s\"",
-			modelName, channel.Id, attemptCount, actualRetryTimes, apiErr.StatusCode, apiErr.OpenAIError.Type, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("retry_failed model=%s channel_id=%d attempt=%d/%d status_code=%d upstream_id=%s error_type=\"%s\" error=\"%s\"",
+			modelName, channel.Id, attemptCount, actualRetryTimes, apiErr.StatusCode, c.GetString(config.GinUpstreamRequestIdKey), apiErr.OpenAIError.Type, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
 		notifyChannelRelayError(c.Request.Context(), c, channel, apiErr)
 		if done || !shouldRetry(c, apiErr, channel.Type) {
@@ -181,8 +181,8 @@ func Relay(c *gin.Context) {
 	if breakReason != "exhausted" {
 		finalLogTag = "retry_aborted"
 	}
-	logger.LogError(c.Request.Context(), fmt.Sprintf("%s reason=%s model=%s channel_id=%d total_attempts=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d error=\"%s\"",
-		finalLogTag, breakReason, modelName, channel.Id, finalAttempt, c.GetInt("total_channels_at_start"), retryTimes, actualRetryTimes, apiErr.StatusCode, utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
+	logger.LogError(c.Request.Context(), fmt.Sprintf("%s reason=%s model=%s channel_id=%d total_attempts=%d total_channels=%d config_max_retries=%d actual_max_retries=%d status_code=%d upstream_id=%s error=\"%s\"",
+		finalLogTag, breakReason, modelName, channel.Id, finalAttempt, c.GetInt("total_channels_at_start"), retryTimes, actualRetryTimes, apiErr.StatusCode, c.GetString(config.GinUpstreamRequestIdKey), utils.TruncateBase64InMessage(apiErr.OpenAIError.Message)))
 
 	if apiErr != nil {
 		// 确保 channel_type 存在，用于 FilterOpenAIErr 正确过滤错误
@@ -279,6 +279,13 @@ func RelayHandler(relay RelayBaseInterface) (err *types.OpenAIErrorWithStatusCod
 		done = true
 		return
 	}
+
+	// 每次尝试前清掉上一轮渠道残留的上游 request-id / 透传头，避免重试换渠道后
+	// 日志落库与响应头串味（失败渠道的值残留到成功渠道）。
+	// 有意不清 raw body 相关 key：现有 provider 只在成功路径写它们，而写入之后的失败路径
+	// 都会置 done=true 不再重试，故不存在残留。新增写入点若打破这个前提，需一并清。
+	relay.getContext().Set(config.GinUpstreamRequestIdKey, "")
+	relay.getContext().Set(config.GinPassThroughHeaders, nil)
 
 	err, done = relay.send()
 	// 最后处理流式中断时计算tokens

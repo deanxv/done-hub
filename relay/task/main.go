@@ -136,6 +136,10 @@ func RelayTaskSubmit(c *gin.Context) {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("retry_attempt model=%s channel_id=%d attempt=%d/%d remaining_channels=%d total_channels=%d",
 			modelName, channel.Id, attemptCount, actualRetryTimes, remainChannels, c.GetInt("total_channels_at_start")))
 
+		// 每次重试前清掉上一轮渠道残留的上游 request-id，避免换渠道后消费日志串味
+		// （口径同 RelayHandler）。
+		c.Set(config.GinUpstreamRequestIdKey, "")
+
 		taskErr = taskAdaptor.Relay()
 		if taskErr == nil {
 			// 重试成功

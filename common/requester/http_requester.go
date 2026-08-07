@@ -26,6 +26,9 @@ type HTTPRequester struct {
 	proxyAddr         string
 	Context           context.Context
 	IsOpenAI          bool
+	// ResponseHook 在收到上游响应后、错误状态判定前调用（成功与失败响应都触发），
+	// 用于统一采集上游响应头（如 request-id）。为 nil 时跳过。
+	ResponseHook func(*http.Response)
 }
 
 // NewHTTPRequester 创建一个新的 HTTPRequester 实例。
@@ -86,6 +89,10 @@ func (r *HTTPRequester) SendRequest(req *http.Request, response any, outputResp 
 		return nil, common.ErrorWrapper(err, "http_request_failed", http.StatusInternalServerError)
 	}
 
+	if r.ResponseHook != nil {
+		r.ResponseHook(resp)
+	}
+
 	if !outputResp {
 		defer resp.Body.Close()
 	}
@@ -136,6 +143,10 @@ func (r *HTTPRequester) SendRequestRaw(req *http.Request) (*http.Response, *type
 	resp, err := HTTPClient.Do(req)
 	if err != nil {
 		return nil, common.ErrorWrapper(err, "http_request_failed", http.StatusInternalServerError)
+	}
+
+	if r.ResponseHook != nil {
+		r.ResponseHook(resp)
 	}
 
 	// 处理响应

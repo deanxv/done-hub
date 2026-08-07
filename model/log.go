@@ -14,23 +14,28 @@ import (
 )
 
 type Log struct {
-	Id               int                                `json:"id"`
-	UserId           int                                `json:"user_id" gorm:"index;index:idx_user_created_at"`
-	CreatedAt        int64                              `json:"created_at" gorm:"bigint;index:idx_created_at_type;index:idx_user_created_at"`
-	Type             int                                `json:"type" gorm:"index:idx_created_at_type"`
-	Content          string                             `json:"content"`
-	Username         string                             `json:"username" gorm:"index:index_username_model_name,priority:2;default:''"`
-	TokenName        string                             `json:"token_name" gorm:"index;default:''"`
-	ModelName        string                             `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
-	Quota            int                                `json:"quota" gorm:"default:0"`
-	CostQuota        int                                `json:"cost_quota" gorm:"default:0"`
-	PromptTokens     int                                `json:"prompt_tokens" gorm:"default:0"`
-	CompletionTokens int                                `json:"completion_tokens" gorm:"default:0"`
-	ChannelId        int                                `json:"channel_id" gorm:"index"`
-	RequestTime      int                                `json:"request_time" gorm:"default:0"`
-	IsStream         bool                               `json:"is_stream" gorm:"default:false"`
-	SourceIp         string                             `json:"source_ip" gorm:"default:''"`
-	Metadata         datatypes.JSONType[map[string]any] `json:"metadata" gorm:"type:json"`
+	Id               int    `json:"id"`
+	UserId           int    `json:"user_id" gorm:"index;index:idx_user_created_at"`
+	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_type;index:idx_user_created_at"`
+	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
+	Content          string `json:"content"`
+	Username         string `json:"username" gorm:"index:index_username_model_name,priority:2;default:''"`
+	TokenName        string `json:"token_name" gorm:"index;default:''"`
+	ModelName        string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
+	Quota            int    `json:"quota" gorm:"default:0"`
+	CostQuota        int    `json:"cost_quota" gorm:"default:0"`
+	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
+	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
+	ChannelId        int    `json:"channel_id" gorm:"index"`
+	RequestTime      int    `json:"request_time" gorm:"default:0"`
+	IsStream         bool   `json:"is_stream" gorm:"default:false"`
+	SourceIp         string `json:"source_ip" gorm:"default:''"`
+	RequestId        string `json:"request_id" gorm:"type:varchar(64);index;default:''"`
+	// 不建索引：管理员偶发排障用，且查询恒带 created_at 范围（前端默认当天），由
+	// idx_created_at_type 收窄后再过滤即可；口径同样可过滤的 source_ip。logs 是写入最热的表，
+	// 不为低频查询摊索引维护成本。若某部署确实高频按上游 ID 反查，加回 index 即可。
+	UpstreamRequestId string                             `json:"upstream_request_id" gorm:"type:varchar(128);default:''"`
+	Metadata          datatypes.JSONType[map[string]any] `json:"metadata" gorm:"type:json"`
 
 	Channel *Channel `json:"channel" gorm:"foreignKey:Id;references:ChannelId"`
 }
@@ -132,22 +137,35 @@ func RecordConsumeLog(
 
 	username, _ := CacheGetUsername(userId)
 
+	// request id 由 middleware 注入 ctx；upstream request id 由 provider 暂存、
+	// 经 relay_util.WithUpstreamRequestID 带入。两者缺失时为空串。
+	requestId, _ := ctx.Value(logger.RequestIdKey).(string)
+	upstreamRequestId, _ := ctx.Value(config.GinUpstreamRequestIdKey).(string)
+	// 上游返回的超长 header 会让整条计费日志插入失败，按列宽 varchar(128) 做 rune 安全截断。
+	if len(upstreamRequestId) > 128 {
+		if r := []rune(upstreamRequestId); len(r) > 128 {
+			upstreamRequestId = string(r[:128])
+		}
+	}
+
 	log := &Log{
-		UserId:           userId,
-		Username:         username,
-		CreatedAt:        utils.GetTimestamp(),
-		Type:             LogTypeConsume,
-		Content:          content,
-		PromptTokens:     promptTokens,
-		CompletionTokens: completionTokens,
-		TokenName:        tokenName,
-		ModelName:        modelName,
-		Quota:            quota,
-		CostQuota:        costQuota,
-		ChannelId:        channelId,
-		RequestTime:      requestTime,
-		IsStream:         isStream,
-		SourceIp:         sourceIp,
+		UserId:            userId,
+		Username:          username,
+		CreatedAt:         utils.GetTimestamp(),
+		Type:              LogTypeConsume,
+		Content:           content,
+		PromptTokens:      promptTokens,
+		CompletionTokens:  completionTokens,
+		TokenName:         tokenName,
+		ModelName:         modelName,
+		Quota:             quota,
+		CostQuota:         costQuota,
+		ChannelId:         channelId,
+		RequestTime:       requestTime,
+		IsStream:          isStream,
+		SourceIp:          sourceIp,
+		RequestId:         requestId,
+		UpstreamRequestId: upstreamRequestId,
 	}
 
 	if metadata != nil {
@@ -166,20 +184,33 @@ func RecordConsumeLog(
 
 type LogsListParams struct {
 	PaginationParams
-	LogType        int    `form:"log_type"`
-	StartTimestamp int64  `form:"start_timestamp"`
-	EndTimestamp   int64  `form:"end_timestamp"`
-	ModelName      string `form:"model_name"`
-	Username       string `form:"username"`
-	TokenName      string `form:"token_name"`
-	ChannelId      int    `form:"channel_id"`
-	SourceIp       string `form:"source_ip"`
+	LogType           int    `form:"log_type"`
+	StartTimestamp    int64  `form:"start_timestamp"`
+	EndTimestamp      int64  `form:"end_timestamp"`
+	ModelName         string `form:"model_name"`
+	Username          string `form:"username"`
+	TokenName         string `form:"token_name"`
+	ChannelId         int    `form:"channel_id"`
+	SourceIp          string `form:"source_ip"`
+	RequestId         string `form:"request_id"`
+	UpstreamRequestId string `form:"upstream_request_id"`
 }
 
 var allowedLogsOrderFields = map[string]bool{
 	"created_at": true,
 	"channel_id": true,
 	"user_id":    true,
+	"token_name": true,
+	"model_name": true,
+	"type":       true,
+	"source_ip":  true,
+}
+
+// 用户侧排序白名单：不含 channel_id（管理员维度，虽被 Omit 不返回值，
+// 但 ORDER BY 仍可按隐藏渠道给自己的请求分组排序，构成侧信道），
+// 也不含 user_id（self 路径下恒为常量，无排序意义）。
+var allowedUserLogsOrderFields = map[string]bool{
+	"created_at": true,
 	"token_name": true,
 	"model_name": true,
 	"type":       true,
@@ -218,6 +249,12 @@ func GetLogsList(params *LogsListParams) (*DataResult[Log], error) {
 	if params.SourceIp != "" {
 		tx = tx.Where("source_ip = ?", params.SourceIp)
 	}
+	if params.RequestId != "" {
+		tx = tx.Where("request_id = ?", params.RequestId)
+	}
+	if params.UpstreamRequestId != "" {
+		tx = tx.Where("upstream_request_id = ?", params.UpstreamRequestId)
+	}
 
 	return PaginateAndOrder[Log](tx, &params.PaginationParams, &logs, allowedLogsOrderFields)
 }
@@ -254,6 +291,12 @@ func GetAllLogsList(params *LogsListParams) ([]*Log, error) {
 	if params.SourceIp != "" {
 		tx = tx.Where("source_ip = ?", params.SourceIp)
 	}
+	if params.RequestId != "" {
+		tx = tx.Where("request_id = ?", params.RequestId)
+	}
+	if params.UpstreamRequestId != "" {
+		tx = tx.Where("upstream_request_id = ?", params.UpstreamRequestId)
+	}
 
 	// Apply ordering
 	if params.Order != "" {
@@ -283,7 +326,7 @@ func GetAllLogsList(params *LogsListParams) ([]*Log, error) {
 func GetUserLogsList(userId int, params *LogsListParams) (*DataResult[Log], error) {
 	var logs []*Log
 
-	tx := DB.Where("user_id = ?", userId).Omit("id", "cost_quota")
+	tx := DB.Where("user_id = ?", userId).Omit("id", "cost_quota", "channel_id", "upstream_request_id")
 
 	if params.LogType != LogTypeUnknown {
 		tx = tx.Where("type = ?", params.LogType)
@@ -300,8 +343,12 @@ func GetUserLogsList(userId int, params *LogsListParams) (*DataResult[Log], erro
 	if params.EndTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", params.EndTimestamp)
 	}
+	if params.RequestId != "" {
+		tx = tx.Where("request_id = ?", params.RequestId)
+	}
+	// upstream_request_id 属管理员维度，不在用户侧过滤（口径同 channel_id，由 GetLogsSelfStat 清空保对齐）
 
-	result, err := PaginateAndOrder[Log](tx, &params.PaginationParams, &logs, allowedLogsOrderFields)
+	result, err := PaginateAndOrder[Log](tx, &params.PaginationParams, &logs, allowedUserLogsOrderFields)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +366,7 @@ func GetUserLogsList(userId int, params *LogsListParams) (*DataResult[Log], erro
 func GetAllUserLogsList(userId int, params *LogsListParams) ([]*Log, error) {
 	var logs []*Log
 
-	tx := DB.Where("user_id = ?", userId).Omit("id", "cost_quota")
+	tx := DB.Where("user_id = ?", userId).Omit("id", "cost_quota", "channel_id", "upstream_request_id")
 
 	if params.LogType != LogTypeUnknown {
 		tx = tx.Where("type = ?", params.LogType)
@@ -336,6 +383,10 @@ func GetAllUserLogsList(userId int, params *LogsListParams) ([]*Log, error) {
 	if params.EndTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", params.EndTimestamp)
 	}
+	if params.RequestId != "" {
+		tx = tx.Where("request_id = ?", params.RequestId)
+	}
+	// upstream_request_id 属管理员维度，不在用户侧过滤（口径同 channel_id）
 
 	// Apply ordering
 	if params.Order != "" {
@@ -346,7 +397,7 @@ func GetAllUserLogsList(userId int, params *LogsListParams) ([]*Log, error) {
 			if desc {
 				field = field[1:]
 			}
-			if allowedLogsOrderFields[field] {
+			if allowedUserLogsOrderFields[field] {
 				if desc {
 					field = field + " DESC"
 				}
@@ -379,7 +430,7 @@ func SearchAllLogs(keyword string) (logs []*Log, err error) {
 }
 
 func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
-	err = DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(config.MaxRecentItems).Omit("id", "cost_quota").Find(&logs).Error
+	err = DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(config.MaxRecentItems).Omit("id", "cost_quota", "channel_id", "upstream_request_id").Find(&logs).Error
 	return logs, err
 }
 
@@ -405,6 +456,12 @@ func SumUsedQuota(params *LogsListParams) (quota int) {
 	}
 	if params.SourceIp != "" {
 		tx = tx.Where("source_ip = ?", params.SourceIp)
+	}
+	if params.RequestId != "" {
+		tx = tx.Where("request_id = ?", params.RequestId)
+	}
+	if params.UpstreamRequestId != "" {
+		tx = tx.Where("upstream_request_id = ?", params.UpstreamRequestId)
 	}
 	// 「总消费」按定义只统计 LogTypeConsume，调用方传入的 params.LogType 在此被有意忽略。
 	// 即便 Tab 切到「全部」（log_type=0）也只汇总消费类型，避免把充值/管理/系统日志的 quota 混进总消费。

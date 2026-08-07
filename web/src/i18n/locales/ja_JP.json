@@ -688,6 +688,9 @@
     "typeLabel": "タイプ",
     "userLabel": "ユーザー",
     "sourceIp": "Source IP",
+    "requestId": "リクエストID",
+    "upstreamRequestId": "アップストリームリクエストID",
+    "requestIdentifier": "リクエスト識別子",
     "logType": {
       "all": "すべて",
       "recharge": "チャージ",
@@ -1573,7 +1576,9 @@
     "tokenName": "トークン名",
     "type": "タイプ",
     "username": "ユーザー名",
-    "sourceIp": "Source IP"
+    "sourceIp": "Source IP",
+    "requestId": "リクエストID",
+    "upstreamRequestId": "アップストリームリクエストID"
   },
   "task": "非同期タスク",
   "taskPage": {

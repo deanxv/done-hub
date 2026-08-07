@@ -18,8 +18,10 @@ const (
 	// Bedrock（x-amzn-*）与 Claude 官方（anthropic-ratelimit-* 等）共用此 key。
 	GinPassThroughHeaders = "passthrough_headers"
 
-	// GinUpstreamRequestIdKey 暂存上游 request-id（string），由 relay 层以
-	// X-Upstream-Request-Id 回写下游。不直透上游原始 request-id 头，避免覆盖本地追踪 ID。
+	// GinUpstreamRequestIdKey 暂存上游 request-id（string）。用途已不止 gin 键：
+	//   1. relay 层以 X-Upstream-Request-Id 回写下游（不直透上游原始头，避免覆盖本地追踪 ID）；
+	//   2. relay_util.WithUpstreamRequestID 以它为 context.WithValue 的 key，把值带入异步落库。
+	// 改名/删除前需一并评估这两处，勿当成纯临时 gin 键处理。
 	GinUpstreamRequestIdKey = "upstream_request_id"
 
 	// GinRawResponseBodyKey 通用的非流式响应字节透传：provider 在确认无需改写响应

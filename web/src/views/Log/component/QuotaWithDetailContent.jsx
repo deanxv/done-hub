@@ -1,12 +1,14 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Stack, Typography } from '@mui/material';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PercentIcon from '@mui/icons-material/Percent';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import NumbersIcon from '@mui/icons-material/Numbers';
 import Decimal from 'decimal.js';
 import { renderQuota } from 'utils/common';
 import { calculateOriginalQuota } from './QuotaWithDetailRow';
 import { useTranslation } from 'react-i18next';
+import Label from 'ui-component/Label';
 import PropTypes from 'prop-types';
 
 // Function to calculate price
@@ -296,6 +298,40 @@ export default function QuotaWithDetailContent({ item, userGroup, userIsAdmin, t
           {t('logPage.quotaDetail.calculationNote')}
         </Typography>
       </Box>
+      {/* 请求标识：有值才显示，供客户端报障 / 上游排障关联；上游 id 仅管理员可见。
+          放在计费明细之后，不打断三栏价格的信息层级。 */}
+      {(item.request_id || (userIsAdmin && item.upstream_request_id)) && (
+        <Box
+          sx={{
+            p: 2,
+            borderRadius: 1,
+            background: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.default : '#fafbfc')
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <NumbersIcon sx={{ fontSize: 20, mr: 1, color: (theme) => theme.palette.info.main }} />
+            <Typography sx={{ fontWeight: 600, fontSize: 15 }}>{t('logPage.requestIdentifier')}</Typography>
+          </Box>
+          {item.request_id && (
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+              <Typography sx={{ fontSize: 13, color: (theme) => theme.palette.text.secondary }}>{t('logPage.requestId')}:</Typography>
+              <Label color="default" variant="soft" copyText={item.request_id}>
+                {item.request_id}
+              </Label>
+            </Stack>
+          )}
+          {userIsAdmin && item.upstream_request_id && (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography sx={{ fontSize: 13, color: (theme) => theme.palette.text.secondary }}>
+                {t('logPage.upstreamRequestId')}:
+              </Typography>
+              <Label color="default" variant="soft" copyText={item.upstream_request_id}>
+                {item.upstream_request_id}
+              </Label>
+            </Stack>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -306,6 +342,8 @@ QuotaWithDetailContent.propTypes = {
     cost_quota: PropTypes.number,
     prompt_tokens: PropTypes.number,
     completion_tokens: PropTypes.number,
+    request_id: PropTypes.string,
+    upstream_request_id: PropTypes.string,
     metadata: PropTypes.shape({
       input_price_origin: PropTypes.string,
       output_price_origin: PropTypes.string,

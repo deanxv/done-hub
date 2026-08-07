@@ -689,6 +689,9 @@
     "typeLabel": "Type",
     "userLabel": "User",
     "sourceIp": "Source IP",
+    "requestId": "Request ID",
+    "upstreamRequestId": "Upstream Request ID",
+    "requestIdentifier": "Request Identifier",
     "unknown": "Unknown",
     "logType": {
       "all": "All",
@@ -1573,7 +1576,9 @@
     "tokenName": "Token Name",
     "type": "Type",
     "username": "Username",
-    "sourceIp": "Source IP"
+    "sourceIp": "Source IP",
+    "requestId": "Request ID",
+    "upstreamRequestId": "Upstream Request ID"
   },
   "task": "Asynchronous tasks",
   "taskPage": {

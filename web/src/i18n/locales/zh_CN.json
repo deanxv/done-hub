@@ -538,6 +538,9 @@
     "totalInputTokens": "计算输入Tokens",
     "totalOutputTokens": "计算输出Tokens",
     "sourceIp": "来源IP",
+    "requestId": "请求ID",
+    "upstreamRequestId": "上游请求ID",
+    "requestIdentifier": "请求标识",
     "logType": {
       "all": "全部",
       "recharge": "充值",
@@ -651,7 +654,9 @@
     "taskId": "任务ID",
     "taskIdPlaceholder": "任务ID",
     "username": "用户名称",
-    "sourceIp": "来源IP"
+    "sourceIp": "来源IP",
+    "requestId": "请求ID",
+    "upstreamRequestId": "上游请求ID"
   },
   "midjourneyPage": {
     "midjourney": "Midjourney",

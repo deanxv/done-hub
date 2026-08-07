@@ -24,6 +24,9 @@ func (p *DeepseekProvider) claudeProvider() *claude.ClaudeProvider {
 	provider := &claude.ClaudeProvider{BaseProvider: p.BaseProvider}
 	provider.Config = getClaudeConfig()
 	provider.Requester = requester.NewHTTPRequester(p.Channel.GetProxy(), claude.RequestErrorHandle)
+	// 换掉 Requester 会丢掉 SetContext 装好的 Requester.Context（WithoutCancel）与上游
+	// request-id 采集 hook，重新 SetContext 一次补回。
+	provider.SetContext(p.Context)
 	return provider
 }
 

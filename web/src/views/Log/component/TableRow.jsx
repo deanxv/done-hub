@@ -190,6 +190,24 @@ export default function LogTableRow({ item, userIsAdmin, userGroup, columnVisibi
         )}
         {columnVisibility.source_ip &&
           <TableCell sx={{ p: '10px 8px', textAlign: 'center' }}>{item.source_ip || ''}</TableCell>}
+        {columnVisibility.request_id && (
+          <TableCell sx={{ p: '10px 8px', textAlign: 'center' }}>
+            {item.request_id && (
+              <Label color="default" variant="soft" copyText={item.request_id}>
+                {item.request_id}
+              </Label>
+            )}
+          </TableCell>
+        )}
+        {userIsAdmin && columnVisibility.upstream_request_id && (
+          <TableCell sx={{ p: '10px 8px', textAlign: 'center' }}>
+            {item.upstream_request_id && (
+              <Label color="default" variant="soft" copyText={item.upstream_request_id}>
+                {item.upstream_request_id}
+              </Label>
+            )}
+          </TableCell>
+        )}
         {columnVisibility.detail && (
           <TableCell sx={{ p: '10px 8px', textAlign: 'center', ...stickyCellSx }}>
             {viewLogContent(item, t, totalInputTokens, totalOutputTokens)}

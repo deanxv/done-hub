@@ -143,11 +143,12 @@ func GetLogsSelfStat(c *gin.Context) {
 	}
 
 	params.Username = c.GetString("username")
-	// SumUsedQuota 与 admin 的 GetLogsStat 共享实现，会读取 ChannelId / SourceIp；
-	// 这两个字段在 GetUserLogsList 里被忽略，stat 也要保持一致，否则普通用户在工具栏
-	// 填了 source_ip 后会出现「列表不过滤、总消费过滤」的数字对不上。
+	// SumUsedQuota 与 admin 的 GetLogsStat 共享实现，会读取 ChannelId / SourceIp / UpstreamRequestId；
+	// 这些字段在 GetUserLogsList 里被忽略（均属管理员维度），stat 也要保持一致，否则普通用户
+	// 在工具栏填了对应条件后会出现「列表不过滤、总消费过滤」的数字对不上。
 	params.ChannelId = 0
 	params.SourceIp = ""
+	params.UpstreamRequestId = ""
 
 	quotaNum := model.SumUsedQuota(&params)
 	c.JSON(http.StatusOK, gin.H{
@@ -213,7 +214,7 @@ func ExportLogsList(c *gin.Context) {
 	// Write CSV headers
 	headers := []string{
 		"时间", "渠道", "用户", "分组", "令牌", "类型", "模型",
-		"耗时(秒)", "输入Token", "输出Token", "额度", "来源IP", "详情",
+		"耗时(秒)", "输入Token", "输出Token", "额度", "来源IP", "请求ID", "上游请求ID", "详情",
 	}
 	if err := writer.Write(headers); err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
@@ -262,7 +263,7 @@ func ExportUserLogsList(c *gin.Context) {
 	// Write CSV headers (without admin-only columns)
 	headers := []string{
 		"时间", "分组", "令牌", "类型", "模型",
-		"耗时(秒)", "输入Token", "输出Token", "额度", "来源IP", "详情",
+		"耗时(秒)", "输入Token", "输出Token", "额度", "来源IP", "请求ID", "详情",
 	}
 	if err := writer.Write(headers); err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
@@ -347,10 +348,12 @@ func formatLogToCSVRow(log *model.Log, isAdmin bool) []string {
 			outputTokensStr,
 			quotaStr,
 			log.SourceIp,
+			log.RequestId,
+			log.UpstreamRequestId,
 			detailStr,
 		}
 	} else {
-		// User view excludes admin-only columns
+		// User view excludes admin-only columns (含上游请求ID)
 		return []string{
 			timeStr,
 			groupStr,
@@ -362,6 +365,7 @@ func formatLogToCSVRow(log *model.Log, isAdmin bool) []string {
 			outputTokensStr,
 			quotaStr,
 			log.SourceIp,
+			log.RequestId,
 			detailStr,
 		}
 	}

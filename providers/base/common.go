@@ -279,6 +279,24 @@ func (p *BaseProvider) SetContext(c *gin.Context) {
 	// 这样即使客户端断开，上游请求也会继续完成，确保计费和日志正常记录
 	if c != nil && p.Requester != nil {
 		p.Requester.Context = context.WithoutCancel(c.Request.Context())
+		// 统一采集上游 request-id：所有经 Requester 收发的 provider 自动覆盖，
+		// 失败响应也在错误判定前采集（排障最需要）。
+		// 不走 Requester 的 SDK 直连路径（bedrock aws_client）自行采集，汇入同一 key。
+		//
+		// 作用域：挂在 SetContext 上，而 providers.GetProvider 是唯一的 provider 构造入口，
+		// 因此渠道测试、模型列表拉取等非 relay 路径也会采集并写入各自的 gin context。
+		// 无害（那些路径不落库、不回写响应头），但别误以为只覆盖 relay 请求。
+		//
+		// 同一尝试内多次请求时后者覆盖前者，是有意如此：geminicli 这类先 count_tokens
+		// 再 generate 的 provider 会落最后一次调用的 id，主调用通常在最后，取它更有排障价值。
+		//
+		// 前提：hook 挂在 Requester 实例上。provider 若在 SetContext 之后换掉 Requester
+		// （如 deepseek 的 claudeProvider 委托），必须重新 SetContext，否则该路径静默丢采集。
+		p.Requester.ResponseHook = func(resp *http.Response) {
+			if requestID := requester.ExtractUpstreamRequestID(resp.Header); requestID != "" {
+				c.Set(config.GinUpstreamRequestIdKey, requestID)
+			}
+		}
 	}
 }
 

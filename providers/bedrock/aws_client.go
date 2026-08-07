@@ -76,10 +76,12 @@ func (p *BedrockProvider) invokeContext() context.Context {
 	return utils.SetProxy(p.Channel.GetProxy(), base)
 }
 
-// captureResponseMiddleware 在 Deserialize 阶段截获原始 *http.Response，做两件事：
+// captureResponseMiddleware 在 Deserialize 阶段截获原始 *http.Response，做三件事：
 //  1. 把 x-amzn-* / apigw-requestid 响应头存入 gin context，用于指纹保真透传
 //     （让中转响应看起来像直连 AWS）。SDK 的类型化 Output 不暴露响应头，故需此 middleware。
-//  2. 对 4xx/5xx 响应，在 SDK 反序列化前 tee 出原始 body 存入 p.errBody，并原样放回，
+//  2. 单独提取 x-amzn-requestid 存入 GinUpstreamRequestIdKey，供日志落库/回写；
+//     它仍同时走 #1 透传给客户端，与 claude 的 request-id 不直透策略不同（见 filterAWSResponseHeaders）。
+//  3. 对 4xx/5xx 响应，在 SDK 反序列化前 tee 出原始 body 存入 p.errBody，并原样放回，
 //     供 awsErrorToOpenAI 在解析失败（如中间层返回 HTML）时还原上游真实返回。
 //
 // 本 middleware 以 After 追加到 Deserialize 步骤，是该步骤的最内层——早于 SDK 的
@@ -98,9 +100,15 @@ func (p *BedrockProvider) captureResponseMiddleware() func(*smithymiddleware.Sta
 						if resp.StatusCode >= http.StatusBadRequest {
 							p.errBody = teeErrorBody(resp.Response)
 						}
-						if config.FingerprintPassThroughEnabled && p.Context != nil {
-							if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
-								p.Context.Set(config.GinPassThroughHeaders, headers)
+						if p.Context != nil {
+							if config.FingerprintPassThroughEnabled {
+								if headers := filterAWSResponseHeaders(resp.Header); headers != nil {
+									p.Context.Set(config.GinPassThroughHeaders, headers)
+								}
+							}
+							// 上游 request id 独立存一份，不受指纹透传开关影响。
+							if requestID := resp.Header.Get("x-amzn-requestid"); requestID != "" {
+								p.Context.Set(config.GinUpstreamRequestIdKey, requestID)
 							}
 						}
 					}
