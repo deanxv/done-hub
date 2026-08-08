@@ -3,10 +3,18 @@ package siliconflow
 import (
 	"done-hub/common"
 	"done-hub/common/config"
+	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"net/http"
 	"time"
 )
+
+// CreateImageGenerationsStream siliconflow 图像走自有 text-to-image 协议，嵌入的
+// OpenAIProvider 流式方法会发出错误格式的请求体，覆写返回哨兵让 relay 层降级合成 SSE。
+func (p *SiliconflowProvider) CreateImageGenerationsStream(request *types.ImageRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
+	return nil, base.ImageStreamNotSupportedError()
+}
 
 func (p *SiliconflowProvider) CreateImageGenerations(request *types.ImageRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
 	url, errWithCode := p.GetSupportedAPIUri(config.RelayModeImagesGenerations)

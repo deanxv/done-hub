@@ -2,10 +2,19 @@ package gemini
 
 import (
 	"done-hub/common"
+	"done-hub/common/requester"
 	"done-hub/common/utils"
+	"done-hub/providers/base"
 	"done-hub/types"
 	"net/http"
 )
+
+// CreateImageGenerationsStream Imagen 只有 predict 非流式端点；嵌入的 OpenAIProvider 流式方法
+// 会按 config.ImagesGenerations（哨兵值 "1"）拼出无效 URL，覆写返回哨兵让 relay 层降级合成 SSE。
+// geminicli / antigravity / vertexai_express 经嵌入继承此覆写。
+func (p *GeminiProvider) CreateImageGenerationsStream(request *types.ImageRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
+	return nil, base.ImageStreamNotSupportedError()
+}
 
 func (p *GeminiProvider) CreateImageGenerations(request *types.ImageRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
 	// 创建动态参数map

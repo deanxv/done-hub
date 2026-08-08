@@ -108,6 +108,40 @@ type ImageVariationsInterface interface {
 	CreateImageVariations(request *types.ImageEditRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode)
 }
 
+// 图片生成流式接口。provider 未实现（或实现但返回 image_stream_not_supported 哨兵）时，
+// relay 层降级为：走非流式方法，再把结果合成 SSE 返回客户端。
+type ImageGenerationsStreamInterface interface {
+	ProviderInterface
+	CreateImageGenerationsStream(request *types.ImageRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode)
+}
+
+// 图片编辑流式接口
+type ImageEditsStreamInterface interface {
+	ProviderInterface
+	CreateImageEditsStream(request *types.ImageEditRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode)
+}
+
+// imageStreamNotSupportedCode 图像流式降级哨兵。嵌入 openai.OpenAIProvider 的渠道
+// （codex/gemini/siliconflow 等）会继承流式方法但走的是各自的原生端点，需覆写返回此哨兵；
+// relay 层识别后降级为合成 SSE，而非当作请求失败。
+const imageStreamNotSupportedCode = "image_stream_not_supported"
+
+func ImageStreamNotSupportedError() *types.OpenAIErrorWithStatusCode {
+	return &types.OpenAIErrorWithStatusCode{
+		OpenAIError: types.OpenAIError{
+			Message: "image stream is not supported by this channel",
+			Type:    "one_hub_error",
+			Code:    imageStreamNotSupportedCode,
+		},
+		StatusCode: http.StatusNotImplemented,
+		LocalError: true,
+	}
+}
+
+func IsImageStreamNotSupported(err *types.OpenAIErrorWithStatusCode) bool {
+	return err != nil && err.Code == imageStreamNotSupportedCode
+}
+
 // type RelayInterface interface {
 // 	ProviderInterface
 // 	CreateRelay() (*http.Response, *types.OpenAIErrorWithStatusCode)

@@ -3,6 +3,8 @@ package xAI
 import (
 	"done-hub/common"
 	"done-hub/common/config"
+	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/providers/openai"
 	"done-hub/types"
 	"encoding/base64"
@@ -17,6 +19,12 @@ import (
 // xAI 的 /v1/images/edits 只接受 application/json，且不支持 quality/size/style/mask，
 // 与 OpenAI 的 multipart 契约完全不同，因此重写 CreateImageEdits 而非沿用内嵌的 OpenAIProvider 版本。
 // 参考 xAI 官方文档：https://docs.x.ai/developers/model-capabilities/images/editing
+
+// CreateImageEditsStream 覆写哨兵：嵌入的 OpenAIProvider 流式方法会按 OpenAI 契约发 multipart，
+// 而 xAI edits 只接受 JSON，必须经下方 CreateImageEdits 的协议转换，故降级走非流式 + 合成 SSE。
+func (p *XAIProvider) CreateImageEditsStream(request *types.ImageEditRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
+	return nil, base.ImageStreamNotSupportedError()
+}
 
 type xaiImageURL struct {
 	URL  string `json:"url"`

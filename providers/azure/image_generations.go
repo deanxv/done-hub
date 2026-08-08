@@ -3,12 +3,25 @@ package azure
 import (
 	"done-hub/common"
 	"done-hub/common/config"
+	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/providers/openai"
 	"done-hub/types"
 	"errors"
 	"net/http"
 	"time"
 )
+
+// CreateImageGenerationsStream dall-e-2 走 Azure 异步 :submit + operation-location 轮询，
+// 上游返回 202 + 任务状态 JSON，继承的流式方法会把它当空响应合成零事件流；返回哨兵让
+// relay 层降级到下方带轮询的非流式实现。其余模型（gpt-image 等）URL 与协议同 OpenAI，
+// 委托嵌入实现走真实流式。
+func (p *AzureProvider) CreateImageGenerationsStream(request *types.ImageRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
+	if request.Model == "dall-e-2" {
+		return nil, base.ImageStreamNotSupportedError()
+	}
+	return p.OpenAIProvider.CreateImageGenerationsStream(request)
+}
 
 func (p *AzureProvider) CreateImageGenerations(request *types.ImageRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
 

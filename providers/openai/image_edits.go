@@ -191,5 +191,19 @@ func imagesEditsMultipartForm(request *types.ImageEditRequest, b requester.FormB
 		}
 	}
 
+	if request.Stream != nil {
+		err = b.WriteField("stream", fmt.Sprintf("%t", *request.Stream))
+		if err != nil {
+			return fmt.Errorf("writing stream: %w", err)
+		}
+	}
+
+	if request.PartialImages != nil {
+		err = b.WriteField("partial_images", fmt.Sprintf("%d", *request.PartialImages))
+		if err != nil {
+			return fmt.Errorf("writing partial_images: %w", err)
+		}
+	}
+
 	return b.Close()
 }

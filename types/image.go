@@ -55,6 +55,9 @@ type ImageRequest struct {
 	OutputCompression *int    `json:"output_compression,omitempty"`
 	OutputFormat      *string `json:"output_format,omitempty"`
 
+	Stream        *bool `json:"stream,omitempty"`
+	PartialImages *int  `json:"partial_images,omitempty"`
+
 	// 透传参数，用于支持特定provider的额外参数
 	ExtraParams map[string]interface{} `json:"extra_params,omitempty"`
 }
@@ -94,4 +97,16 @@ type ImageEditRequest struct {
 	Size           string                  `form:"size"`
 	ResponseFormat string                  `form:"response_format"`
 	User           string                  `form:"user"`
+	Stream         *bool                   `form:"stream"`
+	PartialImages  *int                    `form:"partial_images"`
+}
+
+// StreamEnabled 判断请求是否要求流式返回。edits 走 multipart 表单，stream 以字符串
+// "true" 传入，gin 绑定到 *bool 已做转换，两个协议共用指针判空语义。
+func (r *ImageRequest) StreamEnabled() bool {
+	return r.Stream != nil && *r.Stream
+}
+
+func (r *ImageEditRequest) StreamEnabled() bool {
+	return r.Stream != nil && *r.Stream
 }

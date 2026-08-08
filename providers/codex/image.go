@@ -3,6 +3,8 @@ package codex
 import (
 	"bufio"
 	"done-hub/common"
+	"done-hub/common/requester"
+	"done-hub/providers/base"
 	"done-hub/providers/openai"
 	"done-hub/types"
 	"encoding/base64"
@@ -73,6 +75,17 @@ type imageGenerateTool struct {
 
 type imagesMaskImageURL struct {
 	ImageURL string `json:"image_url"`
+}
+
+// CreateImageGenerationsStream / CreateImageEditsStream：codex 图像走内部 Responses 工具协议，
+// 嵌入的 OpenAIProvider 流式方法会把 images 格式请求体发到 /backend-api/codex/responses，
+// 覆写返回哨兵让 relay 层降级为非流式 + 合成 SSE。
+func (p *CodexProvider) CreateImageGenerationsStream(request *types.ImageRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
+	return nil, base.ImageStreamNotSupportedError()
+}
+
+func (p *CodexProvider) CreateImageEditsStream(request *types.ImageEditRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode) {
+	return nil, base.ImageStreamNotSupportedError()
 }
 
 // CreateImageGenerations 走 /backend-api/codex/responses + image_generation 工具实现 /v1/images/generations。

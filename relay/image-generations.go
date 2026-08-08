@@ -3,7 +3,9 @@ package relay
 import (
 	"done-hub/common"
 	"done-hub/common/config"
+	"done-hub/common/requester"
 	providersBase "done-hub/providers/base"
+	"done-hub/providers/openai"
 	"done-hub/types"
 	"errors"
 	"net/http"
@@ -32,6 +34,25 @@ func clampImageN(n int) int {
 	return n
 }
 
+// MaxPartialImages partial_images 官方取值范围 [0, 3]。与 n 同理：用户可控、上游按帧
+// 计费（每 partial 帧 100 output tokens）的乘数必须钳上界（纵深防御）。
+const MaxPartialImages = 3
+
+// clampPartialImages 把 partial_images 钳制到 [0, MaxPartialImages]，nil 原样透传。
+func clampPartialImages(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	if v < 0 {
+		v = 0
+	}
+	if v > MaxPartialImages {
+		v = MaxPartialImages
+	}
+	return &v
+}
+
 func newRelayImageGenerations(c *gin.Context) *relayImageGenerations {
 	relay := &relayImageGenerations{}
 	relay.c = c
@@ -58,6 +79,7 @@ func (r *relayImageGenerations) setRequest() error {
 		r.request.N = 1
 	}
 	r.request.N = clampImageN(r.request.N)
+	r.request.PartialImages = clampPartialImages(r.request.PartialImages)
 
 	if strings.HasPrefix(r.request.Model, "dall-e") {
 		if r.request.Size == "" {
@@ -152,6 +174,10 @@ func (r *relayImageGenerations) getPromptTokens() (int, error) {
 	return common.CountTokenText(r.request.Prompt, r.getOriginalModel()), nil
 }
 
+func (r *relayImageGenerations) IsStream() bool {
+	return r.request.StreamEnabled()
+}
+
 func (r *relayImageGenerations) send() (err *types.OpenAIErrorWithStatusCode, done bool) {
 	provider, ok := r.provider.(providersBase.ImageGenerationsInterface)
 	if !ok {
@@ -162,8 +188,51 @@ func (r *relayImageGenerations) send() (err *types.OpenAIErrorWithStatusCode, do
 
 	r.request.Model = r.modelName
 
+	if r.request.StreamEnabled() {
+		var stream requester.StreamReaderInterface[string]
+		if streamProvider, ok := r.provider.(providersBase.ImageGenerationsStreamInterface); ok {
+			stream, err = streamProvider.CreateImageGenerationsStream(&r.request)
+		} else {
+			err = providersBase.ImageStreamNotSupportedError()
+		}
+
+		// 渠道不支持流式：降级走非流式请求，把结果合成 completed 事件回吐给客户端。
+		// 哨兵是本地错误、未发过上游请求，降级不会造成重复生成。
+		if providersBase.IsImageStreamNotSupported(err) {
+			// 拷贝后摘掉流式参数再发非流式请求，防按结构体序列化的渠道把 stream:true 外泄给
+			// 上游；不动 r.request，send 之后 RelayHandler 还要用 IsStream() 落计费口径
+			fallbackRequest := r.request
+			fallbackRequest.Stream = nil
+			fallbackRequest.PartialImages = nil
+			var response *types.ImageResponse
+			response, err = provider.CreateImageGenerations(&fallbackRequest)
+			if err != nil {
+				return
+			}
+			// 无 error 但 Data 为空时合成结果是零事件流，客户端等不到 completed 也收不到报错，
+			// 显式报错走重试链路（对齐 codex parseImagesStream 的 no_image_output 口径）
+			if len(response.Data) == 0 {
+				err = common.StringErrorWrapper("upstream did not return any image output", "no_image_output", http.StatusBadGateway)
+				return
+			}
+			stream = openai.NewImageSyntheticStream(openai.ImageResponseToSSE(openai.ImageGenerationStreamPrefix, response))
+		}
+		if err != nil {
+			return
+		}
+
+		// 官方 images SSE 靠连接关闭收尾、不发 [DONE]
+		doneStr := func() string {
+			return ""
+		}
+		firstResponseTime := responseGeneralStreamClient(r.c, stream, doneStr)
+		r.SetFirstResponseTime(firstResponseTime)
+		return
+	}
+
 	// 入口协议 == images 且响应原样直返：放行 provider 字节透传，
 	// 保留上游 usage.output_tokens_details.image_tokens/text_tokens 等未知字段。
+	// 仅非流式路径放行：流式降级路径不走 responseJsonClient，暂存的原始字节无人消费。
 	r.c.Set(config.GinRawPassThroughAllowedKey, true)
 
 	response, err := provider.CreateImageGenerations(&r.request)
