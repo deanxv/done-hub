@@ -285,13 +285,16 @@ func (p *OpenAIProvider) patchResponsesCompactRequestBody(request *types.OpenAIR
 func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, dataChan chan string, errChan chan error) {
 	rawStr := string(*rawLine)
 
+	// NoTrim 流：ReadBytes 保留行尾 \n，缓冲/转发时不能再手动补换行，
+	// 否则 event 行与 data 行之间会多出空行，严格按空行切块的 SSE 解析器
+	// 会把 event 行当成空 data 的独立事件，对空串做 JSON 解析直接报错。
+
 	// 处理 SSE 事件格式
 	if strings.HasPrefix(rawStr, "event: ") {
 		// 开始新的事件，保存事件类型
-		h.eventType = strings.TrimPrefix(rawStr, "event: ")
+		h.eventType = strings.TrimSpace(strings.TrimPrefix(rawStr, "event: "))
 		h.eventBuffer.Reset()
 		h.eventBuffer.WriteString(rawStr)
-		h.eventBuffer.WriteString("\n")
 		return
 	}
 
@@ -299,9 +302,14 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 	if !strings.HasPrefix(rawStr, h.Prefix) {
 		if h.eventBuffer.Len() > 0 {
 			h.eventBuffer.WriteString(rawStr)
-			h.eventBuffer.WriteString("\n")
+			// 空行是 SSE 事件块的终止符：无 data 行的事件在此完整下发
+			if strings.TrimSpace(rawStr) == "" {
+				dataChan <- h.eventBuffer.String()
+				h.eventBuffer.Reset()
+				h.eventType = ""
+			}
 		} else {
-			// 没有事件类型的行，直接转发
+			// 没有事件类型的行（含上游事件分隔空行），直接转发
 			dataChan <- rawStr
 		}
 		return
@@ -334,7 +342,8 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 			getResponsesExtraBilling(openaiResponse.Response, h.Usage)
 		}
 
-		// 添加数据行到缓冲区
+		// 添加数据行到缓冲区（rawStr 自带行尾 \n）；
+		// 终止事件随即关闭流，上游的事件分隔空行不会再被读到，这里补一个事件终止空行。
 		h.eventBuffer.WriteString(rawStr)
 		h.eventBuffer.WriteString("\n")
 
@@ -380,11 +389,10 @@ func (h *OpenAIResponsesStreamHandler) HandlerResponsesStream(rawLine *[]byte, d
 		}
 	}
 
-	// 添加数据行到缓冲区
+	// 添加数据行到缓冲区（rawStr 自带行尾 \n，事件终止空行由上游后续的分隔空行原样转发提供）
 	h.eventBuffer.WriteString(rawStr)
-	h.eventBuffer.WriteString("\n")
 
-	// 发送完整的 SSE 事件块
+	// 发送 SSE 事件块
 	dataChan <- h.eventBuffer.String()
 
 	// 重置缓冲区为下一个事件做准备
