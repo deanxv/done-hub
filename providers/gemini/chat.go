@@ -742,7 +742,7 @@ func removeAdditionalPropertiesWithDepth(schema interface{}, depth int) interfac
 
 // BillingPartsText 汇总 candidates 里计入 output token 计费的文本：正文、thought（计入
 // ThoughtsTokenCount）、functionCall 的 name/args。用于上游 usageMetadata 缺失/被裁时的兜底估算。
-// 不走 ToOpenAIChoice/ToOpenAIStreamChoice 的 Content：那里会拼 base64 图片、grounding 引用
+// 不走 ToOpenAIChoice/ToOpenAIStreamChoice 的 Content：那里会拼 base64 图片、ing 引用
 // markdown、代码块围栏等网关合成文本，算进 output token 会失真（base64 更会打飞量级）。
 // 遍历 parts 天然避开，gemini 及其衍生渠道（geminicli/antigravity）的计费兜底点共用，避免各处重复维护。
 func BillingPartsText(candidates []GeminiChatCandidate) string {
