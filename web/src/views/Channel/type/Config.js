@@ -335,7 +335,12 @@ const typeConfig = {
         'claude-2.1',
         'claude-3-opus-20240229',
         'claude-3-sonnet-20240229',
-        'claude-3-haiku-20240307'
+        'claude-3-haiku-20240307',
+        'gpt-oss-120b',
+        'gpt-oss-20b',
+        'gpt-5.6-sol',
+        'gpt-5.6-terra',
+        'gpt-5.6-luna'
       ],
       test_model: 'claude-3-haiku-20240307'
     },

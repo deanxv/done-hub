@@ -72,7 +72,8 @@ func (r *relayResponses) send() (err *types.OpenAIErrorWithStatusCode, done bool
 
 	channel := r.provider.GetChannel()
 	responsesProvider, ok := r.provider.(providersBase.ResponsesInterface)
-	if !ok || channel.CompatibleResponse || !r.provider.GetSupportedResponse() {
+	if !ok || channel.CompatibleResponse || !r.provider.GetSupportedResponse() ||
+		!providerSupportsNativeResponses(r.provider, r.modelName) {
 		// 做一层Chat的兼容
 		chatProvider, ok := r.provider.(providersBase.ChatInterface)
 		if !ok {
@@ -119,6 +120,18 @@ func (r *relayResponses) send() (err *types.OpenAIErrorWithStatusCode, done bool
 	}
 
 	return
+}
+
+// providerSupportsNativeResponses 渠道声明了按模型粒度的原生 responses 支持
+// （providersBase.ResponsesModelSupport）时按模型判断，否则默认支持。
+// 混合模型族渠道（如 bedrock 同时挂 claude 与 GPT-5.x）用它把不支持原生端点的
+// 模型回落到 chat 兼容层，而不是整渠道二选一。
+func providerSupportsNativeResponses(provider providersBase.ProviderInterface, modelName string) bool {
+	checker, ok := provider.(providersBase.ResponsesModelSupport)
+	if !ok {
+		return true
+	}
+	return checker.SupportsNativeResponses(modelName)
 }
 
 // sendCompact 处理 /v1/responses/compact 请求。

@@ -36,6 +36,11 @@ var bedrockMap = map[string]string{
 	"claude-sonnet-5":            "anthropic.claude-sonnet-5",
 	"claude-fable-5":             "anthropic.claude-fable-5",
 	"claude-opus-5":              "anthropic.claude-opus-5",
+	"gpt-oss-120b":               "openai.gpt-oss-120b-1:0",
+	"gpt-oss-20b":                "openai.gpt-oss-20b-1:0",
+	"gpt-5.6-sol":                "openai.gpt-5.6-sol",
+	"gpt-5.6-terra":              "openai.gpt-5.6-terra",
+	"gpt-5.6-luna":               "openai.gpt-5.6-luna",
 }
 
 // 用户显式书写的区域前缀（手动覆盖优先）
@@ -70,6 +75,12 @@ var awsModelCanCrossRegionMap = map[string]map[string]string{
 	// sonnet-5：EU 无 geo profile，仅 Global（AWS model card 2026-06-30）
 	"anthropic.claude-sonnet-5": {"us": "us", "eu": "global", "ap": "global"},
 	"anthropic.claude-fable-5":  {"us": "us", "eu": "global", "ap": "global"},
+	// GPT-5.6 闭源系仅支持 inference profile 调用（裸 openai.xxx 会被 on-demand 400），
+	// 任意 region 统一走 global. profile（2026-08 实测 InvokeModel / chat-completions /
+	// responses 三端点均可用）。"*" 为 region 根通配，见 autoCrossRegionPrefix。
+	"openai.gpt-5.6-sol":   {"*": "global"},
+	"openai.gpt-5.6-terra": {"*": "global"},
+	"openai.gpt-5.6-luna":  {"*": "global"},
 }
 
 var CategoryMap = map[string]Category{}
@@ -88,6 +99,8 @@ func GetCategory(modelName, region string) (*Category, error) {
 
 	if model_utils.ContainsCaseInsensitive(modelName, "anthropic") {
 		provider = "anthropic"
+	} else if model_utils.ContainsCaseInsensitive(modelName, "openai.") {
+		provider = "openai"
 	}
 
 	if category, exists := CategoryMap[provider]; exists {
@@ -141,7 +154,11 @@ func autoCrossRegionPrefix(awsModelID, region string) string {
 
 	profilePrefix, ok := profileMap[regionRoot]
 	if !ok {
-		return ""
+		// "*"：不区分 region 根的通配 profile（如 GPT-5.6 全区走 global.）
+		profilePrefix, ok = profileMap["*"]
+		if !ok {
+			return ""
+		}
 	}
 
 	return profilePrefix + "."

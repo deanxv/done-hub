@@ -179,6 +179,13 @@ type ResponsesInterface interface {
 	CreateResponsesStream(request *types.OpenAIResponsesRequest) (requester.StreamReaderInterface[string], *types.OpenAIErrorWithStatusCode)
 }
 
+// ResponsesModelSupport 可选能力接口：渠道实现了 ResponsesInterface，但原生
+// /v1/responses 仅对部分模型族生效（如 bedrock 仅 GPT-5.x 走原生端点，claude/gpt-oss
+// 需回落 chat 兼容层）。relay 层在原生分发前按模型询问；未实现视为全部模型支持。
+type ResponsesModelSupport interface {
+	SupportsNativeResponses(modelName string) bool
+}
+
 // ResponsesCompactInterface /v1/responses/compact 端点的能力。
 // compact 永远是非流式响应，因此不需要 stream 版本。
 type ResponsesCompactInterface interface {

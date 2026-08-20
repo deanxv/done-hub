@@ -4,6 +4,8 @@ import (
 	"done-hub/common/requester"
 	"done-hub/model"
 	"done-hub/providers/base"
+	"done-hub/providers/openai"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,9 +23,12 @@ func (f BedrockProviderFactory) Create(channel *model.Channel) base.ProviderInte
 		BaseProvider: base.BaseProvider{
 			Config:  getConfig(),
 			Channel: channel,
-			// Requester 仅用于复用 NewRequestWithCustomParams* 的请求体构造逻辑；
-			// 实际发送由 bedrockruntime SDK 完成，故不需要错误处理回调。
-			Requester: requester.NewHTTPRequester(channel.GetProxy(), nil),
+			// chat（InvokeModel）路径仅借 Requester 复用 NewRequestWithCustomParams* 的
+			// 请求体构造逻辑，实际发送走 bedrockruntime SDK；responses 路径则直接经
+			// Requester 发 HTTP（AWS 的 /openai/v1/responses 返回标准 OpenAI 错误格式），
+			// 故错误回调用 openai.RequestErrorHandle。
+			Requester:       requester.NewHTTPRequester(channel.GetProxy(), openai.RequestErrorHandle),
+			SupportResponse: true,
 		},
 	}
 
@@ -51,7 +56,15 @@ func getConfig() base.ProviderConfig {
 	return base.ProviderConfig{
 		BaseURL:         "https://bedrock-runtime.%s.amazonaws.com",
 		ChatCompletions: "/model/%s/invoke",
+		Responses:       "/openai/v1/responses",
 	}
+}
+
+// GetFullRequestURL 拼接完整 URL（BaseURL 含 region 占位符）。仅 responses 等
+// 走 HTTPRequester 的路径使用；chat（InvokeModel）路径由 SDK 自行构造 URL，不经这里。
+func (p *BedrockProvider) GetFullRequestURL(requestURL string, _ string) string {
+	baseURL := strings.TrimSuffix(p.GetBaseURL(), "/")
+	return fmt.Sprintf(baseURL, p.Region) + requestURL
 }
 
 func (p *BedrockProvider) GetRequestHeaders() (headers map[string]string) {
