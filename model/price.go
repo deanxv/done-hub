@@ -286,6 +286,10 @@ func GetDefaultPrice() []*Price {
 		"text-embedding-3-large": {[]float64{0.065, 0.065}, config.ChannelTypeOpenAI},
 		"text-moderation-stable": {[]float64{0.1, 0.1}, config.ChannelTypeOpenAI},
 		"text-moderation-latest": {[]float64{0.1, 0.1}, config.ChannelTypeOpenAI},
+		// omni-moderation replaced text-moderation, retired 27 October 2025.
+		// OpenAI moderation models are free.
+		"omni-moderation-latest":     {[]float64{0, 0}, config.ChannelTypeOpenAI},
+		"omni-moderation-2024-09-26": {[]float64{0, 0}, config.ChannelTypeOpenAI},
 		// $0.016 - $0.020 / image
 		"dall-e-2": {[]float64{8, 8}, config.ChannelTypeOpenAI},
 		// $0.040 - $0.120 / image
