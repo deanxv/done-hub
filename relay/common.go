@@ -760,11 +760,11 @@ func shouldRetryBadRequest(c *gin.Context, channelType int, apiErr *types.OpenAI
 	}
 }
 
-func processChannelRelayError(ctx context.Context, channelId int, channelName string, err *types.OpenAIErrorWithStatusCode, channelType int) {
+func processChannelRelayError(ctx context.Context, channelId int, channelName string, modelName string, err *types.OpenAIErrorWithStatusCode, channelType int) {
 	if controller.ShouldDisableChannel(channelType, err) {
-		logger.LogError(ctx, fmt.Sprintf("channel_disabled channel_id=%d channel_name=\"%s\" channel_type=%d status_code=%d error=\"%s\" auto_disabled=true",
-			channelId, channelName, channelType, err.StatusCode, err.Message))
-		controller.DisableChannel(channelId, channelName, err.Message, true)
+		logger.LogError(ctx, fmt.Sprintf("channel_disabled channel_id=%d channel_name=\"%s\" channel_type=%d model=%s status_code=%d error=\"%s\" auto_disabled=true",
+			channelId, channelName, channelType, modelName, err.StatusCode, err.Message))
+		controller.DisableChannel(channelId, channelName, modelName, err.Message, true)
 	}
 }
 
@@ -776,7 +776,15 @@ func processChannelRelayError(ctx context.Context, channelId int, channelName st
 //
 // 把两件事绑在一起，未来加新入口只要调一次，从机制上消除"漏调一个就丢 429 信号"的脆弱约定。
 func notifyChannelRelayError(ctx context.Context, c *gin.Context, channel *model.Channel, apiErr *types.OpenAIErrorWithStatusCode) {
-	go processChannelRelayError(ctx, channel.Id, channel.Name, apiErr, channel.Type)
+	// 必须在 go 之前同步从 c 取值：goroutine 的生命周期长于 handler，
+	// handler 返回后 c 会被 gin 回收/复用，在 goroutine 里读 c 是数据竞争。
+	// new_model 是过映射后真正发给上游的模型名，正是排障要看的那个；
+	// 兜底回落 original_model（如 setProvider 失败时 new_model 还没设）。
+	modelName := c.GetString("new_model")
+	if modelName == "" {
+		modelName = c.GetString("original_model")
+	}
+	go processChannelRelayError(ctx, channel.Id, channel.Name, modelName, apiErr, channel.Type)
 	if apiErr != nil && apiErr.StatusCode == http.StatusTooManyRequests {
 		c.Set("upstream_seen_429", true)
 	}
