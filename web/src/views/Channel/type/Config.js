@@ -619,7 +619,17 @@ const typeConfig = {
   },
   62: {
     input: {
-      models: ['claude-opus-4-8', 'claude-sonnet-5', 'claude-opus-4-7', 'claude-haiku-4-5', 'claude-fable-5'],
+      models: [
+        'claude-fable-5-1',
+        'claude-fable-5',
+        'claude-opus-5-5',
+        'claude-opus-5',
+        'claude-opus-4-8',
+        'claude-opus-4-7',
+        'claude-sonnet-5-5',
+        'claude-sonnet-5',
+        'claude-haiku-4-5'
+      ],
       test_model: 'claude-haiku-4-5'
     },
     prompt: {

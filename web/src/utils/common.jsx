@@ -34,7 +34,8 @@ export function showError(error) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {
         case 429:
-          enqueueSnackbar('错误：请求次数过多，请稍后再试！', getSnackbarOptions('ERROR'));
+          // 限流响应体里带了「还要等多少秒」，优先展示；拿不到再退回通用文案。
+          enqueueSnackbar('错误：' + (error.response.data?.error?.message || '请求次数过多，请稍后再试！'), getSnackbarOptions('ERROR'));
           break;
         case 500:
           enqueueSnackbar('错误：服务器内部错误，请联系管理员！', getSnackbarOptions('ERROR'));

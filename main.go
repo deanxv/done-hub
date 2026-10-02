@@ -142,6 +142,20 @@ func initHttpServer() {
 	server.Use(middleware.RequestId())
 	middleware.SetUpLogger(server)
 
+	// gin 默认信任所有代理（trustedProxies = 0.0.0.0/0），于是 ClientIP() 会直接返回
+	// 客户端自带的 X-Forwarded-For。那样限流、登录 IP 记录、Turnstile 校验全都建立在
+	// 可伪造的输入上——伪造 127.0.0.1 就能豁免限流，轮换伪造 IP 就能无限换桶。
+	// 这里收敛为只信任 trusted_proxies（默认 loopback + 私网，覆盖常见反代部署）。
+	trustedProxies := config.TrustedProxies()
+	if err := server.SetTrustedProxies(trustedProxies); err != nil {
+		logger.FatalLog("TRUSTED_PROXIES 配置非法: " + err.Error())
+	}
+	if len(trustedProxies) == 0 {
+		logger.SysLog("TRUSTED_PROXIES is empty: client IP comes from the socket peer, proxy headers are ignored")
+	}
+
+	// trusted_header（如 CF-Connecting-IP）优先级高于 trusted_proxies：gin 的 ClientIP()
+	// 一旦命中该头就直接返回，不再校验来源是否可信。仅在流量必定经过该 CDN 时设置。
 	trustedHeader := viper.GetString("trusted_header")
 	if trustedHeader != "" {
 		server.TrustedPlatform = trustedHeader
