@@ -16,41 +16,41 @@ import (
 )
 
 type Channel struct {
-	Id                 int      `json:"id"`
-	Type               int      `json:"type" form:"type" gorm:"default:0"`
-	Key                string   `json:"key" form:"key" gorm:"type:text"`
-	Status             int      `json:"status" form:"status" gorm:"default:1"`
-	Name               string   `json:"name" form:"name" gorm:"index"`
-	Weight             *uint    `json:"weight" gorm:"default:1"`
-	CreatedTime        int64    `json:"created_time" gorm:"bigint"`
-	TestTime           int64    `json:"test_time" gorm:"bigint"`
-	ResponseTime       int      `json:"response_time"` // in milliseconds
-	BaseURL            *string  `json:"base_url" gorm:"column:base_url;default:''"`
-	Other              string   `json:"other" form:"other"`
-	Balance            float64  `json:"balance"` // in USD
-	BalanceUpdatedTime int64    `json:"balance_updated_time" gorm:"bigint"`
-	Models             string   `json:"models" form:"models"`
-	Group              string   `json:"group" form:"group" gorm:"type:varchar(255);default:'default'"`
-	Tag                string   `json:"tag" form:"tag" gorm:"type:varchar(32);default:''"`
-	UsedQuota          int64    `json:"used_quota" gorm:"bigint;default:0"`
-	ModelMapping       *string  `json:"model_mapping" gorm:"type:text"`
-	ModelHeaders       *string  `json:"model_headers" gorm:"type:varchar(1024);default:''"`
-	HeaderOverride     *string  `json:"header_override" gorm:"type:text"`
-	CustomParameter    *string  `json:"custom_parameter" gorm:"type:text"`
-	Priority           *int64   `json:"priority" gorm:"bigint;default:0"`
-	Proxy              *string  `json:"proxy" gorm:"type:varchar(255);default:''"`
-	TestModel          string   `json:"test_model" form:"test_model" gorm:"type:varchar(50);default:''"`
-	OnlyChat           bool     `json:"only_chat" form:"only_chat" gorm:"default:false"`
-	PreCost            int      `json:"pre_cost" form:"pre_cost" gorm:"default:1"`
-	CompatibleResponse bool     `json:"compatible_response" gorm:"default:false"`
-	AllowExtraBody     bool     `json:"allow_extra_body" form:"allow_extra_body" gorm:"default:false"`
-	PassThroughBody    bool     `json:"pass_through_body" form:"pass_through_body" gorm:"default:false"`
-	CostRatio          *float64 `json:"cost_ratio" form:"cost_ratio" gorm:"type:decimal(10,4);default:0"`
+	Id                          int      `json:"id"`
+	Type                        int      `json:"type" form:"type" gorm:"default:0"`
+	Key                         string   `json:"key" form:"key" gorm:"type:text"`
+	Status                      int      `json:"status" form:"status" gorm:"default:1"`
+	Name                        string   `json:"name" form:"name" gorm:"index"`
+	Weight                      *uint    `json:"weight" gorm:"default:1"`
+	CreatedTime                 int64    `json:"created_time" gorm:"bigint"`
+	TestTime                    int64    `json:"test_time" gorm:"bigint"`
+	ResponseTime                int      `json:"response_time"` // in milliseconds
+	BaseURL                     *string  `json:"base_url" gorm:"column:base_url;default:''"`
+	Other                       string   `json:"other" form:"other"`
+	Balance                     float64  `json:"balance"` // in USD
+	BalanceUpdatedTime          int64    `json:"balance_updated_time" gorm:"bigint"`
+	Models                      string   `json:"models" form:"models"`
+	Group                       string   `json:"group" form:"group" gorm:"type:varchar(255);default:'default'"`
+	Tag                         string   `json:"tag" form:"tag" gorm:"type:varchar(32);default:''"`
+	UsedQuota                   int64    `json:"used_quota" gorm:"bigint;default:0"`
+	ModelMapping                *string  `json:"model_mapping" gorm:"type:text"`
+	ModelHeaders                *string  `json:"model_headers" gorm:"type:varchar(1024);default:''"`
+	HeaderOverride              *string  `json:"header_override" gorm:"type:text"`
+	CustomParameter             *string  `json:"custom_parameter" gorm:"type:text"`
+	Priority                    *int64   `json:"priority" gorm:"bigint;default:0"`
+	Proxy                       *string  `json:"proxy" gorm:"type:varchar(255);default:''"`
+	TestModel                   string   `json:"test_model" form:"test_model" gorm:"type:varchar(50);default:''"`
+	OnlyChat                    bool     `json:"only_chat" form:"only_chat" gorm:"default:false"`
+	PreCost                     int      `json:"pre_cost" form:"pre_cost" gorm:"default:1"`
+	CompatibleResponse          bool     `json:"compatible_response" gorm:"default:false"`
+	AllowExtraBody              bool     `json:"allow_extra_body" form:"allow_extra_body" gorm:"default:false"`
+	PassThroughBody             bool     `json:"pass_through_body" form:"pass_through_body" gorm:"default:false"`
+	CostRatio                   *float64 `json:"cost_ratio" form:"cost_ratio" gorm:"type:decimal(10,4);default:0"`
+	UnifiedRequestResponseModel bool     `json:"unified_request_response_model" form:"unified_request_response_model" gorm:"default:false"`
 
-	DisabledStream *datatypes.JSONSlice[string] `json:"disabled_stream,omitempty" gorm:"type:json"`
-
-	Plugin    *datatypes.JSONType[PluginType] `json:"plugin" form:"plugin" gorm:"type:json"`
-	DeletedAt gorm.DeletedAt                  `json:"-" gorm:"index"`
+	DisabledStream *datatypes.JSONSlice[string]    `json:"disabled_stream,omitempty" gorm:"type:json"`
+	Plugin         *datatypes.JSONType[PluginType] `json:"plugin" form:"plugin" gorm:"type:json"`
+	DeletedAt      gorm.DeletedAt                  `json:"-" gorm:"index"`
 }
 
 func (c *Channel) AllowStream(modelName string) bool {

@@ -2050,6 +2050,24 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
                       <FormHelperText id="helper-tex-pass_through_body-label">{customizeT(inputPrompt.pass_through_body)}</FormHelperText>
                     </FormControl>
                   )}
+                  {inputPrompt.unified_request_response_model && (
+                    <FormControl fullWidth sx={{ ...theme.typography.otherInput }}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={Boolean(values.unified_request_response_model)}
+                            onChange={(event) => {
+                              setFieldValue('unified_request_response_model', event.target.checked);
+                            }}
+                          />
+                        }
+                        label={customizeT(inputLabel.unified_request_response_model)}
+                      />
+                      <FormHelperText id="helper-tex-unified_request_response_model-label">
+                        {customizeT(inputPrompt.unified_request_response_model)}
+                      </FormHelperText>
+                    </FormControl>
+                  )}
                   {inputPrompt.pre_cost && (
                     <FormControl fullWidth error={Boolean(touched.pre_cost && errors.pre_cost)} sx={{ ...theme.typography.otherInput }}>
                       <InputLabel htmlFor="channel-pre_cost-label">{customizeT(inputLabel.pre_cost)}</InputLabel>

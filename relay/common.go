@@ -288,6 +288,7 @@ func GetProvider(c *gin.Context, modelName string) (provider providersBase.Provi
 	}
 	provider.SetOriginalModel(modelName) // 保存用户原始请求的模型名称
 	c.Set("original_model", modelName)
+	c.Set("channel_unified_request_response_model", channel.UnifiedRequestResponseModel) // 设置渠道级统一请求响应模型配置
 
 	newModelName, fail = provider.ModelMappingHandler(actualModelName) // 使用匹配到的模型名称进行映射
 	if fail != nil {

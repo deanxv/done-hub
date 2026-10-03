@@ -322,15 +322,39 @@ func (p *BaseProvider) GetResponseModelName(requestModel string) string {
 // ok=false 表示无需替换（开关关闭 / 无 original_model / 与上游名一致）。
 // 仅在确实发生替换时记录一条日志，并用 context 标志位保证每个请求只记一次
 // （流式场景下替换函数会被每个 chunk 调用）。
+// 优先级：全局配置 > 渠道配置
 func resolveUnifiedModel(ctx *gin.Context, upstreamModel string) (originalModel string, ok bool) {
-	if ctx == nil || !config.UnifiedRequestResponseModelEnabled {
+	if ctx == nil {
 		return "", false
 	}
 
+	// 判断配置来源
+	var enabled bool
+	var source string
+
+	if config.UnifiedRequestResponseModelEnabled {
+		enabled = true
+		source = "全局"
+	} else if channelEnabled := ctx.GetBool("channel_unified_request_response_model"); channelEnabled {
+		enabled = true
+		source = "渠道"
+	}
+
+	if !enabled {
+		return "", false
+	}
+
+	// 提取并验证原始模型名
+	return resolveOriginalModel(ctx, upstreamModel, source)
+}
+
+// resolveOriginalModel 提取公共的模型替换逻辑
+func resolveOriginalModel(ctx *gin.Context, upstreamModel, source string) (string, bool) {
 	val, exists := ctx.Get("original_model")
 	if !exists {
 		return "", false
 	}
+
 	originalModelStr, isStr := val.(string)
 	if !isStr || originalModelStr == "" || originalModelStr == upstreamModel {
 		return "", false
@@ -339,8 +363,10 @@ func resolveUnifiedModel(ctx *gin.Context, upstreamModel string) (originalModel 
 	if !ctx.GetBool("unified_model_logged") {
 		ctx.Set("unified_model_logged", true)
 		logger.LogInfo(ctx.Request.Context(), fmt.Sprintf(
-			"unified_response_model: 响应模型名由上游的 %s 替换为请求的 %s", upstreamModel, originalModelStr))
+			"unified_response_model(%s): 响应模型名由上游的 %s 替换为请求的 %s",
+			source, upstreamModel, originalModelStr))
 	}
+
 	return originalModelStr, true
 }
 
@@ -360,7 +386,7 @@ func GetResponseModelNameFromContext(ctx *gin.Context, fallbackModel string) str
 // modelPath 为 gjson/sjson 路径，如 claude 流式的 "message.model"、responses 的 "response.model"、
 // gemini 的 "modelVersion"。字段不存在或无需替换时返回原始字节、changed=false。
 func UnifyModelInJSONBytes(ctx *gin.Context, raw []byte, modelPath string) (out []byte, changed bool) {
-	if ctx == nil || !config.UnifiedRequestResponseModelEnabled {
+	if ctx == nil {
 		return raw, false
 	}
 
