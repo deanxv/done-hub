@@ -962,6 +962,19 @@ func (h *GeminiStreamHandler) convertToOpenaiStream(geminiResponse *GeminiChatRe
 	h.Usage.CompletionTokens = completionTokens
 	h.Usage.CompletionTokensDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 
+	// 流式 completion 分项（image/audio/text）：与非流式 ConvertOpenAIUsage 对齐，
+	// 填充 CompletionTokensDetails 以支持 output_image_tokens 等 extra ratio 计费。
+	for _, c := range geminiResponse.UsageMetadata.CandidatesTokensDetails {
+		switch c.Modality {
+		case "IMAGE":
+			h.Usage.CompletionTokensDetails.ImageTokens = c.TokenCount
+		case "AUDIO":
+			h.Usage.CompletionTokensDetails.AudioTokens = c.TokenCount
+		case "TEXT":
+			h.Usage.CompletionTokensDetails.TextTokens = c.TokenCount
+		}
+	}
+
 	// total 兜底：保证 total >= prompt + completion（OpenAI 协议契约）。
 	// 允许 upstream total 比它大（reasoning 模型 thoughts 已计入 completion 不会偏大；
 	// 真大说明 upstream 有额外计费维度如 cache 包含在 prompt 里，信任 upstream 值不去动）。

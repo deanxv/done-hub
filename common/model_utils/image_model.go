@@ -13,6 +13,7 @@ var geminiNativeImageModelPrefixes = []string{
 	"gemini-3-pro-image",          // 覆盖 -preview
 	"gemini-3.1-flash-image",      // 覆盖 -preview
 	"gemini-3.1-flash-lite-image", // 前缀不被上一条覆盖，单列
+	"gemini-nano-banana",          // nano-banana 系列（2.1 及后续版本）
 }
 
 // IsGeminiNativeImageModel 判断是否为 Gemini 原生生图模型（走 generateContent）。
