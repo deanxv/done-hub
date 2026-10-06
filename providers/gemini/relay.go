@@ -213,6 +213,7 @@ func (h *GeminiRelayStreamHandler) HandlerStream(rawLine *[]byte, dataChan chan 
 
 	// 流式 completion 分项（image/audio/text）：与非流式 ConvertOpenAIUsage 对齐，
 	// 填充 CompletionTokensDetails 以支持 output_image_tokens 等 extra ratio 计费。
+	// 覆盖语义：Gemini 仅在末尾 chunk 下发完整 usage，各分项取最后一个非零值（与 PromptTokens 一致）。
 	for _, c := range geminiResponse.UsageMetadata.CandidatesTokensDetails {
 		switch c.Modality {
 		case "IMAGE":

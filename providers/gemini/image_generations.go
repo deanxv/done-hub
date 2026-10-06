@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"done-hub/common"
+	"done-hub/common/model_utils"
 	"done-hub/common/requester"
 	"done-hub/common/utils"
 	"done-hub/providers/base"
@@ -17,6 +18,17 @@ func (p *GeminiProvider) CreateImageGenerationsStream(request *types.ImageReques
 }
 
 func (p *GeminiProvider) CreateImageGenerations(request *types.ImageRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
+	// Gemini 原生生图模型（gemini-*-image、nano-banana 等）走 generateContent 端点，
+	// 不支持 :predict，必须走 /v1/chat/completions 或原生 /gemini/.../generateContent。
+	// 只有 imagen-* 系列才走 :predict。
+	if !model_utils.HasPrefixCaseInsensitive(request.Model, "imagen") {
+		return nil, common.StringErrorWrapperLocal(
+			"this model only supports image generation via chat completions or native Gemini API, not /v1/images/generations",
+			"unsupported_image_generation_path",
+			http.StatusBadRequest,
+		)
+	}
+
 	// 创建动态参数map
 	parameters := make(GeminiImageParametersDynamic)
 	parameters["sampleCount"] = request.N
@@ -92,10 +104,20 @@ func (p *GeminiProvider) CreateImageGenerations(request *types.ImageRequest) (*t
 		})
 	}
 
+	// 内容策略拦截了所有预测时，返回明确错误而非空成功响应，避免计费归零且符合 OpenAI 规范。
+	if len(openaiResponse.Data) == 0 {
+		return nil, common.StringErrorWrapper("all generated images were blocked by content policy", "content_policy_violation", http.StatusBadRequest)
+	}
+
 	usage := p.GetUsage()
-	// PromptTokens保持之前根据prompt内容计算的值
-	// CompletionTokens根据生成的图像数量计算，避免空回复计费问题
-	usage.CompletionTokens = imageCount * 258
+	// PromptTokens 保持之前根据 prompt 内容计算的值。
+	// Imagen predict 端点按每张图 258 token 计费（来源：Google cookbook），
+	// 与 Gemini 原生生图（generateContent 路径）的 1290 token/张是不同端点的不同标准，见 chat.go。
+	// 使用过滤后的实际图片数而非原始 Predictions 数，避免内容策略拦截部分预测时多计费。
+	const imagenTokensPerImage = 258
+	imageTokens := len(openaiResponse.Data) * imagenTokensPerImage
+	usage.CompletionTokens = imageTokens
+	usage.CompletionTokensDetails.ImageTokens = imageTokens
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return openaiResponse, nil
