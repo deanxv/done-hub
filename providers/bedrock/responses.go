@@ -39,6 +39,10 @@ var (
 // gpt-oss → InvokeModel openai payload），行为与本渠道未实现 ResponsesInterface 时一致。
 func (p *BedrockProvider) SupportsNativeResponses(modelName string) bool {
 	resolved := category.GetModelName(modelName, p.Region)
+	// xAI Grok 4.6 / 4.7 的 model card 明确 runtime 支持 Responses（/openai/v1/responses）。
+	if strings.Contains(resolved, "xai.") {
+		return true
+	}
 	return strings.Contains(resolved, "openai.") && !strings.Contains(resolved, "gpt-oss")
 }
 

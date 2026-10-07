@@ -44,10 +44,17 @@ var bedrockMap = map[string]string{
 	"gpt-5.6-sol":                "openai.gpt-5.6-sol",
 	"gpt-5.6-terra":              "openai.gpt-5.6-terra",
 	"gpt-5.6-luna":               "openai.gpt-5.6-luna",
+	"gpt-6-sol":                  "openai.gpt-6-sol",
+	"gpt-6-luna":                 "openai.gpt-6-luna",
+	"gpt-6-astra":                "openai.gpt-6-astra",
+	"gpt-6.1-sol":                "openai.gpt-6.1-sol",
+	// xAI Grok：仅 4.6 / 4.7 在 bedrock-runtime 上可用；4.3 只在 bedrock-mantle，本渠道接不了。
+	"grok-4.6": "xai.grok-4.6",
+	"grok-4.7": "xai.grok-4.7",
 }
 
-// 用户显式书写的区域前缀（手动覆盖优先）
-var regionPrefixes = []string{"global.", "us.", "eu.", "apac."}
+// 用户显式书写的区域前缀（手动覆盖优先）。"in." 为 GPT-5.6 Terra/Luna 的 India geo profile。
+var regionPrefixes = []string{"global.", "us.", "eu.", "apac.", "in."}
 
 // 各 bedrock 模型支持的跨区 inference profile：region 根（aws region 第一段，如
 // us-east-1 -> us）映射到该模型在此 region 实际可用的 profile 前缀。未列出的模型/region
@@ -103,12 +110,30 @@ var awsModelCanCrossRegionMap = map[string]map[string]string{
 	"anthropic.claude-fable-5":    {"us": "us", "eu": "global", "ap": "global", "*": "global"},
 	// fable-5-1：geo 仅 us.，EU/AP 无 geo profile，回落 global.
 	"anthropic.claude-fable-5-1": {"us": "us", "eu": "global", "ap": "global", "*": "global"},
-	// GPT-5.6 闭源系仅支持 inference profile 调用（裸 openai.xxx 会被 on-demand 400），
-	// 任意 region 统一走 global. profile（2026-08 实测 InvokeModel / chat-completions /
-	// responses 三端点均可用）。"*" 为 region 根通配，见 autoCrossRegionPrefix。
-	"openai.gpt-5.6-sol":   {"*": "global"},
-	"openai.gpt-5.6-terra": {"*": "global"},
-	"openai.gpt-5.6-luna":  {"*": "global"},
+	// GPT 闭源系（5.6 / 6 / 6.1）在 bedrock-runtime 上不支持 In-Region，只能走
+	// inference profile（裸 openai.xxx 会被 on-demand 400）。按 AWS model card：
+	//   - US Geo（us.）：source region 为 us-east-1/2、us-west-1/2、ca-central-1、ca-west-1，
+	//     故 us、ca 两个根都映射到 us.；
+	//   - India Geo（in.）：仅 GPT-5.6 Terra/Luna 有，source region 为 ap-south-1/2。
+	//     ap 根下其余区没有 in.，因此用完整 region 作 key（autoCrossRegionPrefix 优先匹配）；
+	//   - 其余商业区仅 global.，由 "*" 兜底。
+	// 注意 US/India Geo 相对 Global 有 10% 溢价（model card Pricing 节）。
+	"openai.gpt-5.6-sol": {"us": "us", "ca": "us", "*": "global"},
+	"openai.gpt-5.6-terra": {"us": "us", "ca": "us",
+		"ap-south-1": "in", "ap-south-2": "in", "*": "global"},
+	"openai.gpt-5.6-luna": {"us": "us", "ca": "us",
+		"ap-south-1": "in", "ap-south-2": "in", "*": "global"},
+	// GPT-6 系：Geo 只有 US，无 in./eu.。
+	// GPT-6 Astra 的 model card 标注 bedrock-runtime 不支持 Invoke（仅 Responses /
+	// Chat Completions / Converse），chat 路径走 InvokeModel 可能被拒，建议走 /v1/responses。
+	"openai.gpt-6-sol":   {"us": "us", "ca": "us", "*": "global"},
+	"openai.gpt-6-luna":  {"us": "us", "ca": "us", "*": "global"},
+	"openai.gpt-6-astra": {"us": "us", "ca": "us", "*": "global"},
+	"openai.gpt-6.1-sol": {"us": "us", "ca": "us", "*": "global"},
+	// xAI Grok 4.6 / 4.7：runtime 不支持 In-Region，US Geo 覆盖 us/ca 各区，其余商业区仅 global.。
+	// Grok 4.6 在 GovCloud（us-gov-*）只有 us.、没有 global.，region 根同为 us，自然落到 us.。
+	"xai.grok-4.6": {"us": "us", "ca": "us", "*": "global"},
+	"xai.grok-4.7": {"us": "us", "ca": "us", "*": "global"},
 }
 
 var CategoryMap = map[string]Category{}
@@ -128,6 +153,11 @@ func GetCategory(modelName, region string) (*Category, error) {
 	if model_utils.ContainsCaseInsensitive(modelName, "anthropic") {
 		provider = "anthropic"
 	} else if model_utils.ContainsCaseInsensitive(modelName, "openai.") {
+		provider = "openai"
+	} else if model_utils.ContainsCaseInsensitive(modelName, "xai.") {
+		// Grok 复用 openai category：AWS 经 OpenAI 兼容端点提供 Grok 的 Chat Completions。
+		// 注意 model card 只标注 Invoke 支持，未说明 InvokeModel 原生 body 格式，
+		// 本路径（InvokeModel + OpenAI Chat body）尚待实测。
 		provider = "openai"
 	}
 
@@ -180,7 +210,11 @@ func autoCrossRegionPrefix(awsModelID, region string) string {
 		return ""
 	}
 
-	profilePrefix, ok := profileMap[regionRoot]
+	// 查找顺序：完整 region（如 ap-south-1）> region 根（如 ap）> "*"
+	profilePrefix, ok := profileMap[region]
+	if !ok {
+		profilePrefix, ok = profileMap[regionRoot]
+	}
 	if !ok {
 		// "*"：不区分 region 根的通配 profile（如 GPT-5.6 全区走 global.）
 		profilePrefix, ok = profileMap["*"]
