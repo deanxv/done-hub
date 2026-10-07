@@ -6,11 +6,29 @@ import (
 	"done-hub/common/utils"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
 var HTTPClient *http.Client
 var relayRequestTimeout time.Duration
+
+var (
+	proxyClients     *utils.ProxyClientPool
+	proxyClientsOnce sync.Once
+)
+
+// GetHTTPClient 返回 proxyAddr 对应的 http.Client：空串为全局直连 HTTPClient，
+// 否则为该代理独享 Transport 的 client（继承 HTTPClient 的超时 / TLS / 连接池参数）。
+func GetHTTPClient(proxyAddr string) *http.Client {
+	proxyClientsOnce.Do(func() {
+		if HTTPClient == nil {
+			panic("requester: HTTPClient not initialized, call InitHttpClient first")
+		}
+		proxyClients = utils.NewProxyClientPool(func() *http.Client { return HTTPClient }, 10*time.Minute)
+	})
+	return proxyClients.Get(proxyAddr)
+}
 
 // streamIdleTimeout 流式空闲超时：每收到一段数据就重置，上游静默超过该时长即中止。
 // 与墙钟总超时（HTTPClient.Timeout）互补——墙钟是硬总封顶，本值精准处理"卡死流"。
@@ -35,8 +53,8 @@ func InitHttpClient() {
 	maxIdleConns := utils.GetOrDefault("max_idle_conns", 1000)
 
 	trans := &http.Transport{
-		DialContext: utils.Socks5ProxyFunc,
-		Proxy:       utils.ProxyFunc,
+		// 全局 Transport 只做直连；代理由 GetHTTPClient 按地址构建独立 Transport
+		DialContext: utils.NewDialer().DialContext,
 
 		MaxIdleConns:        maxIdleConns,
 		MaxIdleConnsPerHost: maxIdleConnsPerHost,

@@ -1,6 +1,7 @@
 package image
 
 import (
+	"context"
 	"done-hub/common/config"
 	"done-hub/common/utils"
 	"encoding/json"
@@ -11,11 +12,13 @@ import (
 
 var ImageHttpClients = &http.Client{
 	Transport: &http.Transport{
-		DialContext: utils.Socks5ProxyFunc,
-		Proxy:       utils.ProxyFunc,
+		DialContext: utils.NewDialer().DialContext,
 	},
 	Timeout: 15 * time.Second,
 }
+
+// imageProxyClients 按 ChatImageRequestProxy 隔离连接池；该配置可在运行时修改，旧代理 client 闲置后回收。
+var imageProxyClients = utils.NewProxyClientPool(func() *http.Client { return ImageHttpClients }, 10*time.Minute)
 
 var maxFileSize int64 = 20 * 1024 * 1024 // 20MB
 
@@ -47,13 +50,13 @@ func RequestFile(url, action string) (*http.Response, error) {
 		method = http.MethodPost
 	}
 
-	res, err := utils.RequestBuilder(utils.SetProxy(config.ChatImageRequestProxy, nil), method, reqUrl, requestBody, nil)
+	res, err := utils.RequestBuilder(context.Background(), method, reqUrl, requestBody, nil)
 
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := ImageHttpClients.Do(res)
+	response, err := imageProxyClients.Get(config.ChatImageRequestProxy).Do(res)
 	if err != nil {
 		return nil, err
 	}

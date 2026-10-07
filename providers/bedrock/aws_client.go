@@ -7,7 +7,6 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/requester"
-	"done-hub/common/utils"
 	"done-hub/types"
 	"errors"
 	"fmt"
@@ -32,8 +31,8 @@ const (
 )
 
 // getAwsClient 懒构造 bedrockruntime.Client。
-// 复用共享的 requester.HTTPClient（继承 relay_timeout / 连接池 / TLS 等全部配置）；
-// 代理走 context 注入（见 invokeContext），因此这里不需要 transport-baked client。
+// 使用 requester.GetHTTPClient 按渠道代理取 client：直连复用共享 HTTPClient，
+// 有代理时为该代理独享 Transport 的 client（继承 relay_timeout / 连接池 / TLS 等配置）。
 func (p *BedrockProvider) getAwsClient() (*bedrockruntime.Client, error) {
 	if p.client != nil {
 		return p.client, nil
@@ -41,7 +40,7 @@ func (p *BedrockProvider) getAwsClient() (*bedrockruntime.Client, error) {
 
 	opts := bedrockruntime.Options{
 		Region:     p.Region,
-		HTTPClient: requester.HTTPClient,
+		HTTPClient: requester.GetHTTPClient(p.Channel.GetProxy()),
 		// 关闭 SDK 自带重试：done-hub 在 relay 层已有统一的多渠道重试/冷却逻辑，
 		// 不需要 SDK 再对单渠道做指数退避（否则单次请求墙钟被放大）。
 		Retryer:    aws.NopRetryer{},
@@ -60,10 +59,8 @@ func (p *BedrockProvider) getAwsClient() (*bedrockruntime.Client, error) {
 	return p.client, nil
 }
 
-// invokeContext 返回调用 SDK 用的 context：以 gin 请求 context 为基（继承取消/超时），
-// 并注入渠道代理地址，供共享 requester.HTTPClient 的 transport 读取。
+// invokeContext 返回调用 SDK 用的 context：以 gin 请求 context 为基，但屏蔽父级取消。
 func (p *BedrockProvider) invokeContext() context.Context {
-	var base context.Context = context.Background()
 	if p.Context != nil {
 		// 沿用项目"客户端断开不影响上游请求"的设计理念（见 base.SetContext 的 WithoutCancel）：
 		// 客户端提前断开时 gin request context 会被取消，若直接以它为 base，取消信号会透传给
@@ -71,9 +68,9 @@ func (p *BedrockProvider) invokeContext() context.Context {
 		// WithoutCancel 保留 context 中的值（trace 等），但屏蔽父级取消；墙钟由共享
 		// HTTPClient.Timeout 兜底，不会无限挂起。Bedrock 走 SDK 不经 HTTPRequester，
 		// 故 base.SetContext 对 Requester.Context 的 WithoutCancel 处理对本路径无效，需在此单独处理。
-		base = context.WithoutCancel(p.Context.Request.Context())
+		return context.WithoutCancel(p.Context.Request.Context())
 	}
-	return utils.SetProxy(p.Channel.GetProxy(), base)
+	return context.Background()
 }
 
 // captureResponseMiddleware 在 Deserialize 阶段截获原始 *http.Response，做三件事：

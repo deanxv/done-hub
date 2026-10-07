@@ -54,10 +54,6 @@ type requestOptions struct {
 
 type requestOption func(*requestOptions)
 
-func (r *HTTPRequester) setProxy() context.Context {
-	return utils.SetProxy(r.proxyAddr, r.Context)
-}
-
 // 创建请求
 func (r *HTTPRequester) NewRequest(method, url string, setters ...requestOption) (*http.Request, error) {
 	args := &requestOptions{
@@ -67,7 +63,11 @@ func (r *HTTPRequester) NewRequest(method, url string, setters ...requestOption)
 	for _, setter := range setters {
 		setter(args)
 	}
-	req, err := utils.RequestBuilder(r.setProxy(), method, url, args.body, args.header)
+	ctx := r.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := utils.RequestBuilder(ctx, method, url, args.body, args.header)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (r *HTTPRequester) SendRequest(req *http.Request, response any, outputResp 
 		req = req.WithContext(ctx)
 	}
 
-	resp, err := HTTPClient.Do(req)
+	resp, err := GetHTTPClient(r.proxyAddr).Do(req)
 	if err != nil {
 		return nil, common.ErrorWrapper(err, "http_request_failed", http.StatusInternalServerError)
 	}
@@ -140,7 +140,7 @@ func (r *HTTPRequester) SendRequest(req *http.Request, response any, outputResp 
 // 发送请求 RAW
 func (r *HTTPRequester) SendRequestRaw(req *http.Request) (*http.Response, *types.OpenAIErrorWithStatusCode) {
 	// 发送请求
-	resp, err := HTTPClient.Do(req)
+	resp, err := GetHTTPClient(r.proxyAddr).Do(req)
 	if err != nil {
 		return nil, common.ErrorWrapper(err, "http_request_failed", http.StatusInternalServerError)
 	}

@@ -153,7 +153,7 @@ func MjTaskHandler(midjourneyChannel *model.Channel, taskIds []string, taskM map
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("mj-api-secret", midjourneyChannel.Key)
-	resp, err := requester.HTTPClient.Do(req)
+	resp, err := requester.GetHTTPClient(midjourneyChannel.GetProxy()).Do(req)
 	if err != nil {
 		return fmt.Errorf("get task do req error: %v", err)
 	}
@@ -260,9 +260,6 @@ func checkMjTaskNeedUpdate(oldTask *model.Midjourney, newTask provider.Midjourne
 		return true
 	}
 	if oldTask.FailReason != newTask.FailReason {
-		return true
-	}
-	if oldTask.FinishTime != newTask.FinishTime {
 		return true
 	}
 	if oldTask.Progress != "100%" && newTask.FailReason != "" {
