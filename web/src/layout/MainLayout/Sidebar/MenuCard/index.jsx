@@ -162,19 +162,39 @@ const MenuCard = () => {
             </Typography>
 
             {user && userGroup && userGroup[user.group] && (
-              <InfoChip
-                label={
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    {/*<Icon icon="solar:heart-bold" color={theme.palette.error.main} width={12} />*/}
-                    <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
-                      {userGroup[user.group].name} | RPM:{userGroup[user.group].api_rate}
-                    </Typography>
-                  </Stack>
-                }
-                size="small"
-                variant="outlined"
-                color="primary"
-              />
+              <Box
+                sx={{
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '0.65rem',
+                  lineHeight: 1.4
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: '0.65rem',
+                    fontWeight: 500,
+                    color: 'primary.main',
+                    display: 'block',
+                    wordBreak: 'break-word'
+                  }}
+                >
+                  {userGroup[user.group].name}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: '0.6rem',
+                    fontWeight: 400,
+                    color: 'text.secondary',
+                    display: 'block'
+                  }}
+                >
+                  {t('profilePage.rate')}:{userGroup[user.group].ratio} / {t('profilePage.speed')}:{userGroup[user.group].api_rate}
+                </Typography>
+              </Box>
             )}
           </Box>
         </Stack>

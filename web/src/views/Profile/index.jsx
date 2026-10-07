@@ -384,8 +384,49 @@ export default function Profile() {
                     />
                   </Box>
                   <Typography variant="h3">{inputs.username}</Typography>
-                  <Typography variant="body2" color="textSecondary">{inputs.email}</Typography>
-                  <Chip label={getGroupInfo()} color="primary" variant="outlined" />
+                  <Typography variant="body2" color="textSecondary" sx={{ wordBreak: 'break-word' }}>
+                    {inputs.email}
+                  </Typography>
+                  {inputs.group && userGroupMap[inputs.group] ? (
+                    <Box
+                      sx={{
+                        border: `1px solid ${theme.palette.primary.main}`,
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        maxWidth: '100%'
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          color: 'primary.main',
+                          display: 'block',
+                          wordBreak: 'break-word',
+                          mb: 0.5
+                        }}
+                      >
+                        {userGroupMap[inputs.group].name}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontSize: '0.75rem',
+                          color: 'text.secondary',
+                          display: 'block'
+                        }}
+                      >
+                        {t('profilePage.rate')}: {userGroupMap[inputs.group].ratio} / {t('profilePage.speed')}: {userGroupMap[inputs.group].api_rate}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Chip
+                      label={inputs.group || 'default'}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  )}
                 </Stack>
               </SubCard>
             </Grid>
