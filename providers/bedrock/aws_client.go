@@ -219,14 +219,17 @@ func awsErrorStatusCode(err error) int {
 func (p *BedrockProvider) awsErrorToOpenAI(err error) *types.OpenAIErrorWithStatusCode {
 	statusCode := awsErrorStatusCode(err)
 
-	// 结构化上游错误：透传 AWS 原文。
+	// 结构化上游错误：透传 AWS 原文（含完整调用链，如 InvokeModelWithResponseStream: operation error...）。
 	var apiErr smithyAPIError
 	if errors.As(err, &apiErr) {
 		if msg := apiErr.ErrorMessage(); msg != "" {
+			// 使用 err.Error() 获取完整 SDK 错误链（包含 API 名称、RequestID、ValidationException 等完整上下文），
+			// 而非仅 ErrorMessage()（只有纯错误描述）。官方 SDK 错误格式示例：
+			// "InvokeModelWithResponseStream: operation error Bedrock Runtime: InvokeModelWithResponseStream, https response error StatusCode: 400, RequestID: xxx, ValidationException: ..."
 			return &types.OpenAIErrorWithStatusCode{
 				OpenAIError: types.OpenAIError{
-					Message: msg,
-					Type:    "Bedrock Error",
+					Message: err.Error(), // 完整 AWS SDK 错误链
+					Type:    "aws_invoke_error",
 					Code:    apiErr.ErrorCode(),
 				},
 				StatusCode: statusCode,

@@ -308,6 +308,8 @@ func GetDefaultPrice() []*Price {
 		"claude-3-sonnet-20240229": {[]float64{1.3, 3.9}, config.ChannelTypeAnthropic},
 		//  $0.25 / M $1.25 / M  0.00025$ / 1k tokens 0.00125$ / 1k tokens
 		"claude-3-haiku-20240307": {[]float64{0.125, 0.625}, config.ChannelTypeAnthropic},
+		// $0.10 / M $0.50 / M (≤100K prompt); long context >100K: 5x input, 5x output
+		"claude-haiku-5-5": {[]float64{0.05, 0.25}, config.ChannelTypeAnthropic},
 
 		// ￥0.004 / 1k tokens ￥0.008 / 1k tokens
 		"ERNIE-Speed": {[]float64{0.2857, 0.5714}, config.ChannelTypeBaidu},
@@ -556,6 +558,28 @@ func GetDefaultPrice() []*Price {
 			Input:       lyriaPrice,
 			Output:      lyriaPrice,
 		})
+	}
+
+	// claude-haiku-5-5：长上下文分档（输入 >100K token 时整次请求按 5x 倍率计费）
+	// 及缓存 ExtraRatios（相对 input 的倍率，与 done-hub 约定一致）。
+	// 官方定价（2026-10-07）：≤100K $0.10/$0.50，>100K $0.50/$2.50 per MTok；
+	// 缓存写入 $0.125（5min）/ $0.20（1h），缓存读取 $0.01 per MTok。
+	haiku55LC := datatypes.NewJSONType(LongContextTier{
+		Threshold:   100000,
+		InputRatio:  5,
+		OutputRatio: 5,
+	})
+	haiku55Extra := datatypes.NewJSONType(map[string]float64{
+		config.UsageExtraCachedWrite:   1.25, // $0.125 / $0.10
+		config.UsageExtraCachedWrite1h: 2.0,  // $0.20  / $0.10
+		config.UsageExtraCachedRead:    0.1,  // $0.01  / $0.10
+	})
+	for i, p := range prices {
+		if p.Model == "claude-haiku-5-5" {
+			prices[i].LongContext = &haiku55LC
+			prices[i].ExtraRatios = &haiku55Extra
+			break
+		}
 	}
 
 	return prices

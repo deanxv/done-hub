@@ -638,9 +638,10 @@ const typeConfig = {
         'claude-opus-4-7',
         'claude-sonnet-5-5',
         'claude-sonnet-5',
+        'claude-haiku-5-5',
         'claude-haiku-4-5'
       ],
-      test_model: 'claude-haiku-4-5'
+      test_model: 'claude-haiku-5-5'
     },
     prompt: {
       key: '按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空；或 Region|BearerToken'
