@@ -1,6 +1,7 @@
 package epay
 
 import (
+	"done-hub/common/logger"
 	"done-hub/model"
 	"done-hub/payment/types"
 	"encoding/json"
@@ -63,24 +64,34 @@ func (e *Epay) HandleCallback(c *gin.Context, gatewayConfig string) (*types.PayN
 		}
 	}
 
+	if err := validateNotifyParams(queryMap); err != nil {
+		logger.SysError(fmt.Sprintf("epay callback params invalid: %v, params: %+v", err, queryMap))
+		c.Writer.Write([]byte("fail"))
+		return nil, fmt.Errorf("invalid callback params: %w", err)
+	}
+
 	epayConfig, err := getEpayConfig(gatewayConfig)
 	if err != nil {
 		c.Writer.Write([]byte("fail"))
-		return nil, fmt.Errorf("tradeNo: %s, PaymentNo: %s,  err: %v", queryMap["out_trade_no"], queryMap["trade_no"], err)
+		return nil, fmt.Errorf("tradeNo: %s, err: %v", queryMap["out_trade_no"], err)
 	}
 
-	paymentResult, success := epayConfig.Verify(queryMap)
-	if paymentResult != nil && success {
-		c.Writer.Write([]byte("success"))
-		payNotify := &types.PayNotify{
-			TradeNo:   paymentResult.OutTradeNo,
-			GatewayNo: paymentResult.TradeNo,
-		}
-		return payNotify, nil
+	if err := epayConfig.verifySignature(queryMap); err != nil {
+		logger.SysError(fmt.Sprintf("epay signature verification failed: %v, params: %+v", err, queryMap))
+		c.Writer.Write([]byte("fail"))
+		return nil, fmt.Errorf("tradeNo: %s, signature verification failed", queryMap["out_trade_no"])
 	}
 
-	c.Writer.Write([]byte("fail"))
-	return nil, fmt.Errorf("tradeNo: %s, PaymentNo: %s,  Verify Sign failed", queryMap["out_trade_no"], queryMap["trade_no"])
+	if queryMap["trade_status"] != TradeStatusSuccess {
+		c.Writer.Write([]byte("fail"))
+		return nil, fmt.Errorf("tradeNo: %s, invalid trade status: %s", queryMap["out_trade_no"], queryMap["trade_status"])
+	}
+
+	c.Writer.Write([]byte("success"))
+	return &types.PayNotify{
+		TradeNo:   queryMap["out_trade_no"],
+		GatewayNo: queryMap["trade_no"],
+	}, nil
 }
 
 func getEpayConfig(gatewayConfig string) (*EpayConfig, error) {

@@ -1,7 +1,11 @@
 package model
 
 import (
+	"fmt"
 	"time"
+
+	"done-hub/common/config"
+	"done-hub/common/redis"
 
 	"gorm.io/gorm"
 )
@@ -56,8 +60,39 @@ func (o *Order) Insert() error {
 	return DB.Create(o).Error
 }
 
-func (o *Order) Update() error {
-	return DB.Save(o).Error
+// CompleteOrder 把 pending 订单置为支付成功并在同一事务内给用户加额度。
+// 返回 false 表示订单已不是 pending（重复回调），此时不做任何入账。
+// 改单和加额度同事务，避免出现"订单已成功但额度没到账"的半完成状态。
+func CompleteOrder(tradeNo string, gatewayNo string, userId int, quota int) (bool, error) {
+	completed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Order{}).
+			Where("trade_no = ? AND status = ?", tradeNo, OrderStatusPending).
+			Updates(map[string]interface{}{"gateway_no": gatewayNo, "status": OrderStatusSuccess})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+
+		if err := IncreaseUserQuotaWithTx(tx, userId, quota); err != nil {
+			return err
+		}
+
+		completed = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if completed && config.RedisEnabled {
+		// 事务已提交，此时清缓存才能保证下次读取拿到新额度
+		_ = redis.RedisDel(fmt.Sprintf(UserQuotaCacheKey, userId))
+	}
+
+	return completed, nil
 }
 
 var allowedOrderFields = map[string]bool{

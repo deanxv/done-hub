@@ -177,31 +177,21 @@ func PaymentCallback(c *gin.Context) {
 		return
 	}
 
-	LockOrder(payNotify.GatewayNo)
-	defer UnlockOrder(payNotify.GatewayNo)
+	LockOrder(payNotify.TradeNo)
+	defer UnlockOrder(payNotify.TradeNo)
 
 	order, err := model.GetOrderByTradeNo(payNotify.TradeNo)
 	if err != nil {
 		logger.SysError(fmt.Sprintf("gateway callback failed to find order, trade_no: %s,", payNotify.TradeNo))
 		return
 	}
-	//fmt.Println(order.Status, order.Status != model.OrderStatusPending)
 
-	if order.Status != model.OrderStatusPending {
-		return
-	}
-
-	order.GatewayNo = payNotify.GatewayNo
-	order.Status = model.OrderStatusSuccess
-	err = order.Update()
+	completed, err := model.CompleteOrder(payNotify.TradeNo, payNotify.GatewayNo, order.UserId, order.Quota)
 	if err != nil {
 		logger.SysError(fmt.Sprintf("gateway callback failed to update order, trade_no: %s,", payNotify.TradeNo))
 		return
 	}
-
-	err = model.IncreaseUserQuota(order.UserId, order.Quota)
-	if err != nil {
-		logger.SysError(fmt.Sprintf("gateway callback failed to increase user quota, trade_no: %s,", payNotify.TradeNo))
+	if !completed {
 		return
 	}
 
@@ -328,24 +318,15 @@ func EpayCallback(c *gin.Context) {
 		return
 	}
 
-	LockOrder(payNotify.GatewayNo)
-	defer UnlockOrder(payNotify.GatewayNo)
+	LockOrder(payNotify.TradeNo)
+	defer UnlockOrder(payNotify.TradeNo)
 
-	if order.Status != model.OrderStatusPending {
+	completed, err := model.CompleteOrder(payNotify.TradeNo, payNotify.GatewayNo, order.UserId, order.Quota)
+	if err != nil {
+		logger.SysError(fmt.Sprintf("epay callback failed to update order, trade_no: %s", payNotify.TradeNo))
 		return
 	}
-
-	order.GatewayNo = payNotify.GatewayNo
-	order.Status = model.OrderStatusSuccess
-	err = order.Update()
-	if err != nil {
-		logger.SysError(fmt.Sprintf("epay callback failed to update order, trade_no: %s", tradeNo))
-		return
-	}
-
-	err = model.IncreaseUserQuota(order.UserId, order.Quota)
-	if err != nil {
-		logger.SysError(fmt.Sprintf("epay callback failed to increase user quota, trade_no: %s", tradeNo))
+	if !completed {
 		return
 	}
 
