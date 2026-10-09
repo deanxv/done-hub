@@ -2,6 +2,7 @@ package controller
 
 import (
 	"done-hub/common/config"
+	"done-hub/common/logger"
 	"done-hub/model"
 	"encoding/base64"
 	"encoding/json"
@@ -36,6 +37,23 @@ func LinuxDoBind(c *gin.Context) {
 		return
 	}
 
+	// CSRF 防护：验证 state 参数（防止攻击者通过构造的 code 参数覆盖绑定）
+	session := sessions.Default(c)
+	state := c.Query("state")
+	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "无效的 state 参数，请重新开始绑定流程",
+		})
+		return
+	}
+
+	// 验证通过后立即清理 state，防止重放攻击
+	session.Delete("oauth_state")
+	if err := session.Save(); err != nil {
+		logger.SysError(fmt.Sprintf("Failed to delete oauth_state in LinuxDoBind: %v", err))
+	}
+
 	code := c.Query("code")
 	linuxDoUser, err := getLinuxDoUserInfoByCode(code, c)
 	if err != nil {
@@ -68,15 +86,40 @@ func LinuxDoBind(c *gin.Context) {
 		return
 	}
 
-	session := sessions.Default(c)
-	id := session.Get("id")
-	user.Id = id.(int)
+	// session 已在函数开头获取，这里直接使用
+	idVal := session.Get("id")
+	if idVal == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话无效，请重新登录",
+		})
+		return
+	}
+	userId, ok := idVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户 ID 类型错误",
+		})
+		return
+	}
+	user.Id = userId
 
 	err = user.FillUserById()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
+		})
+		return
+	}
+
+	// 安全检查：防止覆盖式重绑攻击
+	// 如果当前用户已有 LinuxDo 绑定，禁止直接覆盖
+	if user.LinuxDoId != 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "当前账号已绑定 LINUX DO，如需更换请先解绑",
 		})
 		return
 	}
@@ -202,6 +245,12 @@ func LinuxDoOAuth(c *gin.Context) {
 	if username != nil {
 		LinuxDoBind(c)
 		return
+	}
+
+	// 验证通过后立即清理 state，防止重放攻击
+	session.Delete("oauth_state")
+	if err := session.Save(); err != nil {
+		logger.SysError(fmt.Sprintf("Failed to delete oauth_state in LinuxDoOAuth: %v", err))
 	}
 
 	if !config.LinuxDoOAuthEnabled {

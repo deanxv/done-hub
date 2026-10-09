@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -168,18 +169,21 @@ func GeminiCliOAuthCallback(c *gin.Context) {
 		errorDesc := c.Query("error_description")
 		logger.SysError(fmt.Sprintf("OAuth callback error: %s - %s", errorParam, errorDesc))
 
+		// 清理 error_description，防止 XSS 攻击
+		safeErrorDesc := truncateErrorDescription(errorDesc)
+
 		// 保存错误结果到缓存
 		if state != "" {
 			resultCacheKey := OAuthResultCachePrefix + state
 			resultData := OAuthResultData{
 				Success:     false,
-				Message:     fmt.Sprintf("授权失败: %s", errorDesc),
+				Message:     fmt.Sprintf("授权失败: %s", safeErrorDesc),
 				CompletedAt: time.Now().Unix(),
 			}
 			cache.SetCache(resultCacheKey, resultData, OAuthResultCacheDuration)
 		}
 
-		renderOAuthResult(c, false, fmt.Sprintf("授权失败: %s", errorDesc), "", "", state)
+		renderOAuthResult(c, false, fmt.Sprintf("授权失败: %s", safeErrorDesc), "", "", state)
 		return
 	}
 
@@ -208,9 +212,6 @@ func GeminiCliOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	// 删除已使用的 state
-	cache.DeleteCache(cacheKey)
-
 	// 使用 code 交换 token（使用会话中保存的代理配置）
 	redirectURI := "http://localhost:8080/api/geminicli/oauth/callback"
 
@@ -218,7 +219,7 @@ func GeminiCliOAuthCallback(c *gin.Context) {
 	if err != nil {
 		logger.SysError(fmt.Sprintf("Failed to exchange code for token: %s", err.Error()))
 
-		// 保存错误结果到缓存
+		// 保存错误结果到缓存（state 保留，依赖 TTL 过期）
 		resultCacheKey := OAuthResultCachePrefix + state
 		resultData := OAuthResultData{
 			Success:     false,
@@ -322,6 +323,7 @@ func GeminiCliOAuthCallback(c *gin.Context) {
 	// 构建成功消息
 	successMessage := "授权成功"
 	if autoDetected {
+		// 不做 HTML 转义：renderOAuthResult 会对整个 message 统一转义，此处再转会双重转义
 		successMessage = fmt.Sprintf("授权成功！已自动检测并使用项目 ID: %s", projectID)
 	}
 
@@ -336,12 +338,31 @@ func GeminiCliOAuthCallback(c *gin.Context) {
 	}
 	cache.SetCache(resultCacheKey, resultData, OAuthResultCacheDuration)
 
+	// 成功后删除 state 缓存（失败路径保留，依赖 TTL 过期）
+	cache.DeleteCache(cacheKey)
+
 	// 返回 HTML 页面，通过 postMessage 发送凭证给父窗口（如果有的话）
 	renderOAuthResult(c, true, successMessage, projectID, credsJSON, state)
 }
 
 // renderOAuthResult 渲染 OAuth 结果页面
 func renderOAuthResult(c *gin.Context, success bool, message, projectID, credentials, state string) {
+	// 生成 nonce 用于 CSP；失败时拒绝渲染而非降级到可预测值
+	nonce := generateNonce()
+	if nonce == "" {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	// 在 render 层统一做 HTML 转义，覆盖所有调用路径（包括 err.Error() 分支）
+	safeMessage := html.EscapeString(message)
+	// projectID 与 credentials 一致，用 json.Marshal 生成 JS 字面量：
+	// 输出自带引号，且默认转义 < > &（覆盖 </script>），无需手写转义。
+	safeProjectID := "null"
+	if b, err := json.Marshal(projectID); err == nil {
+		safeProjectID = string(b)
+	}
+
 	successStr := "true"
 	credentialsJSON := "null"
 	statusClass := "success"
@@ -351,7 +372,6 @@ func renderOAuthResult(c *gin.Context, success bool, message, projectID, credent
 		<circle cx="40" cy="40" r="32" fill="#34C759"/>
 		<path d="M25 40L35 50L55 30" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 	</svg>`
-	detailMessage := message
 
 	if !success {
 		statusClass = "error"
@@ -363,14 +383,14 @@ func renderOAuthResult(c *gin.Context, success bool, message, projectID, credent
 			<path d="M30 30L50 50M50 30L30 50" stroke="white" stroke-width="4" stroke-linecap="round"/>
 		</svg>`
 	} else if credentials != "" {
-		// 转义 JSON 字符串中的特殊字符
-		escapedCreds := strings.ReplaceAll(credentials, `\`, `\\`)
-		escapedCreds = strings.ReplaceAll(escapedCreds, `"`, `\"`)
-		escapedCreds = strings.ReplaceAll(escapedCreds, "\n", `\n`)
-		credentialsJSON = fmt.Sprintf(`"%s"`, escapedCreds)
+		// 用 json.Marshal 生成 JS 字符串字面量：默认会把 < > & 转义为 < 等，
+		// 覆盖 </script>、控制字符等所有在 <script> 块中危险的字符。
+		if b, err := json.Marshal(credentials); err == nil {
+			credentialsJSON = string(b)
+		}
 	}
 
-	html := fmt.Sprintf(`
+	htmlContent := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <head>
@@ -492,13 +512,16 @@ func renderOAuthResult(c *gin.Context, success bool, message, projectID, credent
         <h1>%s</h1>
         <p class="message">%s</p>
         <p class="countdown" id="countdown">窗口将在 3 秒后自动关闭</p>
-        <button class="close-btn" onclick="closeWindow()">关闭窗口</button>
+        <button class="close-btn" id="closeBtn">关闭窗口</button>
     </div>
-    <script>
+    <script nonce="%s">
         console.log('OAuth callback page loaded');
         console.log('Success:', %s);
-        console.log('ProjectID:', '%s');
+        console.log('ProjectID:', %s);
         console.log('Credentials:', %s);
+
+        // 绑定关闭按钮事件（CSP 不允许 inline event handler）
+        document.getElementById('closeBtn').addEventListener('click', closeWindow);
 
         // 发送消息给父窗口
         if (window.opener && !window.opener.closed) {
@@ -506,7 +529,7 @@ func renderOAuthResult(c *gin.Context, success bool, message, projectID, credent
             window.opener.postMessage({
                 type: 'geminicli_oauth_result',
                 success: %s,
-                projectId: '%s',
+                projectId: %s,
                 credentials: %s
             }, '*');
             console.log('Message sent');
@@ -544,10 +567,14 @@ func renderOAuthResult(c *gin.Context, success bool, message, projectID, credent
     </script>
 </body>
 </html>
-`, statusClass, iconSVG, statusText, detailMessage, successStr, projectID, credentialsJSON, successStr, projectID, credentialsJSON)
+`, statusClass, iconSVG, statusText, safeMessage, nonce, successStr, safeProjectID, credentialsJSON, successStr, safeProjectID, credentialsJSON)
 
+	// 添加安全 headers - 使用 nonce 而非 unsafe-inline
+	c.Header("Content-Security-Policy", fmt.Sprintf("default-src 'none'; script-src 'nonce-%s'; style-src 'unsafe-inline'; img-src 'self'", nonce))
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("X-Frame-Options", "DENY")
 	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, html)
+	c.String(http.StatusOK, htmlContent)
 }
 
 // enableRequiredAPIs 启用必需的 API 服务
@@ -793,17 +820,6 @@ func getUserProjects(accessToken, proxyURL string) ([]GoogleCloudProject, error)
 	}
 
 	return activeProjects, nil
-}
-
-// generateRandomProjectID 生成随机的项目 ID（当无法检测到项目时使用）
-func generateRandomProjectID() string {
-	randomBytes := make([]byte, 4)
-	if _, err := rand.Read(randomBytes); err != nil {
-		// 降级使用时间戳
-		randomBytes = []byte(fmt.Sprintf("%08x", time.Now().UnixNano()&0xFFFFFFFF))[:4]
-	}
-	randomID := fmt.Sprintf("%x", randomBytes)
-	return fmt.Sprintf("projects/random-%s/locations/global", randomID)
 }
 
 // selectDefaultProject 从项目列表中选择默认项目

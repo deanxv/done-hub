@@ -85,7 +85,8 @@ var allowedUserOrderFields = map[string]bool{
 
 func GetUsersList(params *GenericParams) (*DataResult[User], error) {
 	var users []*User
-	db := DB.Omit("password")
+	// 移除敏感字段：password 和 access_token
+	db := DB.Omit("password", "access_token")
 	if params.Keyword != "" {
 		groupCol := "`group`"
 		if common.UsingPostgreSQL {
@@ -106,8 +107,21 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	if selectAll {
 		err = DB.First(&user, "id = ?", id).Error
 	} else {
-		err = DB.Omit("password").First(&user, "id = ?", id).Error
+		// 移除敏感字段：password 和 access_token
+		err = DB.Omit("password", "access_token").First(&user, "id = ?", id).Error
 	}
+	return &user, err
+}
+
+// GetSelfById 返回用户自己的记录，用于 /api/user/self。
+// 与 GetUserById(id, false) 的区别：保留 access_token（owner 查看自己的令牌），
+// 但仍排除 password。仅用于已确认身份的 self 端点，不可用于查询他人。
+func GetSelfById(id int) (*User, error) {
+	if id == 0 {
+		return nil, errors.New("id 为空！")
+	}
+	user := User{Id: id}
+	err := DB.Omit("password").First(&user, "id = ?", id).Error
 	return &user, err
 }
 
