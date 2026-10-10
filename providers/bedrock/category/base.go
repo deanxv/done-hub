@@ -94,11 +94,15 @@ var awsModelCanCrossRegionMap = map[string]map[string]string{
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
 	"anthropic.claude-sonnet-4-6":               {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
 	"anthropic.claude-haiku-4-5-20251001-v1:0":  {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
-	"anthropic.claude-opus-4-5-20251101-v1:0":   {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
-	"anthropic.claude-opus-4-6-v1":              {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
-	"anthropic.claude-opus-4-7":                 {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
-	"anthropic.claude-opus-4-8":                 {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
-	"anthropic.claude-opus-5":                   {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
+	// haiku-5-5：与 haiku-4-5 同代规则——In-Region 不支持，必须走 profile；geo 有 us/eu/au/jp，
+	// 故 us（含 ca，ca-central-1/ca-west-1 的 Geo source 归 US）、eu 区各走对应 geo，ap 及
+	// 其余区走 global（本表 region 根粒度表达不出 au./jp.）。
+	"anthropic.claude-haiku-5-5":              {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
+	"anthropic.claude-opus-4-5-20251101-v1:0": {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
+	"anthropic.claude-opus-4-6-v1":            {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
+	"anthropic.claude-opus-4-7":               {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
+	"anthropic.claude-opus-4-8":               {"us": "us", "ca": "us", "eu": "eu", "ap": "global", "*": "global"},
+	"anthropic.claude-opus-5":                 {"us": "us", "eu": "eu", "ap": "global", "*": "global"},
 	// opus-5-5：geo 最全（us/eu/au/jp 均有）。本表的 region 根只区分到 us/eu/ap，
 	// au./jp. 表达不出来，故 AP 区统一用 global（可用且无区域溢价）；
 	// 需要 au./jp. 数据驻留的部署可在模型名上显式写前缀覆盖。

@@ -340,6 +340,8 @@ const typeConfig = {
         'claude-3-opus-20240229',
         'claude-3-sonnet-20240229',
         'claude-3-haiku-20240307',
+        'claude-haiku-4-5-20251001',
+        'claude-haiku-5-5',
         'gpt-oss-120b',
         'gpt-oss-20b',
         'gpt-5.6-sol',
