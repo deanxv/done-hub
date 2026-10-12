@@ -1851,7 +1851,6 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
                         value={values.need2response_models || ''}
                         onBlur={handleBlur}
                         onChange={handleChange}
-                        disabled={hasTag}
                       />
                       {touched.need2response_models && errors.need2response_models ? (
                         <FormHelperText error id="helper-tex-channel-need2response_models-label">
