@@ -132,12 +132,18 @@ func testChannel(channel *model.Channel, testModel string) (openaiErr *types.Ope
 			return nil, errors.New("channel not implemented")
 		}
 
-		response, openAIErrorWithStatusCode = createResponsesForTest(responseProvider, newModelName, false)
+		testRequest := &types.OpenAIResponsesRequest{
+			Input:  "You just need to output 'hi' next.",
+			Model:  newModelName,
+			Stream: false,
+		}
+
+		response, openAIErrorWithStatusCode = responseProvider.CreateResponses(testRequest)
 	case "chat":
 		if channel.ShouldUseResponsesForModel(newModelName) {
 			responseProvider, ok := provider.(providers_base.ResponsesInterface)
 			if ok {
-				response, openAIErrorWithStatusCode = createResponsesForTest(responseProvider, newModelName, true)
+				response, openAIErrorWithStatusCode = createChatResponsesForTest(responseProvider, newModelName)
 				break
 			}
 		}
@@ -214,7 +220,9 @@ func getModelType(modelName string) string {
 	return "chat"
 }
 
-func createResponsesForTest(responseProvider providers_base.ResponsesInterface, modelName string, convertChat bool) (any, *types.OpenAIErrorWithStatusCode) {
+// createChatResponsesForTest 按 relay 的 chat→Responses 兼容路径测速。
+// pro / deep-research 类模型非流式完整生成可能超出测速超时，故走流式，收到首个非空事件即视为可用。
+func createChatResponsesForTest(responseProvider providers_base.ResponsesInterface, modelName string) (any, *types.OpenAIErrorWithStatusCode) {
 	chatRequest := &types.ChatCompletionRequest{
 		Messages: []types.ChatCompletionMessage{
 			{
@@ -222,12 +230,11 @@ func createResponsesForTest(responseProvider providers_base.ResponsesInterface, 
 				Content: "You just need to output 'hi' next.",
 			},
 		},
-		Model: modelName,
-		// chat→Responses 兼容路径（convertChat=true）走 stream，原生 Responses 测速走非流式
-		Stream: convertChat,
+		Model:  modelName,
+		Stream: true,
 	}
 	streamRequest := chatRequest.ToResponsesRequest()
-	streamRequest.ConvertChat = convertChat
+	streamRequest.ConvertChat = true
 
 	stream, streamErr := responseProvider.CreateResponsesStream(streamRequest)
 	if streamErr != nil {
@@ -251,10 +258,9 @@ func createResponsesForTest(responseProvider providers_base.ResponsesInterface, 
 			}
 
 			return map[string]any{
-				"model":        modelName,
-				"mode":         "responses_stream",
-				"convert_chat": convertChat,
-				"ok":           true,
+				"model": modelName,
+				"mode":  "chat_to_responses_stream",
+				"ok":    true,
 			}, nil
 		case readErr, ok := <-errChan:
 			if !ok {

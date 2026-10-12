@@ -362,6 +362,10 @@ func writeChatStreamFrame(c *gin.Context, chunk types.ChatCompletionStreamRespon
 }
 
 func (r *relayChat) compatibleSend(resProvider providersBase.ResponsesInterface) (err *types.OpenAIErrorWithStatusCode, done bool) {
+	// 响应要由 Responses 转回 chat 格式，不能字节直返。按渠道路由后同一请求重试时可能先走过 chat 分支
+	// 设过放行 key=true，此处显式关闭，避免 CreateResponses 误读残留许可把 responses 原始字节直返给 chat 客户端。
+	r.c.Set(config.GinRawPassThroughAllowedKey, false)
+
 	resRequest := r.chatRequest.ToResponsesRequest()
 	resRequest.ConvertChat = true
 
