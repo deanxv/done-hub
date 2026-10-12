@@ -1005,7 +1005,6 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
 
         data.need2response_models = data.need2response_models ?? '';
         data.base_url = data.base_url ?? '';
-        data.remark = data.remark ?? '';
         data.cost_ratio = data.cost_ratio ?? 0;
         data.is_edit = true;
         if (data.plugin === null) {

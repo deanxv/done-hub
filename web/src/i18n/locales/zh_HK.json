@@ -353,7 +353,6 @@
     "otherArg": "其他參數",
     "priorityTip": "優先級不能小於 0",
     "proxy": "代理地址：",
-    "remark": "備註",
     "test": "測試",
     "testAllChannel": "已成功開始測試所有通道，請刷新頁面查看結果。",
     "testModels": "測速模型",

@@ -367,6 +367,8 @@ func (r *relayChat) compatibleSend(resProvider providersBase.ResponsesInterface)
 	r.c.Set(config.GinRawPassThroughAllowedKey, false)
 
 	resRequest := r.chatRequest.ToResponsesRequest()
+	// chatRequest.Model 仍是客户端原始名（映射名只在 chat 分支回写），需显式用渠道映射后的模型名，与 compatibleSendImage 对称
+	resRequest.Model = r.modelName
 	resRequest.ConvertChat = true
 
 	if r.chatRequest.Stream {

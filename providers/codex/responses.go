@@ -4,6 +4,7 @@ import (
 	"done-hub/common"
 	"done-hub/common/requester"
 	"done-hub/providers/base"
+	"done-hub/providers/openai"
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
@@ -107,6 +108,17 @@ func (p *CodexProvider) CreateResponsesStream(request *types.OpenAIResponsesRequ
 	resp, errWithCode := p.Requester.SendRequestRaw(req)
 	if errWithCode != nil {
 		return nil, errWithCode
+	}
+
+	// chat→responses 兼容路径：与 openai/bedrock 一致，复用 OpenAI 的 chat 转换处理器，避免把 responses 事件原样下发给 chat 客户端
+	if request.ConvertChat {
+		chatHandler := openai.OpenAIResponsesStreamHandler{
+			Usage:   p.Usage,
+			Prefix:  `data: `,
+			Model:   p.GetResponseModelName(request.Model),
+			Context: p.Context,
+		}
+		return requester.RequestStream(p.Requester, resp, chatHandler.HandlerChatStream)
 	}
 
 	// 创建流式处理器
