@@ -35,7 +35,7 @@ type Channel struct {
 	Tag                         string   `json:"tag" form:"tag" gorm:"type:varchar(32);default:''"`
 	UsedQuota                   int64    `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping                *string  `json:"model_mapping" gorm:"type:text"`
-	Need2ResponseModels         *string  `json:"need2response_models" gorm:"type:text"`
+	Need2ResponseModels         *string  `json:"need2response_models" form:"need2response_models" gorm:"type:text"`
 	ModelHeaders                *string  `json:"model_headers" gorm:"type:varchar(1024);default:''"`
 	HeaderOverride              *string  `json:"header_override" gorm:"type:text"`
 	CustomParameter             *string  `json:"custom_parameter" gorm:"type:text"`
