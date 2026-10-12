@@ -25,9 +25,7 @@ import {
   IconButton,
   InputAdornment,
   LinearProgress,
-  Menu,
   MenuItem,
-  MenuList,
   Popover,
   Stack,
   Switch,
@@ -43,55 +41,17 @@ import {
 } from '@mui/material';
 
 import Label from 'ui-component/Label';
-// import TableSwitch from 'ui-component/Switch';
 import ResponseTimeLabel from './ResponseTimeLabel';
 import GroupLabel from './GroupLabel';
 
-import { alpha, styled } from '@mui/material/styles';
 import { Icon } from '@iconify/react';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { ChannelCheck } from './ChannelCheck';
+import { ChannelTestDialog } from './ChannelTestDialog';
 import { getPageSize, PAGE_SIZE_OPTIONS, savePageSize } from 'constants';
 import { stickyCellSx } from 'ui-component/stickyCellSx';
 import KeywordTableHead from 'ui-component/TableHead';
-
-const StyledMenu = styled((props) => (
-  <Menu
-    elevation={0}
-    anchorOrigin={{
-      vertical: 'bottom',
-      horizontal: 'right'
-    }}
-    transformOrigin={{
-      vertical: 'top',
-      horizontal: 'right'
-    }}
-    {...props}
-  />
-))(({ theme }) => ({
-  '& .MuiPaper-root': {
-    borderRadius: 6,
-    marginTop: theme.spacing(1),
-    minWidth: 180,
-    color: theme.palette.mode === 'light' ? 'rgb(55, 65, 81)' : theme.palette.grey[300],
-    boxShadow:
-      'rgb(255, 255, 255) 0px 0px 0px 0px, rgba(0, 0, 0, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.05) 0px 4px 6px -2px',
-    '& .MuiMenu-list': {
-      padding: '4px 0'
-    },
-    '& .MuiMenuItem-root': {
-      '& .MuiSvgIcon-root': {
-        fontSize: 18,
-        color: theme.palette.text.secondary,
-        marginRight: theme.spacing(1.5)
-      },
-      '&:active': {
-        backgroundColor: alpha(theme.palette.primary.main, theme.palette.action.selectedOpacity)
-      }
-    }
-  }
-}));
 
 function statusInfo(t, status) {
   switch (status) {
@@ -125,7 +85,9 @@ export default function ChannelTableRow({
   const check = useBoolean();
   const updateBalanceOption = useBoolean();
 
-  const [openTest, setOpenTest] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  // 标签组子表：测速按钮作用于子渠道，需要把该渠道传进对话框
+  const [testDialogChannel, setTestDialogChannel] = useState(null);
   // const [openDelete, setOpenDelete] = useState(false);
   const [openCheck, setOpenCheck] = useState(false);
   const [statusSwitch, setStatusSwitch] = useState(item.status);
@@ -148,7 +110,6 @@ export default function ChannelTableRow({
   const [tagRowsPerPage, setTagRowsPerPage] = useState(() => getPageSize('channelTag'));
   const [tagOrder, setTagOrder] = useState('asc');
   const [tagOrderBy, setTagOrderBy] = useState('');
-  const tagModelPopover = usePopover();
 
   const batchConfirm = useBoolean();
 
@@ -460,33 +421,6 @@ export default function ChannelTableRow({
     setSelectedChannels([]);
   }, [tagPage, tagRowsPerPage]);
 
-  const handleTagChannelTest = async (channel) => {
-    const models = channel.models.split(',');
-    if (models.length === 1) {
-      // 如果只有一个模型，直接测速
-      const testModel = models[0];
-      const { success, time } = await manageChannel(channel.id, 'test', testModel);
-      if (success) {
-        showInfo(t('channel_row.modelTestSuccess', { channel: channel.name, model: testModel, time: time.toFixed(2) }));
-        // 更新本地状态
-        setTagChannels((prev) =>
-          prev.map((c) =>
-            c.id === channel.id
-              ? {
-                  ...c,
-                  test_time: Date.now() / 1000,
-                  response_time: time * 1000
-                }
-              : c
-          )
-        );
-      }
-    } else {
-      // 多个模型：仅记录当前渠道，弹窗由 onClick 带 event 锚点打开（避免无锚点重复弹出/闪烁）
-      setCurrentTestingChannel(channel);
-    }
-  };
-
   const handleBatchDelete = async () => {
     if (!selectedChannels.length) {
       showError(t('channel_row.batchAddIDRequired'));
@@ -520,10 +454,6 @@ export default function ChannelTableRow({
     }
   }, [openRow, item.tag, fetchTagChannels]);
 
-  const handleTestModel = (event) => {
-    setOpenTest(event.currentTarget);
-  };
-
   const handleDeleteRow = useCallback(async () => {
     if (deleting) return;
 
@@ -543,14 +473,9 @@ export default function ChannelTableRow({
     }
   };
 
-  const handleResponseTime = async (modelName) => {
-    setOpenTest(null);
-
-    if (typeof modelName !== 'string') {
-      modelName = item.test_model;
-    }
-
-    if (modelName == '') {
+  const handleResponseTime = async () => {
+    const modelName = item.test_model;
+    if (!modelName) {
       showError(t('channel_row.modelTestTip'));
       return;
     }
@@ -572,7 +497,9 @@ export default function ChannelTableRow({
       } else {
         showError(message);
       }
-    } catch (error) {}
+    } catch (error) {
+      // API 拦截器已统一提示错误
+    }
   };
 
   useEffect(() => {
@@ -829,16 +756,11 @@ export default function ChannelTableRow({
         <TableCell sx={stickyCellSx}>
           <Stack direction="row" justifyContent="right" alignItems="center" spacing={1}>
             {!item.tag && (
-              <IconButton
-                size="small"
-                onClick={handleTestModel}
-                aria-controls={openTest ? 'test-model-menu' : undefined}
-                aria-haspopup="true"
-                aria-expanded={openTest ? 'true' : undefined}
-                sx={{ color: 'info.main' }}
-              >
-                <Icon icon="mdi:speedometer" />
-              </IconButton>
+              <Tooltip title={t('channel_row.multiTest')} placement="top" arrow>
+                <IconButton size="small" onClick={() => setTestDialogOpen(true)} sx={{ color: 'info.main' }}>
+                  <Icon icon="mdi:speedometer" />
+                </IconButton>
+              </Tooltip>
             )}
 
             <Tooltip title={t('common.edit')} placement="top" arrow>
@@ -934,28 +856,6 @@ export default function ChannelTableRow({
         </MenuItem>
       </Popover>
 
-      <StyledMenu
-        id="test-model-menu"
-        MenuListProps={{
-          'aria-labelledby': 'test-model-button'
-        }}
-        anchorEl={openTest}
-        open={!!openTest}
-        onClose={() => {
-          setOpenTest(null);
-        }}
-      >
-        {modelMap.map((model) => (
-          <MenuItem
-            key={'test_model-' + model}
-            onClick={() => {
-              handleResponseTime(model);
-            }}
-          >
-            {model}
-          </MenuItem>
-        ))}
-      </StyledMenu>
       <TableRow
         sx={{
           '&:hover': {
@@ -1375,16 +1275,13 @@ export default function ChannelTableRow({
                                       </TableCell>
                                       <TableCell align="center" sx={stickyCellSx}>
                                         <Stack direction="row" spacing={1} justifyContent="center">
-                                          <Tooltip title={t('channel_row.testModels')} placement="top">
+                                          <Tooltip title={t('channel_row.multiTest')} placement="top">
                                             <IconButton
                                               size="small"
                                               sx={{ p: 0.5, color: 'info.main' }}
-                                              onClick={(event) => {
-                                                handleTagChannelTest(channel);
-                                                // 记录点击位置用于弹出模型列表
-                                                if (channel.models.split(',').length > 1) {
-                                                  tagModelPopover.onOpen(event);
-                                                }
+                                              onClick={() => {
+                                                setTestDialogChannel(channel);
+                                                setTestDialogOpen(true);
                                               }}
                                             >
                                               <Icon icon="mdi:speedometer" width={18} height={18} />
@@ -1505,6 +1402,21 @@ export default function ChannelTableRow({
         </DialogActions>
       </Dialog>
       <ChannelCheck item={currentTestingChannel || item} open={openCheck} onClose={() => setOpenCheck(false)} />
+      <ChannelTestDialog
+        item={testDialogChannel || item}
+        open={testDialogOpen}
+        onClose={() => setTestDialogOpen(false)}
+        onTested={(responseTime) => {
+          // 每个成功模型都会刷新渠道响应时间，后到的覆盖先到的
+          if (testDialogChannel) {
+            setTagChannels((prev) =>
+              prev.map((c) => (c.id === testDialogChannel.id ? { ...c, test_time: Date.now() / 1000, response_time: responseTime } : c))
+            );
+          } else {
+            setResponseTimeData({ test_time: Date.now() / 1000, response_time: responseTime });
+          }
+        }}
+      />
 
       <ConfirmDialog
         open={tagDeleteConfirm.value}
@@ -1617,54 +1529,6 @@ export default function ChannelTableRow({
         prices={prices}
         tags={tags}
       />
-
-      <Popover
-        open={tagModelPopover.open}
-        anchorEl={tagModelPopover.anchorEl}
-        onClose={tagModelPopover.onClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{
-          sx: { minWidth: 140 }
-        }}
-      >
-        <MenuList>
-          {currentTestingChannel &&
-            currentTestingChannel.models.split(',').map((model) => (
-              <MenuItem
-                key={`tag-test-model-${model}`}
-                onClick={() => {
-                  manageChannel(currentTestingChannel.id, 'test', model).then(({ success, time }) => {
-                    if (success) {
-                      showSuccess(
-                        t('channel_row.modelTestSuccess', {
-                          channel: currentTestingChannel.name,
-                          model,
-                          time: time.toFixed(2)
-                        })
-                      );
-                      // 更新本地状态
-                      setTagChannels((prev) =>
-                        prev.map((c) =>
-                          c.id === currentTestingChannel.id
-                            ? {
-                                ...c,
-                                test_time: Date.now() / 1000,
-                                response_time: time * 1000
-                              }
-                            : c
-                        )
-                      );
-                    }
-                  });
-                  tagModelPopover.onClose();
-                }}
-              >
-                {model}
-              </MenuItem>
-            ))}
-        </MenuList>
-      </Popover>
 
       <ConfirmDialog
         open={batchConfirm.value}

@@ -34,7 +34,7 @@ var (
 	noSupportRegex  = regexp.MustCompile(`(?:^tts|rerank|whisper|speech|^mj_|^chirp)`)
 )
 
-func testChannel(channel *model.Channel, testModel string) (openaiErr *types.OpenAIErrorWithStatusCode, err error) {
+func testChannel(channel *model.Channel, testModel string, endpointType string) (openaiErr *types.OpenAIErrorWithStatusCode, err error) {
 	if testModel == "" {
 		testModel = channel.TestModel
 		if testModel == "" {
@@ -51,7 +51,7 @@ func testChannel(channel *model.Channel, testModel string) (openaiErr *types.Ope
 		testModel = parts[0]
 	}
 
-	channelType := getModelType(testModel)
+	channelType := resolveTestChannelType(endpointType, testModel)
 	channel.SetProxy()
 
 	var url string
@@ -220,6 +220,19 @@ func getModelType(modelName string) string {
 	return "chat"
 }
 
+// resolveTestChannelType 解析测速请求要走的端点类型。
+// 显式传入 endpoint_type（chat/embeddings/image/response）时以调用方为准，用于模型名推断不出实际端点的情况；
+// 其余值回退到按模型名推断。
+func resolveTestChannelType(endpointType string, testModel string) string {
+	endpointType = strings.TrimSpace(endpointType)
+	switch endpointType {
+	case "chat", "embeddings", "image", "response":
+		return endpointType
+	default:
+		return getModelType(testModel)
+	}
+}
+
 // createChatResponsesForTest 按 relay 的 chat→Responses 兼容路径测速。
 // pro / deep-research 类模型非流式完整生成可能超出测速超时，故走流式，收到首个非空事件即视为可用。
 func createChatResponsesForTest(responseProvider providers_base.ResponsesInterface, modelName string) (any, *types.OpenAIErrorWithStatusCode) {
@@ -296,26 +309,20 @@ func TestChannel(c *gin.Context) {
 		return
 	}
 	testModel := c.Query("model")
+	endpointType := c.Query("endpoint_type")
 	tik := time.Now()
-	openaiErr, err := testChannel(channel, testModel)
+	_, err = testChannel(channel, testModel, endpointType)
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 
-	success := false
-	msg := ""
-	if openaiErr != nil {
-		if ShouldDisableChannel(channel.Type, openaiErr) {
-			msg = fmt.Sprintf("测速失败，已被禁用，原因：%s", utils.MaskSensitiveInfo(err.Error()))
-			DisableChannel(channel.Id, channel.Name, testModel, err.Error(), false)
-		} else {
-			msg = fmt.Sprintf("测速失败，原因：%s", utils.MaskSensitiveInfo(err.Error()))
-		}
-	} else if err != nil {
+	// 手动测速只做诊断，不自动禁用渠道：多模型批量测试时单个模型失败不应连带禁用整个渠道。
+	// testChannel 返回非空 openaiErr 时 err 必非空，只需判断 err。
+	success := err == nil
+	msg := "测速成功"
+	if !success {
 		msg = fmt.Sprintf("测速失败，原因：%s", utils.MaskSensitiveInfo(err.Error()))
 	} else {
-		success = true
-		msg = "测速成功"
 		go channel.UpdateResponseTime(milliseconds)
 	}
 
@@ -343,7 +350,7 @@ func testChannelWithTimeout(channel *model.Channel, testModel string, timeout ti
 	}
 	ch := make(chan result, 1)
 	go func() {
-		openaiErr, err := testChannel(channel, testModel)
+		openaiErr, err := testChannel(channel, testModel, "")
 		ch <- result{openaiErr, err}
 	}()
 	timer := time.NewTimer(timeout)
