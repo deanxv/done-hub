@@ -366,7 +366,7 @@
     "otherArg": "Other parameters:",
     "priorityTip": "Priority cannot be less than 0",
     "proxy": "Agent address:",
-    "remark": "Notes",
+    "remark": "Remark",
     "test": "test",
     "testAllChannel": "Testing of all channels has been started successfully, please refresh the page to view the results.",
     "testModels": "Speed ​​test model:",
@@ -1996,5 +1996,9 @@
       }
     }
   },
-  "这里填写禁用流式的模型，注意：如果填写了禁用流式的模型，那么这些模型在流式请求时会跳过该渠道": "Fill in here to disable the streaming model. Note: If you fill in to disable the streaming model, these models will be skipped for streaming requests on that channel."
+  "这里填写禁用流式的模型，注意：如果填写了禁用流式的模型，那么这些模型在流式请求时会跳过该渠道": "Fill in here to disable the streaming model. Note: If you fill in to disable the streaming model, these models will be skipped for streaming requests on that channel.",
+  "备注": "Remark",
+  "Chat 转 Responses 模型": "Chat-to-Responses Models",
+  "填写备注信息，方便后续识别与管理": "Fill in remark information for easier identification and management",
+  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "One model name per line (comma-separated also supported). Matched models will route chat/completions to responses API. When set, completely overrides the default list; leave empty to use the built-in default list (o1-pro, o3-pro, o3/o4-mini-deep-research, codex-mini-latest)."
 }

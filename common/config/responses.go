@@ -22,36 +22,25 @@ var DefaultNeed2ResponseModels = map[string]struct{}{
 	"codex-mini-latest":                {},
 }
 
-func BuildNeed2ResponseModelSet(models []string) map[string]struct{} {
-	modelSet := make(map[string]struct{}, len(models))
-	for _, model := range models {
-		modelName := strings.TrimSpace(model)
-		if modelName == "" {
-			continue
-		}
-		modelSet[modelName] = struct{}{}
-	}
-
-	return modelSet
-}
-
+// ParseNeed2ResponseModels 解析渠道配置的模型列表（换行/逗号分隔，兼容 JSON 数组），返回去空白后的非空项。
 func ParseNeed2ResponseModels(data string) []string {
 	trimmed := strings.TrimSpace(data)
 	if trimmed == "" {
-		return []string{}
+		return nil
 	}
 
-	if strings.HasPrefix(trimmed, "[") {
-		var modelList []string
-		if err := json.Unmarshal([]byte(trimmed), &modelList); err == nil {
-			return modelList
+	var parts []string
+	if !strings.HasPrefix(trimmed, "[") || json.Unmarshal([]byte(trimmed), &parts) != nil {
+		parts = strings.FieldsFunc(trimmed, func(r rune) bool {
+			return r == '\n' || r == ','
+		})
+	}
+
+	models := parts[:0]
+	for _, part := range parts {
+		if name := strings.TrimSpace(part); name != "" {
+			models = append(models, name)
 		}
 	}
-
-	normalized := strings.ReplaceAll(trimmed, "\r\n", "\n")
-	parts := strings.FieldsFunc(normalized, func(r rune) bool {
-		return r == '\n' || r == ','
-	})
-
-	return parts
+	return models
 }

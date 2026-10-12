@@ -1003,10 +1003,7 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
           data.custom_parameter = '';
         }
 
-        if (data.need2response_models === null || data.need2response_models === undefined) {
-          data.need2response_models = '';
-        }
-
+        data.need2response_models = data.need2response_models ?? '';
         data.base_url = data.base_url ?? '';
         data.remark = data.remark ?? '';
         data.cost_ratio = data.cost_ratio ?? 0;

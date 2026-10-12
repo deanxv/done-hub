@@ -2,6 +2,7 @@ package model
 
 import (
 	"done-hub/common/config"
+	"slices"
 	"strings"
 )
 
@@ -24,10 +25,8 @@ func (channel *Channel) ShouldUseResponsesForModel(model string) bool {
 		return false
 	}
 
-	if custom := channel.GetNeed2ResponseModels(); strings.TrimSpace(custom) != "" {
-		modelSet := config.BuildNeed2ResponseModelSet(config.ParseNeed2ResponseModels(custom))
-		_, ok := modelSet[modelName]
-		return ok
+	if custom := config.ParseNeed2ResponseModels(channel.GetNeed2ResponseModels()); len(custom) > 0 {
+		return slices.Contains(custom, modelName)
 	}
 
 	_, ok := config.DefaultNeed2ResponseModels[modelName]

@@ -214,7 +214,7 @@ func getModelType(modelName string) string {
 	return "chat"
 }
 
-func buildTestResponsesRequest(modelName string) *types.OpenAIResponsesRequest {
+func createResponsesForTest(responseProvider providers_base.ResponsesInterface, modelName string, convertChat bool) (any, *types.OpenAIErrorWithStatusCode) {
 	chatRequest := &types.ChatCompletionRequest{
 		Messages: []types.ChatCompletionMessage{
 			{
@@ -223,18 +223,10 @@ func buildTestResponsesRequest(modelName string) *types.OpenAIResponsesRequest {
 			},
 		},
 		Model:  modelName,
-		Stream: false,
+		Stream: true,
 	}
-
-	responsesRequest := chatRequest.ToResponsesRequest()
-	// ToResponsesRequest 已从 chatRequest.Model/Stream 拷贝，无需重复赋值
-	return responsesRequest
-}
-
-func createResponsesForTest(responseProvider providers_base.ResponsesInterface, modelName string, convertChat bool) (any, *types.OpenAIErrorWithStatusCode) {
-	streamRequest := buildTestResponsesRequest(modelName)
+	streamRequest := chatRequest.ToResponsesRequest()
 	streamRequest.ConvertChat = convertChat
-	streamRequest.Stream = true
 
 	stream, streamErr := responseProvider.CreateResponsesStream(streamRequest)
 	if streamErr != nil {
