@@ -13,28 +13,23 @@ func (channel *Channel) GetNeed2ResponseModels() string {
 	return *channel.Need2ResponseModels
 }
 
-// ShouldUseResponsesForModel 判断模型是否应走 chat→Responses 兼容路径。三值语义：
-//   - Need2ResponseModels == nil：渠道未配置，继承全局默认表 DefaultNeed2ResponseModels（对齐改造前的 need2Response 行为）
-//   - Need2ResponseModels == ""：渠道显式清空，该渠道不做转换
-//   - 其他：按渠道自定义列表路由（全量覆盖，不与默认表合并）
+// ShouldUseResponsesForModel 判断模型是否应走 chat→Responses 兼容路径。
+//
+// 渠道自定义列表非空时，按该列表全量覆盖路由（不与默认表合并）；
+// 未配置（nil）或留空时，继承全局默认表 DefaultNeed2ResponseModels，
+// 与改造前写死的 need2Response 行为一致，保证既有渠道零迁移成本。
 func (channel *Channel) ShouldUseResponsesForModel(model string) bool {
 	modelName := strings.TrimSpace(model)
 	if modelName == "" {
 		return false
 	}
 
-	if channel.Need2ResponseModels == nil {
-		_, ok := config.DefaultNeed2ResponseModels[modelName]
+	if custom := channel.GetNeed2ResponseModels(); strings.TrimSpace(custom) != "" {
+		modelSet := config.BuildNeed2ResponseModelSet(config.ParseNeed2ResponseModels(custom))
+		_, ok := modelSet[modelName]
 		return ok
 	}
 
-	if strings.TrimSpace(*channel.Need2ResponseModels) == "" {
-		return false
-	}
-
-	modelSet := config.BuildNeed2ResponseModelSet(
-		config.ParseNeed2ResponseModels(*channel.Need2ResponseModels),
-	)
-	_, ok := modelSet[modelName]
+	_, ok := config.DefaultNeed2ResponseModels[modelName]
 	return ok
 }
