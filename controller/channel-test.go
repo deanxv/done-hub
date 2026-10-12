@@ -227,8 +227,7 @@ func buildTestResponsesRequest(modelName string) *types.OpenAIResponsesRequest {
 	}
 
 	responsesRequest := chatRequest.ToResponsesRequest()
-	responsesRequest.Model = modelName
-	responsesRequest.Stream = false
+	// ToResponsesRequest 已从 chatRequest.Model/Stream 拷贝，无需重复赋值
 	return responsesRequest
 }
 
@@ -266,12 +265,12 @@ func createResponsesForTest(responseProvider providers_base.ResponsesInterface, 
 			}, nil
 		case readErr, ok := <-errChan:
 			if !ok {
+				// errChan 已关闭；将其置 nil 使该 case 永久阻塞，
+				// 避免关闭后的 channel 每轮 select 都立即可选，形成忙等循环。
+				errChan = nil
 				continue
 			}
 			if readErr != nil {
-				if strings.Contains(strings.ToLower(readErr.Error()), "eof") {
-					continue
-				}
 				return nil, common.ErrorWrapperLocal(readErr, "stream_read_failed", http.StatusInternalServerError)
 			}
 		case <-timeout.C:

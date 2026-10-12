@@ -181,7 +181,6 @@
     "modelMappingKey": "User request model",
     "modelMappingValue": "Actual forwarding model",
     "requiredBaseUrl": "Channel API address cannot be empty",
-    "remark": "Notes",
     "requiredChannel": "Channel cannot be empty",
     "requiredGroup": "User group cannot be empty",
     "requiredKey": "Key cannot be empty",
@@ -1557,13 +1556,6 @@
         "clientSecretPlaceholder": "Sensitive information will not be sent to the frontend for display",
         "lowestTrustLevelPlaceholder": "Enter the minimum trust level to restrict",
         "saveButton": "Save LINUX DO OAuth Settings"
-      },
-      "configureNeed2ResponseModels": {
-        "title": "Configure Chat-to-Responses Models",
-        "subTitle": "Models listed here will use Responses API when requests come through /v1/chat/completions.",
-        "label": "Need2ResponseModels",
-        "placeholder": "Enter one model per line, or use comma-separated / JSON array format",
-        "saveButton": "Save Routing Settings"
       }
     }
   },

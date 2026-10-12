@@ -6,8 +6,10 @@ import (
 )
 
 // DefaultNeed2ResponseModels 是兜底路由表。
-// 渠道未设置 Need2ResponseModels（nil）时生效；
-// 渠道显式设置为空串时，该渠道不做 chat→Responses 转换。
+// 渠道 Need2ResponseModels 为 nil 或空串时均继承此表——
+// 因为前端保存时会把 null 归一成 ""，所以两者在实现上等价，
+// 用"留空 = 继承默认"可保证既有渠道零迁移成本。
+// 只有渠道设置了非空列表时，才全量覆盖此表（不合并）。
 var DefaultNeed2ResponseModels = map[string]struct{}{
 	"o3-pro-2025-06-10":                {},
 	"o3-pro":                           {},

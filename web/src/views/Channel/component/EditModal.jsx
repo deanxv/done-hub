@@ -1167,31 +1167,31 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
                     })()}
                   </FormControl>
 
-                  <FormControl fullWidth error={Boolean(touched.remark && errors.remark)}
-                               sx={{ ...theme.typography.otherInput }}>
-                    <InputLabel htmlFor="channel-remark-label">{customizeT(inputLabel.remark)}</InputLabel>
-                    <OutlinedInput
-                      id="channel-remark-label"
-                      label={customizeT(inputLabel.remark)}
-                      type="text"
-                      value={values.remark}
-                      name="remark"
-                      onBlur={handleBlur}
-                      onChange={handleChange}
-                      multiline
-                      minRows={2}
-                      inputProps={{}}
-                      aria-describedby="helper-text-channel-remark-label"
-                    />
-                    {touched.remark && errors.remark ? (
-                      <FormHelperText error id="helper-tex-channel-remark-label">
-                        {errors.remark}
-                      </FormHelperText>
-                    ) : (
-                      <FormHelperText
-                        id="helper-tex-channel-remark-label"> {customizeT(inputPrompt.remark)} </FormHelperText>
-                    )}
-                  </FormControl>
+                  {!isTag && (
+                    <FormControl fullWidth error={Boolean(touched.remark && errors.remark)} sx={{ ...theme.typography.otherInput }}>
+                      <InputLabel htmlFor="channel-remark-label">{customizeT(inputLabel.remark)}</InputLabel>
+                      <OutlinedInput
+                        id="channel-remark-label"
+                        label={customizeT(inputLabel.remark)}
+                        type="text"
+                        value={values.remark}
+                        name="remark"
+                        onBlur={handleBlur}
+                        onChange={handleChange}
+                        multiline
+                        minRows={2}
+                        inputProps={{}}
+                        aria-describedby="helper-text-channel-remark-label"
+                      />
+                      {touched.remark && errors.remark ? (
+                        <FormHelperText error id="helper-tex-channel-remark-label">
+                          {errors.remark}
+                        </FormHelperText>
+                      ) : (
+                        <FormHelperText id="helper-tex-channel-remark-label"> {customizeT(inputPrompt.remark)} </FormHelperText>
+                      )}
+                    </FormControl>
+                  )}
 
                   {inputPrompt.base_url && (
                     <FormControl fullWidth error={Boolean(touched.base_url && errors.base_url)} sx={{ ...theme.typography.otherInput }}>
