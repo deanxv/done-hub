@@ -222,8 +222,9 @@ func createResponsesForTest(responseProvider providers_base.ResponsesInterface, 
 				Content: "You just need to output 'hi' next.",
 			},
 		},
-		Model:  modelName,
-		Stream: true,
+		Model: modelName,
+		// chat→Responses 兼容路径（convertChat=true）走 stream，原生 Responses 测速走非流式
+		Stream: convertChat,
 	}
 	streamRequest := chatRequest.ToResponsesRequest()
 	streamRequest.ConvertChat = convertChat

@@ -36,7 +36,7 @@ func ParseNeed2ResponseModels(data string) []string {
 		})
 	}
 
-	models := parts[:0]
+	models := make([]string, 0, len(parts))
 	for _, part := range parts {
 		if name := strings.TrimSpace(part); name != "" {
 			models = append(models, name)
