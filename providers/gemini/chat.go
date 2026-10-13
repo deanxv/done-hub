@@ -779,7 +779,7 @@ func ConvertToChatOpenai(provider base.ProviderInterface, response *GeminiChatRe
 	// 所以旧代码靠“空 candidates + usage”猜 countTokens、回传伪造的 "Token count: N" 是错的。真实语义只有
 	// 两种：prompt 被安全策略拦截、或上游已处理但空返回——两者 Gemini 都按 promptTokenCount 对平台计 input 费。
 	// 因此这里返回空内容的成功响应，落到下面的 usage 计费路径：有真实 usage 用真实值，被中转商裁成 0 或纯空
-	// 则用本地预估兜底（见下方 *usage 赋值前）。与 new-api、以及本文件流式路径口径一致。
+	// 则用本地预估兜底（见下方 *usage 赋值前）。
 	// blocked 用 content_filter 如实告知客户端；其余空返回用 stop。
 	if len(response.Candidates) == 0 {
 		finishReason := types.FinishReasonStop

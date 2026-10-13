@@ -75,7 +75,6 @@ func setMJRouter(router *gin.Engine) {
 }
 
 // Author: Calcium-Ion
-// GitHub: https://github.com/Calcium-Ion/new-api
 // Path: router/relay-router.go
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 	relayMjRouter.GET("/image/:id", midjourney.RelayMidjourneyImage)

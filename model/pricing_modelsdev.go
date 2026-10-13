@@ -33,7 +33,7 @@ import (
 //                   InputRatio:  tiers[0].input  / cost.input,
 //                   OutputRatio: tiers[0].output / cost.output }
 //
-// 换算思路参考 new-api 的 convertModelsDevToRatioData，但公式按 done-hub 的计费模型调整
+// 换算公式按 done-hub 的计费模型
 // （done-hub 没有 completion_ratio 概念，Output 是绝对倍率）。
 
 const (
@@ -221,7 +221,7 @@ func buildModelsDevCandidate(provider string, cost modelsDevCost) (modelsDevCand
 //     否则「取最便宜」会被中转商异常低价/促销价系统性污染（如 unorouter 报 claude-opus 为官方价的 1/12）。
 //     置于非零判断之上：第一方的官方免费档（如 meta 的 llama input=0）也不应被中转付费价盖掉。
 //  1. 优先非零 input（免费聚合项不应盖掉真实价）——仅在双方同为/同非第一方时生效
-//  2. input 明显更便宜的优先（主原则，复刻 new-api）
+//  2. input 明显更便宜的优先（主原则）
 //  3. input 近似相等时，优先带 context 分档的候选——否则纯比价会系统性丢弃
 //     官方的分档信息（如 grok-4.5 在多个 provider 同价，只有 xai 带 tiers）
 //  4. 仍打平时按 provider 名做稳定 tie-break，保证结果确定

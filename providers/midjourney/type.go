@@ -1,5 +1,4 @@
 // Author: Calcium-Ion
-// GitHub: https://github.com/Calcium-Ion/new-api
 // Path: dto/midjourney.go
 package midjourney
 

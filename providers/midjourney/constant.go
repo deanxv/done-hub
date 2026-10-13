@@ -1,5 +1,4 @@
 // Author: Calcium-Ion
-// GitHub: https://github.com/Calcium-Ion/new-api
 // Path: relay/constant/relay_mode.go
 package midjourney
 
@@ -25,7 +24,6 @@ const (
 )
 
 // Author: Calcium-Ion
-// GitHub: https://github.com/Calcium-Ion/new-api
 // Path: constant/midjourney.go
 
 const (
