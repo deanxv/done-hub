@@ -153,7 +153,7 @@ func (p *CodexProvider) adaptCodexCLI(request *types.OpenAIResponsesRequest) {
 	request.MaxOutputTokens = 0
 
 	if strings.TrimSpace(request.Instructions) == "" {
-		request.Instructions = CodexCLIInstructions
+		request.Instructions = CodexBaseInstructionsForModel(request.Model)
 	}
 }
 

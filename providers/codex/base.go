@@ -27,7 +27,7 @@ const (
 	// DefaultCodexVersion 是伪装的 Codex CLI 版本号。
 	// 上游 chatgpt.com/backend-api/codex/responses 会用该版本号对模型访问做灰度门控：
 	// 修改时必须同步更新 DefaultCodexUserAgent 中内嵌的版本号。
-	DefaultCodexVersion = "0.144.1"
+	DefaultCodexVersion = "0.146.0"
 
 	// DefaultCodexUserAgent 是 Codex CLI 伪装 UA 的统一来源，
 	// 同时被 chat/responses 请求头、Token Refresh、OAuth 授权码换 token 三处复用，
