@@ -1,55 +1,75 @@
 package check_channel
 
 import (
-	"done-hub/common/cache"
-	"done-hub/common/config"
-	"done-hub/common/utils"
+	"bytes"
 	"done-hub/types"
-	_ "embed"
+	"encoding/base64"
 	"fmt"
-	"net/http"
-	"strings"
-	"time"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"math/rand/v2"
+	"strconv"
+	"sync"
 
-	"github.com/gin-gonic/gin"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/math/fixed"
 )
 
-const checkKey = "check_img:%s"
+// 字体只解析一次；Face 不是并发安全的，每次渲染单独创建（开销很小）
+var loadDigitFont = sync.OnceValues(func() (*opentype.Font, error) {
+	return opentype.Parse(gobold.TTF)
+})
 
-var (
-	//go:embed check.png
-	checkImage []byte
-)
+// renderDigitsPNG 把数字渲染成白底黑字 PNG，以 data URL 返回。
+// 图片内嵌在请求里，不依赖公网可访问的服务器地址；能读出数字才说明多模态内容真正到达了模型。
+func renderDigitsPNG(digits string) (string, error) {
+	f, err := loadDigitFont()
+	if err != nil {
+		return "", err
+	}
+	face, err := opentype.NewFace(f, &opentype.FaceOptions{Size: 96, DPI: 72, Hinting: font.HintingFull})
+	if err != nil {
+		return "", err
+	}
 
-type AccessRecord struct {
-	UserAgent string `json:"user_agent"`
-	IP        string `json:"ip"`
-	Remark    string `json:"remark"`
+	const width, height = 480, 200
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.Draw(img, img.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+
+	d := &font.Drawer{Dst: img, Src: image.NewUniform(color.Black), Face: face}
+	textWidth := d.MeasureString(digits).Ceil()
+	ascent := face.Metrics().Ascent.Ceil()
+	d.Dot = fixed.P((width-textWidth)/2, (height+ascent)/2-8)
+	d.DrawString(digits)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return "", err
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 type CheckImgProcess struct {
 	ModelName string
-	ImageUrl  string
-	ID        string
+	expected  string
+	imageURL  string
+	renderErr error
 }
 
 func CreateCheckImgProcess(modelName string) *CheckImgProcess {
-	c := &CheckImgProcess{
-		ModelName: modelName,
-	}
-	id := utils.GetRandomString(10)
-	c.ImageUrl = fmt.Sprintf("%s/api/image/%s", config.ServerAddress, id)
-	c.ID = id
-	accessRecord := make([]*AccessRecord, 0)
-	err := cache.SetCache(fmt.Sprintf(checkKey, id), accessRecord, 10*time.Minute)
-	if err != nil {
-		return nil
-	}
-	return c
+	expected := strconv.Itoa(100000 + rand.IntN(900000))
+	imageURL, err := renderDigitsPNG(expected)
+	return &CheckImgProcess{ModelName: modelName, expected: expected, imageURL: imageURL, renderErr: err}
 }
 
-func (c *CheckImgProcess) GetName() string {
-	return "根据图片判断中转"
+const imageProbeKey = "image"
+
+func (c *CheckImgProcess) GetKey() string {
+	return imageProbeKey
 }
 
 func (c *CheckImgProcess) GetRequest() *types.ChatCompletionRequest {
@@ -59,149 +79,32 @@ func (c *CheckImgProcess) GetRequest() *types.ChatCompletionRequest {
 			{
 				Role: types.ChatMessageRoleUser,
 				Content: []types.ChatMessagePart{
-					{
-						Type: types.ContentTypeImageURL,
-						ImageURL: &types.ChatMessageImageURL{
-							URL: c.ImageUrl,
-						},
-					},
-					{
-						Type: types.ContentTypeText,
-						Text: "Can you see my picture? Please answer 1 or 0. Do not output irrelevant content.",
-					},
+					{Type: types.ContentTypeText, Text: "Read the number in the image. Respond with ONLY the digits, nothing else."},
+					{Type: types.ContentTypeImageURL, ImageURL: &types.ChatMessageImageURL{URL: c.imageURL}},
 				},
 			},
 		},
 	}
 }
 
-func (c *CheckImgProcess) Check(_ *types.ChatCompletionRequest, resp *types.ChatCompletionResponse, openaiErr *types.OpenAIError) []*CheckResult {
-	checkResults := make([]*CheckResult, 0)
+func (c *CheckImgProcess) Check(_ CheckContext, _ *types.ChatCompletionRequest, resp *types.ChatCompletionResponse, openaiErr *types.OpenAIError) []*CheckResult {
+	if c.renderErr != nil {
+		return []*CheckResult{{Name: "识图", Status: CheckStatusFailed, Remark: "生成检测图片失败：" + c.renderErr.Error()}}
+	}
 	if openaiErr != nil {
-		checkResults = append(checkResults, &CheckResult{
-			Name:   "响应",
-			Status: CheckStatusFailed,
-			Remark: openaiErr.Message,
-		})
-
-		return checkResults
+		return failedResponse(openaiErr)
 	}
 
-	// 响应检测
-	if len(resp.Choices) > 0 {
-		result := &CheckResult{
-			Name:   "响应",
-			Status: CheckStatusFailed,
-			Remark: "获取响应数据失败",
-		}
-		if content, ok := resp.Choices[0].Message.Content.(string); ok {
-			switch content {
-			case "1":
-				result.Status = CheckStatusSuccess
-				result.Remark = "gpt检测到图片"
-			case "0":
-				result.Status = CheckStatusFailed
-				result.Remark = "gpt未检测到图片"
-			default:
-				result.Status = CheckStatusFailed
-				result.Remark = fmt.Sprintf("gpt响应内容不符合要求: %s", content)
-			}
-			checkResults = append(checkResults, result)
-		}
-	} else {
-		checkResults = append(checkResults, &CheckResult{
-			Name:   "响应",
-			Status: CheckStatusFailed,
-			Remark: "未返回响应数据",
-		})
+	result := &CheckResult{Name: "识图", Status: CheckStatusFailed}
+	answer, ok := firstChoiceContent(resp)
+	switch {
+	case !ok:
+		result.Remark = "未返回响应内容"
+	case validateChallenge(answer, c.expected):
+		result.Status = CheckStatusSuccess
+		result.Remark = fmt.Sprintf("图中数字 %s，识别正确", c.expected)
+	default:
+		result.Remark = fmt.Sprintf("图中数字 %s，实际回答：%s（模型不支持识图，或中转丢弃了图片）", c.expected, truncate(answer, 200))
 	}
-
-	// 图片请求检测
-	accessRecord, err := GetAccessRecord(c.ID)
-	if err != nil {
-		checkResults = append(checkResults, &CheckResult{
-			Name:   "图片请求检测",
-			Status: CheckStatusFailed,
-			Remark: fmt.Sprintf("获取请求记录失败：%s", err.Error()),
-		})
-		return checkResults
-	}
-
-	if len(accessRecord) == 0 {
-		checkResults = append(checkResults, &CheckResult{
-			Name:   "图片请求检测",
-			Status: CheckStatusFailed,
-			Remark: "没有任何请求记录",
-		})
-		return checkResults
-	} else {
-		result := &CheckResult{
-			Name:   "图片请求检测",
-			Status: CheckStatusFailed,
-			Remark: "没有任何请求记录",
-		}
-		remark := []string{}
-		accessRecordLen := len(accessRecord)
-		if accessRecordLen > 0 {
-			remark = append(remark, fmt.Sprintf("经过: %d 次中转", accessRecordLen))
-
-			for index, record := range accessRecord {
-				checkChannelImg(record)
-				remark = append(remark, fmt.Sprintf("第 %d 次中转: IP(%s), 请求头(%s), 判断结果(%s)", index+1, record.IP, record.UserAgent, record.Remark))
-			}
-			result.Remark = strings.Join(remark, "\n")
-			result.Status = CheckStatusSuccess
-		}
-		checkResults = append(checkResults, result)
-	}
-
-	return checkResults
-}
-
-func AppendAccessRecord(id string, c *gin.Context) error {
-	accessRecord, err := GetAccessRecord(id)
-
-	if err != nil {
-		return err
-	}
-
-	record := &AccessRecord{
-		UserAgent: c.Request.UserAgent(),
-		IP:        c.ClientIP(),
-	}
-
-	checkChannelImg(record)
-
-	accessRecord = append(accessRecord, record)
-	return cache.SetCache(fmt.Sprintf(checkKey, id), accessRecord, 10*time.Minute)
-}
-
-func GetAccessRecord(id string) ([]*AccessRecord, error) {
-	return cache.GetCache[[]*AccessRecord](fmt.Sprintf(checkKey, id))
-}
-
-func CheckImageResponse(c *gin.Context) {
-	c.Header("Content-Type", "image/png")
-	c.Header("Content-Disposition", "inline")
-
-	c.Data(http.StatusOK, "image/png", checkImage)
-}
-
-func checkChannelImg(record *AccessRecord) {
-	if strings.Contains(record.UserAgent, "OpenAI Image Downloader") {
-		record.Remark = "OpenAI"
-		return
-	}
-
-	if strings.Contains(record.UserAgent, "IPS/1.0") {
-		record.Remark = "Azure"
-		return
-	}
-
-	if strings.Contains(record.UserAgent, "Go-http-client") {
-		record.Remark = "Go中转"
-		return
-	}
-
-	record.Remark = "未知"
+	return []*CheckResult{result}
 }

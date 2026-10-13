@@ -2,100 +2,26 @@ package controller
 
 import (
 	"done-hub/common"
-	"done-hub/common/requester"
 	"done-hub/controller/check_channel"
-	"io"
 	"net/http"
-	"time"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-func CheckImg(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-
-	err := check_channel.AppendAccessRecord(id, c)
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-
-	check_channel.CheckImageResponse(c)
-
-}
-
-type checkChannelRequest struct {
-	ID     int    `json:"id"`
-	Models string `json:"models"`
-}
-
+// CheckChannel 对渠道的单个模型执行全部检测项。
+// 一次请求只检测一个模型，由前端并发调度，与多模型测速的交互方式一致。
 func CheckChannel(c *gin.Context) {
-	var params checkChannelRequest
-	if err := c.ShouldBindJSON(&params); err != nil {
-		common.APIRespondWithError(c, http.StatusOK, err)
-		return
-	}
-
-	ck, err := check_channel.CreateCheckChannel(params.ID, params.Models)
+	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.APIRespondWithError(c, http.StatusOK, err)
 		return
 	}
 
-	// 设置 SSE 头信息
-	requester.SetEventStreamHeaders(c)
-
-	// 创建一个通道用于接收结果
-	resultChan := make(chan *check_channel.ModelResult)
-	heartbeatChan := make(chan bool)
-	doneChan := make(chan bool)
-
-	// 启动检查过程
-	go ck.RunStream(resultChan, doneChan)
-
-	// 启动心跳协程
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				heartbeatChan <- true
-			case <-doneChan:
-				return
-			}
-		}
-	}()
-
-	// 处理结果流
-	clientGone := c.Request.Context().Done()
-	c.Stream(func(w io.Writer) bool {
-		select {
-		case result := <-resultChan:
-			c.SSEvent("message", gin.H{
-				"type": "result",
-				"data": result,
-			})
-			return true
-		case <-heartbeatChan:
-			c.SSEvent("message", gin.H{
-				"type": "heartbeat",
-				"data": "ping",
-			})
-			return true
-		case <-doneChan:
-			c.SSEvent("message", gin.H{
-				"type": "done",
-				"data": "completed",
-			})
-			return false
-		case <-clientGone:
-			close(doneChan)
-			return false
-		}
-	})
+	result, err := check_channel.CheckModel(channelId, c.Query("model"))
+	if err != nil {
+		common.APIRespondWithError(c, http.StatusOK, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": result})
 }

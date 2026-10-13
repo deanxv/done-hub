@@ -14,3 +14,19 @@ export const formatGroupLabel = (symbol, groupMap = {}) => {
   const name = groupMap[symbol]?.name;
   return name && name !== symbol ? `${symbol} (${name})` : symbol;
 };
+
+// runWithConcurrency 按固定并发跑一组任务；isStopped 返回 true 后不再领取新任务，
+// 已在途的请求任其自然返回（不中断 HTTP），停止只影响后续排队项。
+export async function runWithConcurrency(items, limit, worker, isStopped) {
+  let cursor = 0;
+  const runners = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
+    for (;;) {
+      if (isStopped()) return;
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+}

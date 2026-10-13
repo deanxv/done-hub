@@ -17,13 +17,7 @@ const BatchDelModel = () => {
   const searchFilter = useCallback((kw) => {
     const trimmed = (kw || '').trim();
     if (!trimmed) return null;
-    return { models: trimmed };
-  }, []);
-
-  const filterData = useCallback((rows, kw) => {
-    const target = (kw || '').trim();
-    if (!target) return [];
-    return rows.filter((row) => splitCsv(row.models).includes(target));
+    return { exact_model: trimmed };
   }, []);
 
   const subtitleRender = useCallback((item) => `${t('channel_index.currentModels')}: ${item.models || t('channel_index.noModels')}`, [t]);
@@ -74,7 +68,6 @@ const BatchDelModel = () => {
       keyword={keyword}
       onKeywordChange={setKeyword}
       searchFilter={searchFilter}
-      filterData={filterData}
       autoLoad={false}
       clearSelectionOnSearch
       emptyHint={t('channel_index.delModelEmptyHint')}

@@ -37,7 +37,6 @@ const BatchChannelSelector = ({
   autoLoad,
   subtitleRender,
   itemConflict,
-  filterData,
   clearSelectionOnSearch,
   emptyHint,
   selectedIds,
@@ -77,13 +76,9 @@ const BatchChannelSelector = ({
       try {
         const result = await fetchChannelData(targetPage, PAGE_SIZE, params, 'desc', 'id');
         if (result) {
-          const rawRows = result.data || [];
-          // totalCount 始终用后端 total_count（驱动分页器）
-          // filterData 模式下 data 是严格筛后的结果；UI 文案会切换为 selectionStatusFiltered，
-          // 区分「本页严格匹配 / 服务器粗筛总数」，避免歧义
-          const rows = filterData ? filterData(rawRows, currentKeyword || '') : rawRows;
+          const rows = result.data || [];
           setData(rows);
-          setTotalCount(result.total_count ?? rawRows.length);
+          setTotalCount(result.total_count ?? rows.length);
         } else {
           setData([]);
           setTotalCount(0);
@@ -93,7 +88,7 @@ const BatchChannelSelector = ({
         setInitialized(true);
       }
     },
-    [searchFilter, filterData]
+    [searchFilter]
   );
 
   useEffect(() => {
@@ -278,7 +273,7 @@ const BatchChannelSelector = ({
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
               <Typography variant="caption" color="text.secondary">
-                {t(filterData ? 'channel_index.selectionStatusFiltered' : 'channel_index.selectionStatus', {
+                {t('channel_index.selectionStatus', {
                   selected: selectedIds.size,
                   onPage: selectedOnPageCount,
                   count: data.length,
@@ -444,7 +439,6 @@ BatchChannelSelector.propTypes = {
   autoLoad: PropTypes.bool,
   subtitleRender: PropTypes.func,
   itemConflict: PropTypes.func,
-  filterData: PropTypes.func,
   clearSelectionOnSearch: PropTypes.bool,
   emptyHint: PropTypes.string,
   selectedIds: PropTypes.instanceOf(Set).isRequired,

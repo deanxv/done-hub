@@ -322,14 +322,13 @@
     "nextPage": "Next page",
     "pageInfo": "Page {{page}} / {{total}}",
     "selectionStatus": "Selected {{selected}} (on page {{onPage}}) / {{count}} on page / {{total}} matched",
-    "selectionStatusFiltered": "Selected {{selected}} (on page {{onPage}}) / {{count}} strict matches on page / {{total}} fuzzy-matched on server",
     "selectCurrentPage": "Select current page",
     "unselectCurrentPage": "Unselect current page",
     "clearSelection": "Clear selection",
     "clearKeyword": "Clear keyword",
     "channelOnlyHasThisModel": "(Only model left — cannot delete)",
     "channelAlreadyHasPartialModels": "(Some models already present)",
-    "batchDeleteTipV2": "Search uses fuzzy matching but the list is strictly filtered by exact model name. Channels with this as their only model are disabled to avoid emptying.",
+    "batchDeleteTipV2": "Channels are matched by exact model name. Channels with this as their only model are disabled to avoid emptying.",
     "batchAzureAPITip": "Select Azure-type channels and replace their API version. First search by current version (leave blank to list all Azure channels), then enter the new version to replace.",
     "currentAzureAPIVersion": "Current version",
     "newAzureAPIVersion": "New version",
@@ -441,7 +440,9 @@
     "wholeGroup": "Group",
     "groupPriorityLabel": "Priority (all)",
     "groupWeightLabel": "Weight (all)",
-    "groupCostRatioLabel": "Ratio (all)"
+    "groupCostRatioLabel": "Ratio (all)",
+    "retry": "Retry",
+    "retryFailed": "Retry failed ({{count}})"
   },
   "common": {
     "again": "Retry ({{count}})",
@@ -2013,5 +2014,27 @@
   "备注": "Remark",
   "Chat 转 Responses 模型": "Chat-to-Responses Models",
   "填写备注信息，方便后续识别与管理": "Fill in remark information for easier identification and management",
-  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "One model name per line (comma-separated also supported). Matched models will route chat/completions to responses API. When set, completely overrides the default list; leave empty to use the built-in default list (o1-pro, o3-pro, o3/o4-mini-deep-research, codex-mini-latest)."
+  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "One model name per line (comma-separated also supported). Matched models will route chat/completions to responses API. When set, completely overrides the default list; leave empty to use the built-in default list (o1-pro, o3-pro, o3/o4-mini-deep-research, codex-mini-latest).",
+  "channel_check": {
+    "title": "Channel Check",
+    "fetchUpstream": "Fetch upstream models",
+    "fetchFailed": "Failed to fetch upstream models",
+    "start": "Start check",
+    "checking": "Checking",
+    "statusPassed": "Passed",
+    "statusWarning": "Warning",
+    "statusFailed": "Failed",
+    "details": "Details",
+    "rawResponse": "Raw response",
+    "stopped": "Stopped: ",
+    "summary": "{{passed}} passed, {{warning}} warnings, {{failed}} failed",
+    "hint": "Verifies the channel with randomized questions and checks vision, structured output and function calling. Model name, ID and relay hops in responses can be rewritten by relays and are for reference only.",
+    "probe_base": "Basic",
+    "probe_image": "Vision",
+    "probe_json": "JSON",
+    "probe_tool": "Tools",
+    "probe_relay": "Relay hops",
+    "checkOne": "Check",
+    "statusSkipped": "N/A"
+  }
 }

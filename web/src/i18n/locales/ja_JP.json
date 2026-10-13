@@ -320,14 +320,13 @@
     "nextPage": "次のページ",
     "pageInfo": "ページ {{page}} / {{total}}",
     "selectionStatus": "選択中 {{selected}} 件（現ページ {{onPage}}）/ 現ページ {{count}} 件 / 一致 {{total}} 件",
-    "selectionStatusFiltered": "選択中 {{selected}} 件（現ページ {{onPage}}）/ 現ページ厳密一致 {{count}} 件 / サーバー粗一致 {{total}} 件",
     "selectCurrentPage": "現ページを全選択",
     "unselectCurrentPage": "現ページの選択を解除",
     "clearSelection": "選択をクリア",
     "clearKeyword": "キーワードをクリア",
     "channelOnlyHasThisModel": "（このモデルのみ — 削除不可）",
     "channelAlreadyHasPartialModels": "（一部のモデルが既に存在）",
-    "batchDeleteTipV2": "検索は曖昧一致ですが、一覧は完全モデル名で厳密にフィルタリングされます。残り 1 モデルのチャネルは空化防止のため削除不可です。",
+    "batchDeleteTipV2": "完全なモデル名でチャネルを照合します。残り 1 モデルのチャネルは空化防止のため削除不可です。",
     "batchAzureAPITip": "Azure タイプのチャネルを選択して API バージョンを置換します。まず現在のバージョンで検索（空欄なら全 Azure チャネル）、その後新バージョンを入力して置換を実行します。",
     "currentAzureAPIVersion": "現在のバージョン",
     "newAzureAPIVersion": "新しいバージョン",
@@ -440,7 +439,9 @@
     "wholeGroup": "全体",
     "groupPriorityLabel": "優先度·組",
     "groupWeightLabel": "重み·組",
-    "groupCostRatioLabel": "倍率·組"
+    "groupCostRatioLabel": "倍率·組",
+    "retry": "再試行",
+    "retryFailed": "失敗分を再試行（{{count}}）"
   },
   "common": {
     "again": "再試行 ({{count}})",
@@ -1161,7 +1162,7 @@
   "res_time": {
     "lastTime": "前回のスピードテスト時間:",
     "noTest": "未検証",
-    "second": "2番",
+    "second": "秒",
     "testClick": "クリック速度テスト（チャットモデルのみサポート）"
   },
   "setting": "設定",
@@ -1992,5 +1993,27 @@
   "备注": "備考",
   "Chat 转 Responses 模型": "Chat→Responsesモデル",
   "填写备注信息，方便后续识别与管理": "備考情報を入力して、後続の識別と管理を容易にします",
-  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "1行に1つのモデル名（カンマ区切りもサポート）。マッチしたモデルはchat/completionsをresponses APIにルーティングします。設定すると、デフォルトリストを完全に上書きします。空のままにすると、組み込みのデフォルトリスト（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）を使用します。"
+  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "1行に1つのモデル名（カンマ区切りもサポート）。マッチしたモデルはchat/completionsをresponses APIにルーティングします。設定すると、デフォルトリストを完全に上書きします。空のままにすると、組み込みのデフォルトリスト（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）を使用します。",
+  "channel_check": {
+    "title": "チャネル検査",
+    "fetchUpstream": "上流モデルを取得",
+    "fetchFailed": "上流モデルの取得に失敗しました",
+    "start": "検査開始",
+    "checking": "検査中",
+    "statusPassed": "合格",
+    "statusWarning": "注意",
+    "statusFailed": "失敗",
+    "details": "詳細",
+    "rawResponse": "生レスポンス",
+    "stopped": "停止しました：",
+    "summary": "合格 {{passed}} 件、注意 {{warning}} 件、失敗 {{failed}} 件",
+    "hint": "ランダムな問題でチャネルが実際に使えるかを検証し、画像認識・構造化出力・関数呼び出しを確認します。レスポンスのモデル名、ID、中継段数は中継側で書き換え可能なため参考値です。",
+    "probe_base": "基本",
+    "probe_image": "画像認識",
+    "probe_json": "JSON",
+    "probe_tool": "関数呼び出し",
+    "probe_relay": "中継段数",
+    "checkOne": "検査",
+    "statusSkipped": "対象外"
+  }
 }

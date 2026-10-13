@@ -79,11 +79,15 @@ var allowedChannelOrderFields = map[string]bool{
 	"cost_ratio":    true,
 }
 
+// likeEscaper 配合 ESCAPE '!' 使用，MySQL / PostgreSQL / SQLite 均支持
+var likeEscaper = strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
+
 type SearchChannelsParams struct {
 	Channel
 	PaginationParams
-	FilterTag int    `json:"filter_tag" form:"filter_tag"`
-	BaseURL   string `json:"base_url" form:"base_url"`
+	FilterTag  int    `json:"filter_tag" form:"filter_tag"`
+	BaseURL    string `json:"base_url" form:"base_url"`
+	ExactModel string `json:"exact_model" form:"exact_model"`
 }
 
 func GetChannelsList(params *SearchChannelsParams) (*DataResult[Channel], error) {
@@ -120,6 +124,16 @@ func GetChannelsList(params *SearchChannelsParams) (*DataResult[Channel], error)
 	if params.Models != "" {
 		db = db.Where("models LIKE ?", "%"+params.Models+"%")
 		tagDB = tagDB.Where("models LIKE ?", "%"+params.Models+"%")
+	}
+
+	// 按完整模型名匹配逗号分隔的 models，避免 gemini-2.5-flash 命中 gemini-2.5-flash-image 等，
+	// 否则大量模糊命中会把真正的目标渠道挤到后面的分页。_ 是 LIKE 通配符，需转义，否则 mj_imagine 会命中 mj-imagine
+	if params.ExactModel != "" {
+		escaped := likeEscaper.Replace(params.ExactModel)
+		cond := "(models = ? OR models LIKE ? ESCAPE '!' OR models LIKE ? ESCAPE '!' OR models LIKE ? ESCAPE '!')"
+		args := []any{params.ExactModel, escaped + ",%", "%," + escaped, "%," + escaped + ",%"}
+		db = db.Where(cond, args...)
+		tagDB = tagDB.Where(cond, args...)
 	}
 
 	if params.Other != "" {

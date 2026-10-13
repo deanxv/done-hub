@@ -166,9 +166,14 @@ func ConvertFromChatOpenai(request *types.ChatCompletionRequest) (*ClaudeRequest
 			msg.Role = types.ChatMessageRoleUser
 		}
 
-		if msg.Role == types.ChatMessageRoleSystem {
+		// developer 与 system 同义（OpenAI o 系列引入），一并提升为 Claude 的 system 字段
+		if msg.IsSystemRole() {
 			// 如果没有预设的 system 字段，从 messages 中提取
 			if request.System == nil {
+				// 与 Anthropic 官方兼容层一致：多条 system 消息用换行拼接，避免首尾内容粘连
+				if systemMessage != "" {
+					systemMessage += "\n"
+				}
 				systemMessage += msg.StringContent()
 			}
 			continue

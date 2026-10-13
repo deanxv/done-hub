@@ -273,14 +273,13 @@
     "nextPage": "下一页",
     "pageInfo": "第 {{page}} / {{total}} 页",
     "selectionStatus": "已选 {{selected}}（本页 {{onPage}}）/ 本页 {{count}} 条 / 共匹配 {{total}} 条",
-    "selectionStatusFiltered": "已选 {{selected}}（本页 {{onPage}}）/ 本页严格匹配 {{count}} 条 / 服务器粗筛 {{total}} 条",
     "selectCurrentPage": "全选本页",
     "unselectCurrentPage": "取消本页",
     "clearSelection": "清空选中",
     "clearKeyword": "清除关键字",
     "channelOnlyHasThisModel": "（仅剩此模型，无法删除）",
     "channelAlreadyHasPartialModels": "（部分模型已存在）",
-    "batchDeleteTipV2": "搜索时使用模糊匹配，列表中已按完整模型名严格筛选。若渠道只剩此一个模型则不可删除，避免清空。",
+    "batchDeleteTipV2": "按完整模型名匹配渠道。若渠道只剩此一个模型则不可删除，避免清空。",
     "batchAzureAPITip": "选择 Azure 类型的渠道并替换 API 版本号。先输入当前版本号进行搜索（留空则查询全部 Azure 渠道），再输入新版本号执行替换。",
     "currentAzureAPIVersion": "当前版本",
     "newAzureAPIVersion": "新版本",
@@ -1613,7 +1612,9 @@
     "wholeGroup": "整组",
     "groupPriorityLabel": "优先级·组",
     "groupWeightLabel": "权重·组",
-    "groupCostRatioLabel": "倍率·组"
+    "groupCostRatioLabel": "倍率·组",
+    "retry": "重试",
+    "retryFailed": "重试失败项（{{count}}）"
   },
   "validation": {
     "requiredName": "名称 不能为空"
@@ -1937,5 +1938,27 @@
   "备注": "备注",
   "Chat 转 Responses 模型": "Chat 转 Responses 模型",
   "填写备注信息，方便后续识别与管理": "填写备注信息，方便后续识别与管理",
-  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。"
+  "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。": "一行一个模型名（也支持逗号分隔），命中后会将 chat/completions 转为 responses 接口请求。填写后全量覆盖默认列表；留空则使用内置默认列表（o1-pro、o3-pro、o3/o4-mini-deep-research、codex-mini-latest）。",
+  "channel_check": {
+    "title": "渠道检测",
+    "fetchUpstream": "获取上游模型",
+    "fetchFailed": "获取上游模型失败",
+    "start": "开始检测",
+    "checking": "检测中",
+    "statusPassed": "通过",
+    "statusWarning": "提示",
+    "statusFailed": "失败",
+    "details": "详情",
+    "rawResponse": "原始响应",
+    "stopped": "已停止：",
+    "summary": "通过 {{passed}} 个，提示 {{warning}} 个，失败 {{failed}} 个",
+    "hint": "用随机题目验证渠道真实可用，并检查识图、结构化输出和函数调用能力。响应中的模型名、ID 和中转层数可被中转改写，只作参考。",
+    "probe_base": "基础",
+    "probe_image": "识图",
+    "probe_json": "JSON",
+    "probe_tool": "函数调用",
+    "probe_relay": "中转层数",
+    "checkOne": "检测",
+    "statusSkipped": "不适用"
+  }
 }

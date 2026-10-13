@@ -32,6 +32,8 @@ import { Icon } from '@iconify/react';
 
 import { API } from 'utils/api';
 import { showError, showInfo } from 'utils/common';
+import { runWithConcurrency } from './batchHelpers';
+import RowActionButton from './RowActionButton';
 
 // 同渠道并发过高容易被上游限流
 const TEST_CONCURRENCY = 4;
@@ -44,22 +46,6 @@ const ENDPOINT_TYPE_OPTIONS = [
   { value: 'embeddings', label: 'embeddings (/v1/embeddings)' },
   { value: 'image', label: 'image (/v1/images/generations)' }
 ];
-
-// runWithConcurrency 按固定并发跑一组任务；isStopped 返回 true 后不再领取新任务，
-// 已在途的请求任其自然返回（不中断 HTTP），停止只影响后续排队项。
-async function runWithConcurrency(items, limit, worker, isStopped) {
-  let cursor = 0;
-  const runners = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
-    for (;;) {
-      if (isStopped()) return;
-      const index = cursor;
-      cursor += 1;
-      if (index >= items.length) return;
-      await worker(items[index]);
-    }
-  });
-  await Promise.all(runners);
-}
 
 function StatusCell({ result, t }) {
   if (!result) {
@@ -144,7 +130,7 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
   const [selected, setSelected] = useState([]);
   const [results, setResults] = useState({});
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0, success: 0, failed: 0 });
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [endpointType, setEndpointType] = useState(ENDPOINT_TYPE_AUTO);
   // 模型可达数百个，逐行 includes 在每次结果回写时都是 O(n²)
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -168,7 +154,7 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
     setSelected(models);
     setResults({});
     setRunning(false);
-    setProgress({ done: 0, total: 0, success: 0, failed: 0 });
+    setProgress({ done: 0, total: 0 });
     setEndpointType(ENDPOINT_TYPE_AUTO);
     return () => {
       stopRef.current = true;
@@ -190,73 +176,107 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
     stopRef.current = true;
   }, []);
 
-  const handleStart = useCallback(async () => {
-    // 按列表顺序发起；selected 始终是 models 的子集，按钮在未选择时已禁用
-    const targets = models.filter((model) => selectedSet.has(model));
-
-    stopRef.current = false;
-    const runId = (runIdRef.current += 1);
-    // 关闭后重开再发起会复位 stopRef，仅靠它拦不住旧批次继续领取任务，需同时校验批次号
-    const isStopped = () => stopRef.current || runId !== runIdRef.current;
-    setRunning(true);
-    setResults({});
-    setProgress({ done: 0, total: targets.length, success: 0, failed: 0 });
-
-    let done = 0;
-    let success = 0;
-    let failed = 0;
-
-    await runWithConcurrency(
-      targets,
-      TEST_CONCURRENCY,
-      async (model) => {
-        // 领取时才标记测试中，排队项保持「未测试」，停止后无需回退
-        setResults((prev) => ({ ...prev, [model]: { status: 'testing' } }));
-        let rowResult;
-        try {
-          const res = await API.get(`/api/channel/test/${item.id}`, {
-            params: {
-              model,
-              ...(endpointType === ENDPOINT_TYPE_AUTO ? {} : { endpoint_type: endpointType })
-            }
-          });
-          // API 拦截器在 HTTP 层出错时已弹过提示，且返回 undefined 而非 reject
-          if (!res?.data) throw new Error(t('channel_row.testFailed'));
-          const { success: ok, message, time = 0 } = res.data;
-          if (ok) {
-            rowResult = { status: 'success', time };
-            success += 1;
-            onTested?.(time * 1000);
-          } else {
-            rowResult = { status: 'error', message: message || t('channel_row.testFailed') };
-            failed += 1;
+  // testOne 测试单个模型并写回该行；返回 null 表示所属批次已作废（对话框已关闭或重开）
+  const testOne = useCallback(
+    async (model, runId) => {
+      // 领取时才标记测试中，排队项保持原状，停止后无需回退
+      setResults((prev) => ({ ...prev, [model]: { status: 'testing' } }));
+      let rowResult;
+      try {
+        const res = await API.get(`/api/channel/test/${item.id}`, {
+          params: {
+            model,
+            ...(endpointType === ENDPOINT_TYPE_AUTO ? {} : { endpoint_type: endpointType })
           }
-        } catch (error) {
-          rowResult = { status: 'error', message: error.message || t('channel_row.testFailed') };
-          failed += 1;
+        });
+        // API 拦截器在 HTTP 层出错时已弹过提示，且返回 undefined 而非 reject
+        if (!res?.data) throw new Error(t('channel_row.testFailed'));
+        const { success: ok, message, time = 0 } = res.data;
+        if (ok) {
+          rowResult = { status: 'success', time };
+          onTested?.(time * 1000);
+        } else {
+          rowResult = { status: 'error', message: message || t('channel_row.testFailed') };
         }
+      } catch (error) {
+        rowResult = { status: 'error', message: error.message || t('channel_row.testFailed') };
+      }
 
-        if (runId !== runIdRef.current) return;
+      if (runId !== runIdRef.current) return null;
+      setResults((prev) => ({ ...prev, [model]: rowResult }));
+      return rowResult;
+    },
+    [endpointType, item?.id, onTested, t]
+  );
 
-        done += 1;
-        setResults((prev) => ({ ...prev, [model]: rowResult }));
-        setProgress({ done, total: targets.length, success, failed });
-      },
-      isStopped
-    );
+  // runBatch 批量测试 targets；reset 为 false 时保留其他行的结果（用于重试失败项）
+  const runBatch = useCallback(
+    async (targets, reset) => {
+      stopRef.current = false;
+      const runId = (runIdRef.current += 1);
+      // 关闭后重开再发起会复位 stopRef，仅靠它拦不住旧批次继续领取任务，需同时校验批次号
+      const isStopped = () => stopRef.current || runId !== runIdRef.current;
+      setRunning(true);
+      if (reset) setResults({});
+      setProgress({ done: 0, total: targets.length });
 
-    if (runId !== runIdRef.current) return;
+      let done = 0;
+      let success = 0;
+      let failed = 0;
+      await runWithConcurrency(
+        targets,
+        TEST_CONCURRENCY,
+        async (model) => {
+          const rowResult = await testOne(model, runId);
+          if (!rowResult) return;
+          done += 1;
+          if (rowResult.status === 'success') success += 1;
+          else failed += 1;
+          setProgress({ done, total: targets.length });
+        },
+        isStopped
+      );
 
-    setRunning(false);
-    if (stopRef.current && done < targets.length) {
-      showInfo(t('channel_row.multiTestStopped', { success, failed }));
-    } else if (failed > 0) {
-      showError(t('channel_row.multiTestSummary', { success, failed }));
-    } else {
-      showInfo(t('channel_row.multiTestSummary', { success, failed }));
-    }
-  }, [endpointType, item?.id, models, onTested, selectedSet, t]);
+      if (runId !== runIdRef.current) return;
+      setRunning(false);
+      if (stopRef.current && done < targets.length) {
+        showInfo(t('channel_row.multiTestStopped', { success, failed }));
+      } else if (failed > 0) {
+        showError(t('channel_row.multiTestSummary', { success, failed }));
+      } else {
+        showInfo(t('channel_row.multiTestSummary', { success, failed }));
+      }
+    },
+    [testOne, t]
+  );
 
+  // 按列表顺序发起；selected 始终是 models 的子集，按钮在未选择时已禁用
+  const handleStart = useCallback(
+    () =>
+      runBatch(
+        models.filter((model) => selectedSet.has(model)),
+        true
+      ),
+    [models, runBatch, selectedSet]
+  );
+
+  const failedModels = useMemo(() => models.filter((model) => results[model]?.status === 'error'), [models, results]);
+  const handleRetryFailed = useCallback(() => runBatch(failedModels, false), [failedModels, runBatch]);
+
+  // 单行测试不新建批次：复用当前批次号，其他行的结果保持不变，关闭对话框时同样作废
+  const handleTestOne = useCallback((model) => testOne(model, runIdRef.current), [testOne]);
+
+  const counts = useMemo(() => {
+    const values = Object.values(results);
+    return {
+      success: values.filter((r) => r.status === 'success').length,
+      failed: values.filter((r) => r.status === 'error').length,
+      testing: values.filter((r) => r.status === 'testing').length
+    };
+  }, [results]);
+
+  // 单行测试在途时禁止发起批量，单行测试数也不超过并发上限，避免叠加打满上游
+  const busy = running || counts.testing > 0;
   const selectedCount = selected.length;
   const progressValue = progress.total === 0 ? 0 : Math.round((progress.done / progress.total) * 100);
 
@@ -290,7 +310,7 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
               labelId="channel-test-endpoint-label"
               label={t('channel_row.endpointType')}
               value={endpointType}
-              disabled={running}
+              disabled={busy}
               onChange={(event) => setEndpointType(event.target.value)}
             >
               <MenuItem value={ENDPOINT_TYPE_AUTO}>{t('channel_row.endpointAuto')}</MenuItem>
@@ -325,15 +345,29 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
                 {t('channel_row.stopTest')}
               </Button>
             ) : (
-              <Button
-                size="small"
-                variant="contained"
-                onClick={handleStart}
-                disabled={selectedCount === 0}
-                startIcon={<Icon icon="solar:play-bold" />}
-              >
-                {t('channel_row.startTest')}
-              </Button>
+              <>
+                {failedModels.length > 0 && (
+                  <Button
+                    size="small"
+                    color="error"
+                    variant="outlined"
+                    onClick={handleRetryFailed}
+                    disabled={busy}
+                    startIcon={<Icon icon="solar:restart-bold" />}
+                  >
+                    {t('channel_row.retryFailed', { count: failedModels.length })}
+                  </Button>
+                )}
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={handleStart}
+                  disabled={selectedCount === 0 || busy}
+                  startIcon={<Icon icon="solar:play-bold" />}
+                >
+                  {t('channel_row.startTest')}
+                </Button>
+              </>
             )}
           </Stack>
 
@@ -345,7 +379,7 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
                   {progress.done}/{progress.total}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {t('channel_row.multiTestSummary', { success: progress.success, failed: progress.failed })}
+                  {t('channel_row.multiTestSummary', { success: counts.success, failed: counts.failed })}
                 </Typography>
               </Stack>
             </Box>
@@ -357,15 +391,22 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
                 <TableHead>
                   <TableRow>
                     <TableCell padding="checkbox" />
-                    <TableCell>{t('channel_index.model')}</TableCell>
-                    <TableCell width={110}>{t('channel_index.status')}</TableCell>
-                    <TableCell width={260}>{t('channel_row.resultColumn')}</TableCell>
+                    <TableCell align="left">{t('channel_index.model')}</TableCell>
+                    <TableCell align="left" width={110}>
+                      {t('channel_index.status')}
+                    </TableCell>
+                    <TableCell align="left" width={260}>
+                      {t('channel_row.resultColumn')}
+                    </TableCell>
+                    <TableCell width={56} align="center">
+                      {t('common.action')}
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {models.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
                         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                           {t('channel_row.multiTestNoModels')}
                         </Typography>
@@ -382,7 +423,7 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
                           onChange={() => handleToggleModel(model)}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell align="left">
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                             {model}
@@ -390,11 +431,19 @@ export function ChannelTestDialog({ item, open, onClose, onTested }) {
                           {item?.test_model === model && <Chip size="small" variant="outlined" label={t('channel_index.testModel')} />}
                         </Stack>
                       </TableCell>
-                      <TableCell>
+                      <TableCell align="left">
                         <StatusCell result={results[model]} t={t} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell align="left">
                         <TestResultCell result={results[model]} t={t} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <RowActionButton
+                          retry={results[model]?.status === 'error'}
+                          label={t('channel_row.test')}
+                          disabled={running || counts.testing >= TEST_CONCURRENCY || results[model]?.status === 'testing'}
+                          onClick={() => handleTestOne(model)}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

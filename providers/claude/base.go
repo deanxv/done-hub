@@ -184,11 +184,13 @@ func stopReasonClaude2OpenAI(reason string) string {
 	}
 }
 
+// convertRole 把 OpenAI 角色映射为 Claude 角色。Claude 只有 user / assistant；
+// system / developer 已在上游提升为 system 字段，不会走到这里。
+// 未知角色按 user 处理，与 Gemini 转换及 Anthropic 官方兼容层一致：
+// 映射成 assistant 会让客户端发来的内容被当成模型自己说的话，还可能造成相邻两条 assistant。
 func convertRole(role string) string {
-	switch role {
-	case types.ChatMessageRoleUser, types.ChatMessageRoleTool, types.ChatMessageRoleFunction:
-		return types.ChatMessageRoleUser
-	default:
+	if role == types.ChatMessageRoleAssistant {
 		return types.ChatMessageRoleAssistant
 	}
+	return types.ChatMessageRoleUser
 }
