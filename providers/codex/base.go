@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -25,15 +26,18 @@ const (
 	TokenEndpoint   = "https://auth0.openai.com/oauth/token"
 
 	// DefaultCodexVersion 是伪装的 Codex CLI 版本号。
-	// 上游 chatgpt.com/backend-api/codex/responses 会用该版本号对模型访问做灰度门控：
-	// 修改时必须同步更新 DefaultCodexUserAgent 中内嵌的版本号。
-	DefaultCodexVersion = "0.146.0"
+	// 上游 chatgpt.com/backend-api/codex/responses 会按模型的 minimal_client_version 对 version 头做门控，
+	// 低于门槛直接拒绝（如 gpt-6-astra/gpt-6.1-sol 要求 >=0.153.0，gpt-6-sol/gpt-6-luna 要求 >=0.155.0）。
+	// 上游再抬门槛时可先用渠道插件参数 codex.client_version 临时覆盖，无需改代码。
+	DefaultCodexVersion = "0.159.0"
+
+	// codexUserAgentPlatform 是 UA 中版本号之后的平台段，渠道覆盖版本号时复用。
+	codexUserAgentPlatform = "(Ubuntu 22.4.0; x86_64) xterm-256color"
 
 	// DefaultCodexUserAgent 是 Codex CLI 伪装 UA 的统一来源，
 	// 同时被 chat/responses 请求头、Token Refresh、OAuth 授权码换 token 三处复用，
 	// 避免单点升级时漏改导致 auth0 灰度场景下行为不一致。
-	// 版本号必须与 DefaultCodexVersion 保持一致。
-	DefaultCodexUserAgent = "codex_cli_rs/" + DefaultCodexVersion + " (Ubuntu 22.4.0; x86_64) xterm-256color"
+	DefaultCodexUserAgent = "codex_cli_rs/" + DefaultCodexVersion + " " + codexUserAgentPlatform
 
 	// DefaultCodexOriginator 是官方 Codex CLI 的 originator 标识，
 	// 上游据此识别请求来自官方客户端。缺失时新模型可能被拒或降级。
@@ -74,8 +78,10 @@ func (f CodexProviderFactory) Create(channel *model.Channel) base.ProviderInterf
 func parseCodexConfig(provider *CodexProvider) {
 	channel := provider.Channel
 
-	// 插件参数：图像编排模型覆盖（上游按套餐下线旧编排模型时无需改代码）
+	// 插件参数：图像编排模型覆盖（上游按套餐下线旧编排模型时无需改代码）；
+	// 客户端版本覆盖（上游按 minimal_client_version 抬高新模型门槛时无需改代码）。
 	mainModel := imagesResponsesMainModel
+	clientVersion := DefaultCodexVersion
 	if channel.Plugin != nil {
 		plugin := channel.Plugin.Data()
 		if codexConfig, ok := plugin["codex"]; ok {
@@ -84,9 +90,19 @@ func parseCodexConfig(provider *CodexProvider) {
 					mainModel = m
 				}
 			}
+			if v, ok := codexConfig["client_version"].(string); ok {
+				if v = strings.TrimSpace(v); v != "" {
+					if codexClientVersionPattern.MatchString(v) {
+						clientVersion = v
+					} else {
+						logger.SysError(fmt.Sprintf("[Codex] channel %d: invalid client_version %q, fallback to %s", channel.Id, v, DefaultCodexVersion))
+					}
+				}
+			}
 		}
 	}
 	provider.ImagesMainModel = mainModel
+	provider.ClientVersion = clientVersion
 
 	if channel.Key == "" {
 		return
@@ -131,6 +147,16 @@ type CodexProvider struct {
 	openai.OpenAIProvider
 	Credentials     *OAuth2Credentials // OAuth2 凭证（包含 refresh_token）
 	ImagesMainModel string             // 图像请求的 Responses 编排模型，parseCodexConfig 已填默认值
+	ClientVersion   string             // 伪装的 Codex CLI 版本号（version 头与默认 UA），parseCodexConfig 已填默认值
+}
+
+// codexClientVersionPattern 限制渠道覆盖的版本号形如 0.159.0 / 0.158.0-alpha.2，
+// 防止误填的任意字符串被拼进请求头。
+var codexClientVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$`)
+
+// defaultUserAgent 返回与 ClientVersion 一致的默认 UA，保证 version 头与 UA 版本不打架。
+func (p *CodexProvider) defaultUserAgent() string {
+	return "codex_cli_rs/" + p.ClientVersion + " " + codexUserAgentPlatform
 }
 
 func getConfig() base.ProviderConfig {

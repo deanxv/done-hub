@@ -1891,6 +1891,8 @@
   "Codex 渠道专属配置": "Codex channel-specific configuration",
   "图像编排模型": "Image orchestration model",
   "生图请求使用的 Responses 编排模型（非图像模型本身），留空使用默认 gpt-5.6-luna；上游下线默认模型时可在此切换为账号支持的文本模型": "The Responses orchestration model used for image requests (not the image model itself). Leave empty to use the default gpt-5.6-luna; switch to a text model supported by your account if the upstream retires the default",
+  "客户端版本": "Client version",
+  "伪装的 Codex CLI 版本号（如 0.159.0），用于 version 请求头和默认 User-Agent；上游按版本门控新模型，提示模型不支持时可调高，留空使用内置默认值": "Codex CLI version to present (e.g. 0.159.0), used for the version header and default User-Agent. Upstream gates newer models by version; raise it if a model is reported as unsupported. Leave empty to use the built-in default.",
   "请为渠道命名": "Please name the channel",
   "请前往开放平台的知识库上传文档，然后使用知识库功能进行检索。": "Please go to the knowledge base of the open platform to upload documents, and then use the knowledge base function to search.",
   "请参考wiki中的文档获取key. https://github.com/MartialBE/one-hub/wiki/VertexAI": "Please refer to the documentation in the wiki to obtain the key. https://github.com/MartialBE/one-hub/wiki/VertexAI",

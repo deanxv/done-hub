@@ -341,6 +341,12 @@
           "description": "生图请求使用的 Responses 编排模型（非图像模型本身），留空使用默认 gpt-5.6-luna；上游下线默认模型时可在此切换为账号支持的文本模型",
           "type": "string",
           "required": false
+        },
+        "client_version": {
+          "name": "客户端版本",
+          "description": "伪装的 Codex CLI 版本号（如 0.159.0），用于 version 请求头和默认 User-Agent；上游按版本门控新模型，提示模型不支持时可调高，留空使用内置默认值",
+          "type": "string",
+          "required": false
         }
       }
     }

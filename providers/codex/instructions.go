@@ -55,7 +55,7 @@ func latestCodexInstructions() string {
 
 // CodexBaseInstructionsForModel 按模型返回最匹配的真实 Codex base instructions：
 //   - gpt-6.1-sol（含 effort/compact 变体）→ 官方 models.json instructions_template
-//   - gpt-6 / gpt-6-astra（含日期变体）→ GPT-6 Astra prompt
+//   - gpt-6 / gpt-6-*（astra/sol/luna 等）→ GPT-6 Astra prompt（sol/luna 官方 prompt 与之同源但不完全一致，取最接近者）
 //   - 含 "codex" 的模型（gpt-5-codex / spark 等）→ GPT-5-Codex prompt
 //   - gpt-5.5 系非 codex 模型 → GPT-5.5 prompt
 //   - gpt-5.2 系 → GPT-5.2 prompt
@@ -70,7 +70,7 @@ func CodexBaseInstructionsForModel(model string) string {
 		if v := strings.TrimSpace(instructionsGPT61Sol); v != "" {
 			return instructionsGPT61Sol
 		}
-	case canonical == "gpt-6" || canonical == "gpt-6-astra" || strings.HasPrefix(canonical, "gpt-6-astra-"):
+	case canonical == "gpt-6" || strings.HasPrefix(canonical, "gpt-6-"):
 		if v := strings.TrimSpace(instructionsGPT6Astra); v != "" {
 			return instructionsGPT6Astra
 		}
