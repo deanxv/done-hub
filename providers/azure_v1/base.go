@@ -37,6 +37,8 @@ func getAzureConfig() base.ProviderConfig {
 		AudioTranscriptions: "/v1/audio/transcriptions",
 		AudioTranslations:   "/v1/audio/translations",
 		ImagesGenerations:   "/v1/images/generations",
+		ImagesEdit:          "/v1/images/edits",
+		ImagesVariations:    "/v1/images/variations",
 		ChatRealtime:        "/v1/realtime",
 		ModelList:           "1", // 在azure中该参数不参与实际url拼接，只是起到flag的作用
 		Responses:           "/v1/responses",
