@@ -248,10 +248,20 @@ func countClaudeMessageTokens(request *claude.ClaudeRequest) int {
 			textMsg.WriteString(v)
 		case []any:
 			for _, m := range v {
-				content := m.(map[string]any)
+				content, ok := m.(map[string]any)
+				if !ok {
+					tokenNum += 50
+					continue
+				}
 				switch content["type"] {
 				case "text":
-					textMsg.WriteString(content["text"].(string))
+					text, ok := content["text"].(string)
+					if !ok {
+						// 非字符串（null/数字等）按固定值估算，避免类型断言 panic
+						tokenNum += 50
+						continue
+					}
+					textMsg.WriteString(text)
 				default:
 					// 不算了  就只算他50吧
 					tokenNum += 50

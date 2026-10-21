@@ -21,7 +21,10 @@ func (p *BaiduProvider) CreateEmbeddings(request *types.EmbeddingRequest) (*type
 	// 获取请求头
 	headers := p.GetRequestHeaders()
 
-	aliRequest := convertFromEmbeddingOpenai(request)
+	aliRequest, errWithCode := convertFromEmbeddingOpenai(request)
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
 	// 创建请求
 	req, err := p.Requester.NewRequest(http.MethodPost, fullRequestURL, p.Requester.WithBody(aliRequest), p.Requester.WithHeader(headers))
 	if err != nil {
@@ -40,10 +43,14 @@ func (p *BaiduProvider) CreateEmbeddings(request *types.EmbeddingRequest) (*type
 	return p.convertToEmbeddingOpenai(baiduResponse, request)
 }
 
-func convertFromEmbeddingOpenai(request *types.EmbeddingRequest) *BaiduEmbeddingRequest {
-	return &BaiduEmbeddingRequest{
-		Input: request.ParseInput(),
+func convertFromEmbeddingOpenai(request *types.EmbeddingRequest) (*BaiduEmbeddingRequest, *types.OpenAIErrorWithStatusCode) {
+	input, err := request.ParseInput()
+	if err != nil {
+		return nil, common.StringErrorWrapperLocal(err.Error(), "invalid_request_error", http.StatusBadRequest)
 	}
+	return &BaiduEmbeddingRequest{
+		Input: input,
+	}, nil
 }
 
 func (p *BaiduProvider) convertToEmbeddingOpenai(response *BaiduEmbeddingResponse, request *types.EmbeddingRequest) (openaiResponse *types.EmbeddingResponse, errWithCode *types.OpenAIErrorWithStatusCode) {

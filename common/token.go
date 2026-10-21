@@ -115,10 +115,15 @@ func CountTokenMessages(messages []types.ChatCompletionMessage, model string, pr
 			textMsg.WriteString(v + "\n")
 		case []any:
 			for _, it := range v {
-				m := it.(map[string]any)
+				m, ok := it.(map[string]any)
+				if !ok {
+					continue
+				}
 				switch m["type"] {
 				case "text":
-					textMsg.WriteString(m["text"].(string) + "\n")
+					if text, ok := m["text"].(string); ok {
+						textMsg.WriteString(text + "\n")
+					}
 				case "image_url":
 					if preCostType == config.PreCostNotImage {
 						continue
@@ -127,10 +132,13 @@ func CountTokenMessages(messages []types.ChatCompletionMessage, model string, pr
 					if !ok {
 						continue
 					}
-					url := imageUrl["url"].(string)
+					url, ok := imageUrl["url"].(string)
+					if !ok || url == "" {
+						continue
+					}
 					detail := ""
-					if imageUrl["detail"] != nil {
-						detail = imageUrl["detail"].(string)
+					if detailStr, ok := imageUrl["detail"].(string); ok {
+						detail = detailStr
 					}
 					countImageTokens := getCountImageFun(model)
 					imageTokens, err := countImageTokens(url, detail, model)
@@ -211,10 +219,15 @@ func CountTokenInputMessages(input any, model string, preCostType int) int {
 			textMsg.WriteString(v + "\n")
 		case []any:
 			for _, it := range v {
-				m := it.(map[string]any)
+				m, ok := it.(map[string]any)
+				if !ok {
+					continue
+				}
 				switch m["type"] {
 				case "text":
-					textMsg.WriteString(m["text"].(string) + "\n")
+					if text, ok := m["text"].(string); ok {
+						textMsg.WriteString(text + "\n")
+					}
 				case "image_url":
 					if preCostType == config.PreCostNotImage {
 						continue
@@ -223,10 +236,13 @@ func CountTokenInputMessages(input any, model string, preCostType int) int {
 					if !ok {
 						continue
 					}
-					url := imageUrl["url"].(string)
+					url, ok := imageUrl["url"].(string)
+					if !ok || url == "" {
+						continue
+					}
 					detail := ""
-					if imageUrl["detail"] != nil {
-						detail = imageUrl["detail"].(string)
+					if detailStr, ok := imageUrl["detail"].(string); ok {
+						detail = detailStr
 					}
 					countImageTokens := getCountImageFun(model)
 					imageTokens, err := countImageTokens(url, detail, model)

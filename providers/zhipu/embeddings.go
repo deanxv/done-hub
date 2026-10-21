@@ -21,7 +21,10 @@ func (p *ZhipuProvider) CreateEmbeddings(request *types.EmbeddingRequest) (*type
 	// 获取请求头
 	headers := p.GetRequestHeaders()
 
-	aliRequest := convertFromEmbeddingOpenai(request)
+	aliRequest, errWithCode := convertFromEmbeddingOpenai(request)
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
 	// 创建请求
 	req, err := p.Requester.NewRequest(http.MethodPost, fullRequestURL, p.Requester.WithBody(aliRequest), p.Requester.WithHeader(headers))
 	if err != nil {
@@ -40,11 +43,15 @@ func (p *ZhipuProvider) CreateEmbeddings(request *types.EmbeddingRequest) (*type
 	return p.convertToEmbeddingOpenai(zhipuResponse, request)
 }
 
-func convertFromEmbeddingOpenai(request *types.EmbeddingRequest) *ZhipuEmbeddingRequest {
+func convertFromEmbeddingOpenai(request *types.EmbeddingRequest) (*ZhipuEmbeddingRequest, *types.OpenAIErrorWithStatusCode) {
+	input, err := request.ParseInputString()
+	if err != nil {
+		return nil, common.StringErrorWrapperLocal(err.Error(), "invalid_request_error", http.StatusBadRequest)
+	}
 	return &ZhipuEmbeddingRequest{
 		Model: request.Model,
-		Input: request.ParseInputString(),
-	}
+		Input: input,
+	}, nil
 }
 
 func (p *ZhipuProvider) convertToEmbeddingOpenai(response *ZhipuEmbeddingResponse, request *types.EmbeddingRequest) (openaiResponse *types.EmbeddingResponse, errWithCode *types.OpenAIErrorWithStatusCode) {

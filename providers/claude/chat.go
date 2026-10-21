@@ -202,7 +202,10 @@ func ConvertFromChatOpenai(request *types.ChatCompletionRequest) (*ClaudeRequest
 	}
 
 	if request.ToolChoice != nil {
-		toolType, toolFunc := request.ParseToolChoice()
+		toolType, toolFunc, err := request.ParseToolChoice()
+		if err != nil {
+			return nil, common.StringErrorWrapperLocal(err.Error(), "invalid_request_error", http.StatusBadRequest)
+		}
 		claudeRequest.ToolChoice = ConvertToolChoice(toolType, toolFunc)
 	}
 

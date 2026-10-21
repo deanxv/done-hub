@@ -1,5 +1,10 @@
 package types
 
+import (
+	"errors"
+	"fmt"
+)
+
 type EmbeddingRequest struct {
 	Model          string `json:"model" binding:"required"`
 	Input          any    `json:"input" binding:"required"`
@@ -21,39 +26,48 @@ type EmbeddingResponse struct {
 	Usage  *Usage      `json:"usage,omitempty"`
 }
 
-func (r EmbeddingRequest) ParseInput() []string {
+// ParseInput 解析 embeddings 请求的 input，仅支持字符串和字符串数组。
+// token 数组（[]int）不支持：只接受文本的上游渠道据此返回 400，其余渠道应透传原始 input。
+func (r EmbeddingRequest) ParseInput() ([]string, error) {
 	if r.Input == nil {
-		return nil
+		return nil, errors.New("input is required")
 	}
-	var input []string
-	switch r.Input.(type) {
+
+	switch input := r.Input.(type) {
 	case string:
-		input = []string{r.Input.(string)}
+		return []string{input}, nil
 	case []any:
-		input = make([]string, 0, len(r.Input.([]any)))
-		for _, item := range r.Input.([]any) {
-			if str, ok := item.(string); ok {
-				input = append(input, str)
-			}
+		if len(input) == 0 {
+			return nil, errors.New("invalid input: empty array")
 		}
+		texts := make([]string, 0, len(input))
+		for i, item := range input {
+			str, ok := item.(string)
+			if !ok {
+				if isNumber(item) {
+					return nil, fmt.Errorf("invalid input[%d]: expected string, got %T (token arrays are not supported)", i, item)
+				}
+				return nil, fmt.Errorf("invalid input[%d]: expected string, got %T", i, item)
+			}
+			texts = append(texts, str)
+		}
+		return texts, nil
+	default:
+		return nil, fmt.Errorf("invalid input: expected string or array of strings, got %T", r.Input)
 	}
-	return input
 }
 
-func (r EmbeddingRequest) ParseInputString() string {
-	if r.Input == nil {
-		return ""
+// ParseInputString 返回 input 解析后的第一段文本，供只接受单个字符串的上游使用。
+func (r EmbeddingRequest) ParseInputString() (string, error) {
+	texts, err := r.ParseInput()
+	if err != nil {
+		return "", err
 	}
+	return texts[0], nil
+}
 
-	var input string
-	switch r.Input.(type) {
-	case string:
-		input = r.Input.(string)
-	case []any:
-		// 取第一个
-		if len(r.Input.([]any)) > 0 {
-			input = r.Input.([]any)[0].(string)
-		}
-	}
-	return input
+// isNumber 判断元素是否为 JSON 数字（解码后为 float64）。
+func isNumber(v any) bool {
+	_, ok := v.(float64)
+	return ok
 }

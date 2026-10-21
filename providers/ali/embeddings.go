@@ -18,7 +18,10 @@ func (p *AliProvider) CreateEmbeddings(request *types.EmbeddingRequest) (*types.
 	// 获取请求头
 	headers := p.GetRequestHeaders()
 
-	aliRequest := convertFromEmbeddingOpenai(request)
+	aliRequest, errWithCode := convertFromEmbeddingOpenai(request)
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
 	// 创建请求
 	req, err := p.Requester.NewRequest(http.MethodPost, fullRequestURL, p.Requester.WithBody(aliRequest), p.Requester.WithHeader(headers))
 	if err != nil {
@@ -37,15 +40,19 @@ func (p *AliProvider) CreateEmbeddings(request *types.EmbeddingRequest) (*types.
 	return p.convertToEmbeddingOpenai(aliResponse, request)
 }
 
-func convertFromEmbeddingOpenai(request *types.EmbeddingRequest) *AliEmbeddingRequest {
+func convertFromEmbeddingOpenai(request *types.EmbeddingRequest) (*AliEmbeddingRequest, *types.OpenAIErrorWithStatusCode) {
+	texts, err := request.ParseInput()
+	if err != nil {
+		return nil, common.StringErrorWrapperLocal(err.Error(), "invalid_request_error", http.StatusBadRequest)
+	}
 	return &AliEmbeddingRequest{
 		Model: "text-embedding-v1",
 		Input: struct {
 			Texts []string `json:"texts"`
 		}{
-			Texts: request.ParseInput(),
+			Texts: texts,
 		},
-	}
+	}, nil
 }
 
 func (p *AliProvider) convertToEmbeddingOpenai(response *AliEmbeddingResponse, request *types.EmbeddingRequest) (openaiResponse *types.EmbeddingResponse, errWithCode *types.OpenAIErrorWithStatusCode) {

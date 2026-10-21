@@ -1,6 +1,9 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 const (
 	ContentTypeText     = "text"
@@ -266,11 +269,22 @@ type WebSearchOptions struct {
 	UserLocation      any    `json:"user_location,omitempty"`
 }
 
-func (r ChatCompletionRequest) ParseToolChoice() (toolType, toolFunc string) {
+// ParseToolChoice 解析 tool_choice。function 类型缺少合法 name 时返回错误，
+// 避免客户端强制调用某工具却被静默降级为 auto。
+func (r ChatCompletionRequest) ParseToolChoice() (toolType, toolFunc string, err error) {
 	if choice, ok := r.ToolChoice.(map[string]any); ok {
-		if function, ok := choice["function"].(map[string]any); ok {
+		function, hasFunction := choice["function"].(map[string]any)
+		if hasFunction {
+			name, ok := function["name"].(string)
+			if !ok || name == "" {
+				return "", "", errors.New("invalid tool_choice: function.name is required")
+			}
 			toolType = ToolChoiceTypeFunction
-			toolFunc = function["name"].(string)
+			toolFunc = name
+		} else if choiceType, ok := choice["type"].(string); ok && choiceType == ToolChoiceTypeFunction {
+			// 声明了 function 类型却没有 function 对象，按非法请求拒绝，
+			// 不能静默降级为 auto，否则客户端强制调用会变成模型自由选择。
+			return "", "", errors.New("invalid tool_choice: function object is required")
 		}
 	} else if toolChoiceType, ok := r.ToolChoice.(string); ok {
 		toolType = toolChoiceType
@@ -280,7 +294,7 @@ func (r ChatCompletionRequest) ParseToolChoice() (toolType, toolFunc string) {
 		toolType = ToolChoiceTypeAuto
 	}
 
-	return
+	return toolType, toolFunc, nil
 }
 
 func (r ChatCompletionRequest) GetFunctionCate() string {
