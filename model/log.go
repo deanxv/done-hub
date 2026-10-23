@@ -6,8 +6,10 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/utils"
+	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gorm.io/datatypes"
@@ -470,9 +472,62 @@ func SumUsedQuota(params *LogsListParams) (quota int) {
 	return quota
 }
 
-func DeleteOldLog(targetTimestamp int64) (int64, error) {
-	result := DB.Where("type = ? AND created_at < ?", LogTypeConsume, targetTimestamp).Delete(&Log{})
-	return result.RowsAffected, result.Error
+// logCleanupRunning 保证单进程内同一时刻只有一个清理循环在跑（cron 与手动按钮共用）。
+// 积压大时一次清理可能持续数小时，重叠执行只会互相争锁。
+// 注意：cron 仅在 master 节点运行，而手动接口可能打到任意节点，此标记不跨进程互斥。
+var logCleanupRunning atomic.Bool
+
+// ErrLogCleanupRunning 表示已有清理任务在执行。
+var ErrLogCleanupRunning = errors.New("log cleanup is already running")
+
+// IsLogCleanupRunning 供接口层做前置检查用；真正的互斥由 DeleteOldLogs 内的 CAS 保证。
+func IsLogCleanupRunning() bool {
+	return logCleanupRunning.Load()
+}
+
+// DeleteOldLogs 分批删除指定时间之前的消费日志，返回总删除行数。
+// 锁等待超时、死锁这类瞬时错误只影响当前批，稍后重试；连续失败达到上限才放弃，
+// 避免一次 1205 就让整次清理中止、积压越滚越大。
+// 若已有清理在执行，立即返回 ErrLogCleanupRunning。
+func DeleteOldLogs(source string, targetTimestamp int64) (int64, error) {
+	if !logCleanupRunning.CompareAndSwap(false, true) {
+		return 0, ErrLogCleanupRunning
+	}
+	defer logCleanupRunning.Store(false)
+
+	const (
+		batchSize          = 10000
+		maxConsecutiveErrs = 5
+		retryInterval      = 5 * time.Second
+		progressEvery      = 1_000_000
+	)
+	start := time.Now()
+	var totalDeleted, nextProgress int64 = 0, progressEvery
+	consecutiveErrs := 0
+	for {
+		affected, err := DeleteOldLogBatch(targetTimestamp, batchSize)
+		if err != nil {
+			consecutiveErrs++
+			if consecutiveErrs >= maxConsecutiveErrs {
+				logger.SysError(fmt.Sprintf("[%s] 消费日志清理连续失败 %d 次，放弃本次，已删 %d 行: %v", source, consecutiveErrs, totalDeleted, err))
+				return totalDeleted, err
+			}
+			logger.SysError(fmt.Sprintf("[%s] 消费日志清理本批失败（连续第 %d 次），%s 后重试: %v", source, consecutiveErrs, retryInterval, err))
+			time.Sleep(retryInterval)
+			continue
+		}
+		consecutiveErrs = 0
+		totalDeleted += affected
+		if affected < batchSize {
+			break
+		}
+		if totalDeleted >= nextProgress {
+			logger.SysLog(fmt.Sprintf("[%s] 消费日志清理进行中，已删 %d 行，耗时 %s", source, totalDeleted, time.Since(start).Round(time.Second)))
+			nextProgress += progressEvery
+		}
+	}
+	logger.SysLog(fmt.Sprintf("[%s] 消费日志清理完成，共删除 %d 行，耗时 %s", source, totalDeleted, time.Since(start).Round(time.Second)))
+	return totalDeleted, nil
 }
 
 // DeleteOldLogBatch 分批删除指定时间之前的消费日志，返回本批删除行数。

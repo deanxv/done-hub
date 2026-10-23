@@ -498,9 +498,9 @@ const OperationSetting = () => {
   const deleteHistoryLogs = async () => {
     try {
       const res = await API.delete(`/api/log/?target_timestamp=${Math.floor(historyTimestamp)}`);
-      const { success, message, data } = res.data;
+      const { success, message } = res.data;
       if (success) {
-        showSuccess(`${data} 条日志已清理！`);
+        showSuccess(message);
         return;
       }
       showError('日志清理失败：' + message);

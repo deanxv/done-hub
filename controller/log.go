@@ -2,8 +2,10 @@ package controller
 
 import (
 	"done-hub/common"
+	"done-hub/common/logger"
 	"done-hub/model"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -160,6 +162,9 @@ func GetLogsSelfStat(c *gin.Context) {
 	})
 }
 
+// DeleteHistoryLogs 手动清理指定时间之前的消费日志。
+// 积压大时一次清理可能持续数小时，远超 HTTP 超时，故在后台分批执行并立即返回；
+// 进度与结果写入系统日志。若已有清理（cron 或上一次手动）在跑则拒绝重复触发。
 func DeleteHistoryLogs(c *gin.Context) {
 	targetTimestamp, _ := strconv.ParseInt(c.Query("target_timestamp"), 10, 64)
 	if targetTimestamp == 0 {
@@ -169,18 +174,21 @@ func DeleteHistoryLogs(c *gin.Context) {
 		})
 		return
 	}
-	count, err := model.DeleteOldLog(targetTimestamp)
-	if err != nil {
+	if model.IsLogCleanupRunning() {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "已有日志清理任务在执行，请稍后再试",
 		})
 		return
 	}
+	common.SafeGoroutine(func() {
+		if _, err := model.DeleteOldLogs("manual", targetTimestamp); errors.Is(err, model.ErrLogCleanupRunning) {
+			logger.SysLog("[manual] 已有消费日志清理在执行，跳过本次")
+		}
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
-		"data":    count,
+		"message": "日志清理已在后台开始，进度请查看系统日志",
 	})
 }
 

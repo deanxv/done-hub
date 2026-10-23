@@ -5,7 +5,7 @@ import (
 	"done-hub/common/logger"
 	"done-hub/common/scheduler"
 	"done-hub/model"
-	"fmt"
+	"errors"
 	"github.com/spf13/viper"
 	"time"
 
@@ -108,46 +108,13 @@ func InitCron() {
 	}
 }
 
-// autoDeleteLogs 分批删除过期消费日志。
-// 锁等待超时、死锁这类瞬时错误只影响当前批，稍后重试；连续失败达到上限才放弃本次，
-// 避免一次 1205 就让当天的清理整体中止、积压越滚越大。
+// autoDeleteLogs 按保留天数清理过期消费日志，分批/重试/进度日志由 model.DeleteOldLogs 统一处理。
 func autoDeleteLogs() {
 	if !config.LogAutoDeleteEnabled || config.LogAutoDeleteDays <= 0 {
 		return
 	}
-	const (
-		batchSize          = 10000
-		maxConsecutiveErrs = 5
-		retryInterval      = 5 * time.Second
-		progressEvery      = 1_000_000
-	)
 	targetTimestamp := time.Now().AddDate(0, 0, -config.LogAutoDeleteDays).Unix()
-	start := time.Now()
-	var totalDeleted, nextProgress int64 = 0, progressEvery
-	consecutiveErrs := 0
-	for {
-		affected, err := model.DeleteOldLogBatch(targetTimestamp, batchSize)
-		if err != nil {
-			consecutiveErrs++
-			if consecutiveErrs >= maxConsecutiveErrs {
-				logger.SysError(fmt.Sprintf("[cron] 消费日志自动清理连续失败 %d 次，放弃本次，已删 %d 行: %v", consecutiveErrs, totalDeleted, err))
-				return
-			}
-			logger.SysError(fmt.Sprintf("[cron] 消费日志自动清理本批失败（连续第 %d 次），%s 后重试: %v", consecutiveErrs, retryInterval, err))
-			time.Sleep(retryInterval)
-			continue
-		}
-		consecutiveErrs = 0
-		totalDeleted += affected
-		if affected < batchSize {
-			break
-		}
-		if totalDeleted >= nextProgress {
-			logger.SysLog(fmt.Sprintf("[cron] 消费日志自动清理进行中，已删 %d 行，耗时 %s", totalDeleted, time.Since(start).Round(time.Second)))
-			nextProgress += progressEvery
-		}
-	}
-	if totalDeleted > 0 {
-		logger.SysLog(fmt.Sprintf("[cron] 消费日志自动清理完成，共删除 %d 行，耗时 %s", totalDeleted, time.Since(start).Round(time.Second)))
+	if _, err := model.DeleteOldLogs("cron", targetTimestamp); errors.Is(err, model.ErrLogCleanupRunning) {
+		logger.SysLog("[cron] 已有消费日志清理在执行（可能是手动触发），跳过本次")
 	}
 }
