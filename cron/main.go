@@ -64,28 +64,9 @@ func InitCron() {
 	err = scheduler.Manager.AddJob(
 		"log_auto_delete",
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(3, 0, 0))),
-		gocron.NewTask(func() {
-			if !config.LogAutoDeleteEnabled || config.LogAutoDeleteDays <= 0 {
-				return
-			}
-			targetTimestamp := time.Now().AddDate(0, 0, -config.LogAutoDeleteDays).Unix()
-			const batchSize = 10000
-			var totalDeleted int64
-			for {
-				affected, err := model.DeleteOldLogBatch(targetTimestamp, batchSize)
-				if err != nil {
-					logger.SysError(fmt.Sprintf("[cron] 消费日志自动清理失败，已删 %d 行: %v", totalDeleted, err))
-					break
-				}
-				totalDeleted += affected
-				if affected == 0 {
-					break
-				}
-			}
-			if totalDeleted > 0 {
-				logger.SysLog(fmt.Sprintf("[cron] 消费日志自动清理完成，共删除 %d 行", totalDeleted))
-			}
-		}),
+		gocron.NewTask(autoDeleteLogs),
+		// 积压多时单次清理可能持续数小时，禁止与下一次触发重叠
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 	if err != nil {
 		logger.SysError("Cron job error: " + err.Error())
@@ -124,5 +105,49 @@ func InitCron() {
 	if err != nil {
 		logger.SysError("Cron job error: " + err.Error())
 		return
+	}
+}
+
+// autoDeleteLogs 分批删除过期消费日志。
+// 锁等待超时、死锁这类瞬时错误只影响当前批，稍后重试；连续失败达到上限才放弃本次，
+// 避免一次 1205 就让当天的清理整体中止、积压越滚越大。
+func autoDeleteLogs() {
+	if !config.LogAutoDeleteEnabled || config.LogAutoDeleteDays <= 0 {
+		return
+	}
+	const (
+		batchSize          = 10000
+		maxConsecutiveErrs = 5
+		retryInterval      = 5 * time.Second
+		progressEvery      = 1_000_000
+	)
+	targetTimestamp := time.Now().AddDate(0, 0, -config.LogAutoDeleteDays).Unix()
+	start := time.Now()
+	var totalDeleted, nextProgress int64 = 0, progressEvery
+	consecutiveErrs := 0
+	for {
+		affected, err := model.DeleteOldLogBatch(targetTimestamp, batchSize)
+		if err != nil {
+			consecutiveErrs++
+			if consecutiveErrs >= maxConsecutiveErrs {
+				logger.SysError(fmt.Sprintf("[cron] 消费日志自动清理连续失败 %d 次，放弃本次，已删 %d 行: %v", consecutiveErrs, totalDeleted, err))
+				return
+			}
+			logger.SysError(fmt.Sprintf("[cron] 消费日志自动清理本批失败（连续第 %d 次），%s 后重试: %v", consecutiveErrs, retryInterval, err))
+			time.Sleep(retryInterval)
+			continue
+		}
+		consecutiveErrs = 0
+		totalDeleted += affected
+		if affected < batchSize {
+			break
+		}
+		if totalDeleted >= nextProgress {
+			logger.SysLog(fmt.Sprintf("[cron] 消费日志自动清理进行中，已删 %d 行，耗时 %s", totalDeleted, time.Since(start).Round(time.Second)))
+			nextProgress += progressEvery
+		}
+	}
+	if totalDeleted > 0 {
+		logger.SysLog(fmt.Sprintf("[cron] 消费日志自动清理完成，共删除 %d 行，耗时 %s", totalDeleted, time.Since(start).Round(time.Second)))
 	}
 }

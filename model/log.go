@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"done-hub/common"
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/utils"
@@ -475,8 +476,16 @@ func DeleteOldLog(targetTimestamp int64) (int64, error) {
 }
 
 // DeleteOldLogBatch 分批删除指定时间之前的消费日志，返回本批删除行数。
-// 先查一批 ID 再按 ID 删，避免超大事务锁表。
+// MySQL 直接 DELETE ... ORDER BY created_at LIMIT n，走 idx_created_at_type 一趟完成，
+// 避免先查出上万个 id 再拼成 IN 列表（参数巨大、慢日志刷屏、两次走索引）。
+// PostgreSQL/SQLite 的 DELETE 不支持 LIMIT（GORM 会静默忽略，导致一次全删），仍走查 id 再删。
 func DeleteOldLogBatch(targetTimestamp int64, batchSize int) (int64, error) {
+	if !common.UsingPostgreSQL && !common.UsingSQLite {
+		result := DB.Where("type = ? AND created_at < ?", LogTypeConsume, targetTimestamp).
+			Order("created_at").Limit(batchSize).Delete(&Log{})
+		return result.RowsAffected, result.Error
+	}
+
 	var ids []int
 	err := DB.Model(&Log{}).Select("id").
 		Where("type = ? AND created_at < ?", LogTypeConsume, targetTimestamp).
