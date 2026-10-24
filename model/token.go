@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -538,24 +539,6 @@ func PreConsumeTokenQuota(tokenId int, quota int) (err error) {
 	if userQuota < quota {
 		return errors.New("用户额度不足")
 	}
-	// 额度提醒：全局总开关开启、且用户未单独关闭时才评估触发。
-	if config.QuotaRemindEnabled && remindEnabled {
-		threshold := config.QuotaRemindThreshold
-		if remindThreshold != nil {
-			threshold = *remindThreshold
-		}
-		quotaTooLow := userQuota >= threshold && userQuota-quota < threshold
-		noMoreQuota := userQuota-quota <= 0
-		if noMoreQuota {
-			if shouldSendQuotaWarningNotify(token.UserId, true) {
-				go sendQuotaWarningEmail(token.UserId, userQuota, true)
-			}
-		} else if quotaTooLow {
-			if shouldSendQuotaWarningNotify(token.UserId, false) {
-				go sendQuotaWarningEmail(token.UserId, userQuota, false)
-			}
-		}
-	}
 	if token.UnlimitedQuota {
 		// 无限额度令牌没有上限，只累计用量，不扣减 remain_quota
 		err = AddTokenUsedQuota(tokenId, quota)
@@ -566,26 +549,204 @@ func PreConsumeTokenQuota(tokenId int, quota int) (err error) {
 		return err
 	}
 	err = DecreaseUserQuota(token.UserId, quota)
-	return err
+	if err != nil {
+		return err
+	}
+	notifyQuotaWarningIfNeeded(token.UserId, userQuota, quota, remindThreshold, remindEnabled)
+	return nil
 }
 
-// quotaWarningNotifyDedupTTL 控制额度提醒在跨节点/并发之间的去重窗口：
-// 阈值边界附近的并发请求会各自命中触发条件，靠此窗口保证同类型告警只发一封。
-const quotaWarningNotifyDedupTTL = 10 * time.Minute
+// 额度提醒语义是「状态跨越」事件：余额跌到阈值之下（或用尽）发一封，充值明显回到阈值之上后再次跌破再发一封。
+// 实现为带滞回的状态机：每类告警一把「已发送」锁，SETNX 拿到才发；余额回到「重新上膛水位」
+// （阈值 + 余量，或退回余量之上）时主动释放锁。滞回基于余额状态而非单笔扣减量，小步扣费同样生效。
+//   - quotaWarningSentTTL：「已发送」锁的保底过期，余额长期低于阈值（例如阈值设得比余额高）时每天兜底一封；
+//   - quotaWarningBurstTTL：纯并发去重，兜住跨节点 release/acquire 的极小概率竞态；代价是
+//     重新上膛后 10 分钟内再次跌破不会重发，此时用户刚收到过同类邮件，可以接受。
+const (
+	quotaWarningSentTTL  = 24 * time.Hour
+	quotaWarningBurstTTL = 10 * time.Minute
+)
 
-// shouldSendQuotaWarningNotify 对额度提醒去重：同一用户、同一告警类型（即将用尽/已用尽）
-// 在窗口内只放行第一次。Redis 未启用时 fail-open（照旧发送）；SETNX 抖动失败时宁可多发也不静默丢。
-func shouldSendQuotaWarningNotify(userId int, noMoreQuota bool) bool {
+var (
+	// quotaWarningLocalDedup 是进程内的去重兜底：Redis 未启用或 SETNX 抖动失败时仍能避免逐请求刷邮件。
+	quotaWarningLocalDedup = struct {
+		sync.Mutex
+		expireAt map[string]time.Time
+	}{expireAt: map[string]time.Time{}}
+
+	// quotaWarningNow 为去重窗口的时钟源，变量化以便测试推进时间。
+	quotaWarningNow = time.Now
+
+	// sendQuotaWarningEmailFunc 为实际发送入口（异步），变量化以便测试替换成同步收集器。
+	sendQuotaWarningEmailFunc = func(userId int, quota int, noMoreQuota bool) {
+		go sendQuotaWarningEmail(userId, quota, noMoreQuota)
+	}
+)
+
+func quotaWarningSentKey(userId int, noMoreQuota bool) string {
+	return fmt.Sprintf("notify_lock:quota_warning:%d:%t", userId, noMoreQuota)
+}
+
+func quotaWarningBurstKey(userId int, noMoreQuota bool) string {
+	return fmt.Sprintf("notify_lock:quota_warning:burst:%d:%t", userId, noMoreQuota)
+}
+
+// quotaWarningLocalAcquire 在进程内对 key 做一次性占位，窗口内重复调用返回 false。
+// 命中已有占位时直接返回，不做扫描：低余额用户的每次请求都会走到这里，持锁下的 O(n) 清理
+// 只放在真正插入（状态跨越，很少发生）的路径上。
+func quotaWarningLocalAcquire(key string, ttl time.Duration, now time.Time) bool {
+	d := &quotaWarningLocalDedup
+	d.Lock()
+	defer d.Unlock()
+	if exp, ok := d.expireAt[key]; ok && now.Before(exp) {
+		return false
+	}
+	for k, exp := range d.expireAt {
+		if !now.Before(exp) {
+			delete(d.expireAt, k)
+		}
+	}
+	d.expireAt[key] = now.Add(ttl)
+	return true
+}
+
+func quotaWarningLocalRelease(key string) {
+	d := &quotaWarningLocalDedup
+	d.Lock()
+	delete(d.expireAt, key)
+	d.Unlock()
+}
+
+// quotaWarningLocalTTL 决定进程内占位的寿命：Redis 未启用时本地就是唯一状态，用完整 ttl；
+// Redis 启用时跨节点状态以 Redis 为准，本地只兜 SETNX 抖动，不能长于并发去重窗口，
+// 否则其它节点执行的 rearm（只删 Redis）对本节点不生效，用户会被本地残留的 24h 占位压住。
+func quotaWarningLocalTTL(ttl time.Duration) time.Duration {
+	if config.RedisEnabled {
+		return min(ttl, quotaWarningBurstTTL)
+	}
+	return ttl
+}
+
+// acquireQuotaWarningLock 先过进程内窗口，再过 Redis 跨节点窗口。
+// Redis 未启用时只靠进程内去重；SETNX 抖动失败时宁可多发也不静默丢。
+func acquireQuotaWarningLock(key string, ttl time.Duration) bool {
+	if !quotaWarningLocalAcquire(key, quotaWarningLocalTTL(ttl), quotaWarningNow()) {
+		return false
+	}
 	if !config.RedisEnabled {
 		return true
 	}
-	key := fmt.Sprintf("notify_lock:quota_warning:%d:%t", userId, noMoreQuota)
-	ok, err := redis.RedisSetNX(key, "1", quotaWarningNotifyDedupTTL)
+	ok, err := redis.RedisSetNX(key, "1", ttl)
 	if err != nil {
-		logger.SysError(fmt.Sprintf("quota warning notify dedup SETNX failed (user=%d): %v", userId, err))
+		logger.SysError(fmt.Sprintf("quota warning notify dedup SETNX failed (key=%s): %v", key, err))
 		return true
 	}
 	return ok
+}
+
+// shouldSendQuotaWarningNotify 决定本次告警是否放行：先拿「已发送」锁，再过并发去重锁。
+func shouldSendQuotaWarningNotify(userId int, noMoreQuota bool) bool {
+	if !acquireQuotaWarningLock(quotaWarningSentKey(userId, noMoreQuota), quotaWarningSentTTL) {
+		return false
+	}
+	return acquireQuotaWarningLock(quotaWarningBurstKey(userId, noMoreQuota), quotaWarningBurstTTL)
+}
+
+// rearmQuotaWarning 在余额回到安全水位时释放对应的「已发送」锁，让下一次跌破能再次发送。
+// 充值发生在扣费路径之外，这里观察不到「回升」这个瞬间，只能在每次余额健康的扣费后无条件释放；
+// 本地是一次 map delete，Redis 是一次 DEL，相对扣费路径本身的 DB 与缓存写入可忽略。
+func rearmQuotaWarning(userId int, low bool, exhausted bool) {
+	keys := make([]string, 0, 2)
+	if low {
+		keys = append(keys, quotaWarningSentKey(userId, false))
+	}
+	if exhausted {
+		keys = append(keys, quotaWarningSentKey(userId, true))
+	}
+	if len(keys) == 0 {
+		return
+	}
+	for _, k := range keys {
+		quotaWarningLocalRelease(k)
+	}
+	if config.RedisEnabled {
+		if err := redis.RedisDel(keys...); err != nil {
+			logger.SysError(fmt.Sprintf("quota warning notify rearm failed (user=%d): %v", userId, err))
+		}
+	}
+}
+
+// quotaWarningRefundMargin 是「已用尽」告警的重新上膛余量：每次结算都可能把预扣多出的部分退回来，
+// 余额在 0 附近来回抖动是常态；退回金额的上限正是预扣固定开销 PreConsumedQuota。
+func quotaWarningRefundMargin() int {
+	if config.PreConsumedQuota < 0 {
+		return 0
+	}
+	return config.PreConsumedQuota
+}
+
+// quotaWarningThresholdMargin 是「即将用尽」告警的重新上膛余量：在退回上限的基础上再按阈值的 10% 放大，
+// 余额必须明显回到阈值之上才重新上膛，避免阈值附近小幅抖动重复触发。
+func quotaWarningThresholdMargin(threshold int) int {
+	margin := quotaWarningRefundMargin()
+	if threshold/10 > margin {
+		margin = threshold / 10
+	}
+	return margin
+}
+
+// quotaWarningState 描述扣费后余额所处的状态。
+type quotaWarningState int
+
+const (
+	quotaWarningStateSafe      quotaWarningState = iota // 高于阈值+余量：两类告警都重新上膛
+	quotaWarningStateBand                               // 阈值附近的滞回带：什么都不做
+	quotaWarningStateLow                                // 低于阈值但未用尽：发「即将用尽」；「已用尽」若高于退回余量则上膛
+	quotaWarningStateExhausted                          // 用尽：发「已用尽」
+)
+
+// evaluateQuotaWarning 根据扣费后余额判定状态；lowRearm 表示余额是否高到足以给「即将用尽」重新上膛，
+// exhaustedRearm 同理针对「已用尽」。两者互相独立，大阈值不会放大「已用尽」的上膛水位。
+func evaluateQuotaWarning(quotaAfter, threshold int) (state quotaWarningState, lowRearm bool, exhaustedRearm bool) {
+	exhaustedRearm = quotaAfter > quotaWarningRefundMargin()
+	lowRearm = quotaAfter >= threshold+quotaWarningThresholdMargin(threshold)
+	switch {
+	case quotaAfter <= 0:
+		state = quotaWarningStateExhausted
+	case quotaAfter < threshold:
+		state = quotaWarningStateLow
+	case lowRearm:
+		state = quotaWarningStateSafe
+	default:
+		state = quotaWarningStateBand
+	}
+	return state, lowRearm, exhaustedRearm
+}
+
+// notifyQuotaWarningIfNeeded 在一次成功扣费后评估是否需要发额度提醒。
+// quotaBefore 为扣费前余额、delta 为本次扣减量；threshold 为用户阈值（nil 回退全局），enabled 为用户开关。
+func notifyQuotaWarningIfNeeded(userId int, quotaBefore int, delta int, threshold *int, enabled bool) {
+	if delta <= 0 || !config.QuotaRemindEnabled || !enabled {
+		return
+	}
+	effective := config.QuotaRemindThreshold
+	if threshold != nil {
+		effective = *threshold
+	}
+	quotaAfter := quotaBefore - delta
+	state, lowRearm, exhaustedRearm := evaluateQuotaWarning(quotaAfter, effective)
+	rearmQuotaWarning(userId, lowRearm, exhaustedRearm)
+	switch state {
+	case quotaWarningStateExhausted:
+		if shouldSendQuotaWarningNotify(userId, true) {
+			// 最终结算可能把余额扣成负数，邮件里不展示负余额
+			sendQuotaWarningEmailFunc(userId, max(quotaAfter, 0), true)
+		}
+	case quotaWarningStateLow:
+		if shouldSendQuotaWarningNotify(userId, false) {
+			sendQuotaWarningEmailFunc(userId, quotaAfter, false)
+		}
+	}
 }
 
 func sendQuotaWarningEmail(userId int, userQuota int, noMoreQuota bool) {
@@ -613,13 +774,30 @@ func sendQuotaWarningEmail(userId int, userQuota int, noMoreQuota bool) {
 	}
 }
 
-// PostConsumeTokenQuotaWithInfo 消费 token 配额，直接使用传入的 userId 和 unlimitedQuota，避免数据库查询
+// PostConsumeTokenQuotaWithInfo 消费 token 配额，直接使用传入的 userId 和 unlimitedQuota，不再查询 token 表；
+// 额度提醒全局开关开启时会额外读一次 users 单行，用于扣费后的提醒判断。
 func PostConsumeTokenQuotaWithInfo(tokenId int, userId int, unlimitedQuota bool, quota int) (err error) {
 	if quota == 0 {
 		return nil
 	}
 	if quota > 0 {
+		// 最终结算是余额真正跌破阈值的地方，提醒判断必须挂在这里；只有全局开关开启时才多读一次用户行。
+		var (
+			quotaBefore     int
+			remindThreshold *int
+			remindEnabled   bool
+		)
+		if config.QuotaRemindEnabled {
+			quotaBefore, remindThreshold, remindEnabled, err = GetUserQuotaWithRemindSetting(userId)
+			if err != nil {
+				logger.SysError(fmt.Sprintf("failed to load quota remind setting (user=%d): %v", userId, err))
+				remindEnabled = false
+			}
+		}
 		err = DecreaseUserQuota(userId, quota)
+		if err == nil {
+			notifyQuotaWarningIfNeeded(userId, quotaBefore, quota, remindThreshold, remindEnabled)
+		}
 	} else {
 		err = IncreaseUserQuota(userId, -quota)
 	}

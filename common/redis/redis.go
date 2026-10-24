@@ -87,9 +87,12 @@ func RedisGet(key string) (string, error) {
 	return RDB.Get(ctx, key).Result()
 }
 
-func RedisDel(key string) error {
+func RedisDel(keys ...string) error {
+	if len(keys) == 0 {
+		return nil
+	}
 	ctx := context.Background()
-	return RDB.Del(ctx, key).Err()
+	return RDB.Del(ctx, keys...).Err()
 }
 
 // RedisSetNX 尝试设置一个带过期时间的 key，仅当 key 不存在时成功。
