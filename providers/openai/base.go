@@ -345,6 +345,80 @@ func (p *OpenAIProvider) patchPassThroughBody(modelName string) ([]byte, bool) {
 	return out, true
 }
 
+// storeParamName 是 OpenAI 的 store 参数名，仅 Chat Completions / Responses 接受
+// （以官方 OpenAPI spec 生成的 openai-go SDK 为准：CompletionNewParams 无该字段）；
+// Legacy Completions、图片、Embeddings、Speech、Moderation 等接口收到会直接 400 "Unknown parameter: 'store'"。
+const storeParamName = "store"
+
+// relayModeAcceptsStore 判断指定接口是否接受 store 参数。
+// Responses 原生透传不经过 GetRequestTextBody，但 chat→responses 兼容路径
+// （ConvertChat / need2response）和透传不可用时的回退都会以 RelayModeResponses 走到这里。
+func relayModeAcceptsStore(relayMode int) bool {
+	switch relayMode {
+	case config.RelayModeChatCompletions, config.RelayModeResponses:
+		return true
+	default:
+		return false
+	}
+}
+
+// FilterCustomParamsForRelayMode 按接口类型剔除渠道自定义参数中上游不接受的字段。
+// 目前只处理 store：渠道级配置 {"store": false} 是为了阻止 OpenAI 默认留存对话，
+// 但同一渠道也承载生图等接口，不过滤会把整条渠道的非对话请求打挂。
+// 顶层恒处理；子对象仅在 per_model 模式下处理（与 MergeCustomParamsBytes 的判定一致），
+// 避免误删普通对象型参数里恰好同名的子键。无需剔除时原样返回，否则返回新 map，不修改入参；
+// 剔除后为空时返回 nil（与 CustomParameterHandler 把 "{}" 视作 nil 的语义一致，调用方可直接跳过合并）。
+// 导出给 relay 的 pre_add 预合并路径复用，保证 legacy completions 在两条路径下行为一致。
+func FilterCustomParamsForRelayMode(customParams map[string]interface{}, relayMode int) map[string]interface{} {
+	if customParams == nil || relayModeAcceptsStore(relayMode) {
+		return customParams
+	}
+
+	perModel, _ := customParams["per_model"].(bool)
+
+	needFilter := false
+	if _, has := customParams[storeParamName]; has {
+		needFilter = true
+	} else if perModel {
+		for _, value := range customParams {
+			if sub, ok := value.(map[string]interface{}); ok {
+				if _, has := sub[storeParamName]; has {
+					needFilter = true
+					break
+				}
+			}
+		}
+	}
+	if !needFilter {
+		return customParams
+	}
+
+	filtered := make(map[string]interface{}, len(customParams))
+	for key, value := range customParams {
+		if key == storeParamName {
+			continue
+		}
+		if perModel {
+			if sub, ok := value.(map[string]interface{}); ok {
+				if _, has := sub[storeParamName]; has {
+					subCopy := make(map[string]interface{}, len(sub))
+					for k, v := range sub {
+						if k != storeParamName {
+							subCopy[k] = v
+						}
+					}
+					value = subCopy
+				}
+			}
+		}
+		filtered[key] = value
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
+}
+
 // 修改GetRequestTextBody函数中的对应部分
 func (p *OpenAIProvider) GetRequestTextBody(relayMode int, ModelName string, request any) (*http.Request, *types.OpenAIErrorWithStatusCode) {
 	url, errWithCode := p.GetSupportedAPIUri(relayMode)
@@ -357,17 +431,18 @@ func (p *OpenAIProvider) GetRequestTextBody(relayMode int, ModelName string, req
 	// 获取请求头
 	headers := p.GetRequestHeaders()
 
-	// 请求体完整透传：以原始字节为基础，仅改写映射后的模型名，其余字节原样保留
-	if p.Channel.PassThroughBody {
-		if patched, ok := p.patchPassThroughBody(ModelName); ok {
-			return p.NewRequestWithCustomParamsBytes(http.MethodPost, fullRequestURL, patched, headers, ModelName)
-		}
-	}
-
 	// 处理额外参数
 	customParams, err := p.CustomParameterHandler()
 	if err != nil {
 		return nil, common.ErrorWrapper(err, "custom_parameter_error", http.StatusInternalServerError)
+	}
+	customParams = FilterCustomParamsForRelayMode(customParams, relayMode)
+
+	// 请求体完整透传：以原始字节为基础，仅改写映射后的模型名，其余字节原样保留
+	if p.Channel.PassThroughBody {
+		if patched, ok := p.patchPassThroughBody(ModelName); ok {
+			return p.NewRequestWithMergedParamsBytes(http.MethodPost, fullRequestURL, patched, headers, customParams, ModelName)
+		}
 	}
 
 	// 检查是否需要合并额外字段（来自渠道配置的额外参数或用户请求中的extra_body）

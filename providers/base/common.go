@@ -913,8 +913,14 @@ func (p *BaseProvider) NewRequestWithCustomParamsBytes(method, url string, bodyB
 	if err != nil {
 		return nil, common.ErrorWrapper(err, "custom_parameter_error", http.StatusInternalServerError)
 	}
+	return p.NewRequestWithMergedParamsBytes(method, url, bodyBytes, headers, customParams, modelName)
+}
 
+// NewRequestWithMergedParamsBytes 用调用方给定的 customParams 做字节级合并并创建请求。
+// 供需要先对渠道自定义参数做二次加工（如按接口类型过滤）的调用方使用；customParams 为 nil 时原样发送。
+func (p *BaseProvider) NewRequestWithMergedParamsBytes(method, url string, bodyBytes []byte, headers map[string]string, customParams map[string]interface{}, modelName string) (*http.Request, *types.OpenAIErrorWithStatusCode) {
 	if customParams != nil {
+		var err error
 		bodyBytes, err = p.MergeCustomParamsBytes(bodyBytes, customParams, modelName)
 		if err != nil {
 			return nil, common.ErrorWrapper(err, "merge_custom_params_bytes_failed", http.StatusInternalServerError)

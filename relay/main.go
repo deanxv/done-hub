@@ -7,6 +7,7 @@ import (
 	"done-hub/common/utils"
 	"done-hub/metrics"
 	"done-hub/model"
+	"done-hub/providers/openai"
 	"done-hub/relay/relay_util"
 	"done-hub/types"
 	"encoding/json"
@@ -431,6 +432,17 @@ func applyPreMappingBeforeRequest(c *gin.Context) {
 
 	preAdd, exists := customParams["pre_add"]
 	if !exists || preAdd != true {
+		return
+	}
+
+	// 与 OpenAIProvider.GetRequestTextBody 的过滤对齐：pre_add 直接把参数写进原始 body，
+	// 后面接口级过滤拦不到，legacy completions 带上 store 会被上游 400。
+	relayMode := config.RelayModeChatCompletions
+	if strings.HasPrefix(path, "/v1/completions") {
+		relayMode = config.RelayModeCompletions
+	}
+	customParams = openai.FilterCustomParamsForRelayMode(customParams, relayMode)
+	if customParams == nil {
 		return
 	}
 
