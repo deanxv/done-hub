@@ -556,6 +556,10 @@ type GeminiChatCandidate struct {
 	GroundingAttributions []any                    `json:"groundingAttributions,omitempty"`
 	GroundingMetadata     *GeminiGroundingMetadata `json:"groundingMetadata,omitempty"`
 	AvgLogprobs           any                      `json:"avgLogprobs,omitempty"`
+	// Long Decode 续写：maxOutputTokens 超过上游单次请求输出上限时上游以
+	// finishReason=CONTINUATION 结束并下发该 token，客户端需原样带回请求顶层 continuationToken 续写。
+	// 原生非流式 relay 会按本结构体重新序列化响应，缺字段会把 token 吞掉导致无法续写。
+	ContinuationToken string `json:"continuationToken,omitempty"`
 }
 
 type GeminiChatSafetyRating struct {

@@ -68,6 +68,10 @@ func ConvertFinishReason(reason string) string {
 		return types.FinishReasonStop
 	case "MAX_TOKENS":
 		return types.FinishReasonLength
+	case "CONTINUATION":
+		// Long Decode 单次 hop 到达输出上限、还有剩余可续写：对 OpenAI 协议而言就是被长度截断，
+		// 落到 default 会被当成 content_filter 误导客户端。
+		return types.FinishReasonLength
 	default:
 		return types.FinishReasonContentFilter
 	}

@@ -327,7 +327,8 @@ func (t *VertexGeminiTransformer) transformGeminiResponse(responseData map[strin
 		switch reason.(string) {
 		case "STOP":
 			finishReason = "stop"
-		case "MAX_TOKENS":
+		case "MAX_TOKENS", "CONTINUATION":
+			// CONTINUATION：Long Decode 单次 hop 到达输出上限、仍可续写，对 OpenAI 协议即长度截断
 			finishReason = "length"
 		case "SAFETY":
 			finishReason = "content_filter"
@@ -717,7 +718,8 @@ func (t *VertexGeminiTransformer) TransformStreamResponseOut(response *http.Resp
 				switch reason.(string) {
 				case "STOP":
 					finishReason = "stop"
-				case "MAX_TOKENS":
+				case "MAX_TOKENS", "CONTINUATION":
+					// CONTINUATION：Long Decode 单次 hop 到达输出上限、仍可续写，对 OpenAI 协议即长度截断
 					finishReason = "length"
 				case "SAFETY":
 					finishReason = "content_filter"
