@@ -971,16 +971,13 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
         } else {
           setModelOriginalMapping({});
         }
-        // if (data.model_headers) {
-        data.model_headers =
-          data.model_headers !== ''
-            ? Object.entries(JSON.parse(data.model_headers)).map(([key, value], index) => ({
-                index,
-                key,
-                value
-              }))
-            : [];
-        // }
+        data.model_headers = data.model_headers
+          ? Object.entries(JSON.parse(data.model_headers)).map(([key, value], index) => ({
+              index,
+              key,
+              value
+            }))
+          : [];
 
         data.header_override = data.header_override
           ? Object.entries(JSON.parse(data.header_override)).map(([key, value], index) => ({
@@ -991,6 +988,7 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
           : [];
 
         // Format the custom_parameter JSON for better readability if it's not empty
+        data.custom_parameter = data.custom_parameter ?? '';
         if (data.custom_parameter !== '') {
           try {
             // Parse and then stringify with indentation for formatting
@@ -999,8 +997,6 @@ const EditModal = ({ open, channelId, onCancel, onOk, groupOptions, groupMap, is
           } catch (error) {
             // If parsing fails, keep the original string
           }
-        } else {
-          data.custom_parameter = '';
         }
 
         data.need2response_models = data.need2response_models ?? '';
