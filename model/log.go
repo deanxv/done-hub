@@ -197,6 +197,10 @@ type LogsListParams struct {
 	SourceIp          string `form:"source_ip"`
 	RequestId         string `form:"request_id"`
 	UpstreamRequestId string `form:"upstream_request_id"`
+	// UserId 仅由服务端填充（普通用户的 self 接口），不接受前端传参。
+	// 用 user_id 而非 username 过滤，才能走 idx_user_created_at；username 不是任何索引的首列，
+	// 按 username + 时间范围统计只能走 idx_created_at_type 扫完时间范围内全部行再逐行过滤。
+	UserId int `form:"-"`
 }
 
 var allowedLogsOrderFields = map[string]bool{
@@ -439,6 +443,9 @@ func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
 
 func SumUsedQuota(params *LogsListParams) (quota int) {
 	tx := DB.Table("logs").Select(assembleSumSelectStr("quota"))
+	if params.UserId != 0 {
+		tx = tx.Where("user_id = ?", params.UserId)
+	}
 	if params.Username != "" {
 		tx = tx.Where("username = ?", params.Username)
 	}
