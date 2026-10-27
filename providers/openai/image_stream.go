@@ -134,16 +134,17 @@ func (h *OpenAIImageStreamHandler) HandlerImageStream(rawLine *[]byte, dataChan 
 // imageStreamCompletedEvent 合成 completed 事件的字段集，对齐官方事件结构。
 // b64 放最后：万一传输截断，前面的元数据（usage/档位）仍完整可读。
 type imageStreamCompletedEvent struct {
-	Type          string                `json:"type"`
-	CreatedAt     any                   `json:"created_at,omitempty"`
-	Background    json.RawMessage       `json:"background,omitempty"`
-	OutputFormat  json.RawMessage       `json:"output_format,omitempty"`
-	Quality       json.RawMessage       `json:"quality,omitempty"`
-	Size          json.RawMessage       `json:"size,omitempty"`
-	Usage         *types.ResponsesUsage `json:"usage,omitempty"`
-	URL           string                `json:"url,omitempty"`
-	RevisedPrompt string                `json:"revised_prompt,omitempty"`
-	B64JSON       string                `json:"b64_json,omitempty"`
+	Type             string                `json:"type"`
+	CreatedAt        any                   `json:"created_at,omitempty"`
+	Background       json.RawMessage       `json:"background,omitempty"`
+	OutputFormat     json.RawMessage       `json:"output_format,omitempty"`
+	Quality          json.RawMessage       `json:"quality,omitempty"`
+	Size             json.RawMessage       `json:"size,omitempty"`
+	SafetyIdentifier json.RawMessage       `json:"safety_identifier,omitempty"`
+	Usage            *types.ResponsesUsage `json:"usage,omitempty"`
+	URL              string                `json:"url,omitempty"`
+	RevisedPrompt    string                `json:"revised_prompt,omitempty"`
+	B64JSON          string                `json:"b64_json,omitempty"`
 }
 
 // ImageResponseToSSE 把非流式图像响应合成官方风格的 *.completed SSE 事件文本：
@@ -154,15 +155,16 @@ func ImageResponseToSSE(prefix string, response *types.ImageResponse) string {
 	var sb strings.Builder
 	for i, item := range response.Data {
 		event := imageStreamCompletedEvent{
-			Type:          eventType,
-			CreatedAt:     response.Created,
-			Background:    response.Background,
-			OutputFormat:  response.OutputFormat,
-			Quality:       response.Quality,
-			Size:          response.Size,
-			URL:           item.URL,
-			RevisedPrompt: item.RevisedPrompt,
-			B64JSON:       item.B64JSON,
+			Type:             eventType,
+			CreatedAt:        response.Created,
+			Background:       response.Background,
+			OutputFormat:     response.OutputFormat,
+			Quality:          response.Quality,
+			Size:             response.Size,
+			SafetyIdentifier: response.SafetyIdentifier,
+			URL:              item.URL,
+			RevisedPrompt:    item.RevisedPrompt,
+			B64JSON:          item.B64JSON,
 		}
 		if i == len(response.Data)-1 {
 			event.Usage = response.Usage

@@ -37,14 +37,17 @@ func IsImageGenerationModel(modelName string) bool {
 }
 
 type ImageRequest struct {
-	Prompt           string  `json:"prompt,omitempty" binding:"required"`
-	Model            string  `json:"model,omitempty"`
-	N                int     `json:"n,omitempty"`
-	Quality          string  `json:"quality,omitempty"`
-	Size             string  `json:"size,omitempty"`
-	Style            string  `json:"style,omitempty"`
-	ResponseFormat   string  `json:"response_format,omitempty"`
-	User             string  `json:"user,omitempty"`
+	Prompt         string `json:"prompt,omitempty" binding:"required"`
+	Model          string `json:"model,omitempty"`
+	N              int    `json:"n,omitempty"`
+	Quality        string `json:"quality,omitempty"`
+	Size           string `json:"size,omitempty"`
+	Style          string `json:"style,omitempty"`
+	ResponseFormat string `json:"response_format,omitempty"`
+	User           string `json:"user,omitempty"`
+	// OpenAI 终端用户稳定标识，已取代 user（user 仍兼容）。非空时优先于 user，用于安全监控与滥用检测。
+	// 结构体编码路径下不显式接住会在重新编码时静默丢参，客户端传了等于没传。
+	SafetyIdentifier string  `json:"safety_identifier,omitempty"`
 	AspectRatio      *string `json:"aspect_ratio,omitempty"`
 	OutputQuality    *int    `json:"output_quality,omitempty"`
 	SafetyTolerance  *string `json:"safety_tolerance,omitempty"`
@@ -78,7 +81,10 @@ type ImageResponse struct {
 	OutputFormat json.RawMessage `json:"output_format,omitempty"`
 	Quality      json.RawMessage `json:"quality,omitempty"`
 	Size         json.RawMessage `json:"size,omitempty"`
-	Usage        *ResponsesUsage `json:"usage,omitempty"`
+	// 官方回显本次实际生效的 safety_identifier（请求 safety_identifier 非空取之，否则回落 user）。
+	// 同上用 RawMessage 原样回显，不读取其值。
+	SafetyIdentifier json.RawMessage `json:"safety_identifier,omitempty"`
+	Usage            *ResponsesUsage `json:"usage,omitempty"`
 }
 
 type ImageResponseDataInner struct {
