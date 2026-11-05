@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"done-hub/common/logger"
 	"done-hub/common/requester"
 	"done-hub/model"
 	"done-hub/providers/base"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"done-hub/providers/bedrock/awscreds"
 	"done-hub/providers/bedrock/category"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -43,9 +45,11 @@ type BedrockProvider struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	SessionToken    string
-	APIToken        string
-	Category        *category.Category
-	client          *bedrockruntime.Client
+	// RoleArn 非空时走 STS AssumeRole：用 AK/SK 换临时凭证后再签名（见 awscreds 包）。
+	RoleArn  string
+	APIToken string
+	Category *category.Category
+	client   *bedrockruntime.Client
 	// errBody 缓存最近一次上游错误响应的原始 body（由 captureResponseMiddleware 在
 	// Deserialize 前 tee 出来）。用于在 SDK 反序列化失败（如中间层返回 HTML）时，
 	// 让 awsErrorToOpenAI 拿到上游真实返回而非 SDK 的解析器噪声。
@@ -75,20 +79,31 @@ func (p *BedrockProvider) GetRequestHeaders() (headers map[string]string) {
 	return headers
 }
 
+// getKeyConfig 解析 channel.Key，格式见 awscreds.ParseKey。
 func getKeyConfig(bedrock *BedrockProvider) {
-	keys := strings.Split(bedrock.Channel.Key, "|")
-	if len(keys) < 2 {
+	cfg, ok := awscreds.ParseKey(bedrock.Channel.Key)
+	if !ok {
+		// 段数不符合约定（不足、超过五段，或五段时第五段不是 RoleArn）时不能静默吞掉：
+		// 否则渠道看起来配置成功，实际区域/凭证全空，请求只会以难排查的签名错误告终。
+		logger.SysError(fmt.Sprintf("[%s] invalid aws key format, expect Region|AK|SK[|SessionToken[|RoleArn]] or Region|BearerToken", bedrock.Channel.Name))
 		return
 	}
-	bedrock.Region = keys[0]
-	if len(keys) == 2 {
-		bedrock.APIToken = keys[1]
-		return
-	}
-	bedrock.AccessKeyID = keys[1]
-	bedrock.SecretAccessKey = keys[2]
-	if len(keys) == 4 && keys[3] != "" {
-		bedrock.SessionToken = keys[3]
+	bedrock.Region = cfg.Region
+	bedrock.APIToken = cfg.APIToken
+	bedrock.AccessKeyID = cfg.AccessKeyID
+	bedrock.SecretAccessKey = cfg.SecretAccessKey
+	bedrock.SessionToken = cfg.SessionToken
+	bedrock.RoleArn = cfg.RoleArn
+}
+
+// credsConfig 组装 awscreds 所需的凭证配置（SigV4 / AssumeRole 两种路径共用）。
+func (p *BedrockProvider) credsConfig() awscreds.Config {
+	return awscreds.Config{
+		Region:          p.Region,
+		AccessKeyID:     p.AccessKeyID,
+		SecretAccessKey: p.SecretAccessKey,
+		SessionToken:    p.SessionToken,
+		RoleArn:         p.RoleArn,
 	}
 }
 

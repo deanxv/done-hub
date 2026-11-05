@@ -19,3 +19,4 @@ one-api
 done-hub
 _output
 .DS_Store
+.mcp.json

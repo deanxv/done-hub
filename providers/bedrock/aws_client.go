@@ -7,6 +7,7 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/logger"
 	"done-hub/common/requester"
+	"done-hub/providers/bedrock/awscreds"
 	"done-hub/types"
 	"errors"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/smithy-go/auth/bearer"
 	smithymiddleware "github.com/aws/smithy-go/middleware"
@@ -50,9 +50,8 @@ func (p *BedrockProvider) getAwsClient() (*bedrockruntime.Client, error) {
 	if p.APIToken != "" {
 		opts.BearerAuthTokenProvider = bearer.StaticTokenProvider{Token: bearer.Token{Value: p.APIToken}}
 	} else {
-		opts.Credentials = aws.NewCredentialsCache(
-			credentials.NewStaticCredentialsProvider(p.AccessKeyID, p.SecretAccessKey, p.SessionToken),
-		)
+		// 静态凭证或（配置了 RoleArn 时）全局缓存、自动续期的 AssumeRole 临时凭证。
+		opts.Credentials = awscreds.Provider(p.credsConfig(), p.Channel.GetProxy())
 	}
 
 	p.client = bedrockruntime.New(opts)

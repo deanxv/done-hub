@@ -57,6 +57,19 @@ type ImageRequest struct {
 	Moderation        *string `json:"moderation,omitempty"`
 	OutputCompression *int    `json:"output_compression,omitempty"`
 	OutputFormat      *string `json:"output_format,omitempty"`
+	// Complexity 是规划算力档位（low/medium/high），与渲染 quality 相互独立。SVG 输出时
+	// 它控制参考图的复杂度；不传则由模型默认值决定。同样走结构体编码，不接住会静默丢参。
+	Complexity *string `json:"complexity,omitempty"`
+	// GIF 输出专用（output_format=gif）：帧数与帧时长。与 svg 同属会被结构体编码静默
+	// 丢弃的字段，且上游对取值有硬约束（2-16 帧、单帧 20ms-655350ms），交由上游校验。
+	FrameCount      *int `json:"frame_count,omitempty"`
+	FrameDurationMs *int `json:"frame_duration_ms,omitempty"`
+	// SVG 输出配置：output_format=svg 时，启用 SVG model selection 就必须带 svg.model，
+	// 未启用则应整个省略。官方当前字段为 model 与 reasoning.effort，但用 RawMessage 原样承载
+	// 而非固定结构体：结构体编码路径（未开 PassThroughBody / AllowExtraBody）下，上游将来
+	// 增补任何 svg 子字段都会被重新编码静默丢弃——这正是本字段当初被吃掉的原因。
+	// nil 表示未传（omitempty 不输出），空对象 {} 与「传了空 svg」的语义也自然保留。
+	SVG json.RawMessage `json:"svg,omitempty"`
 
 	Stream        *bool `json:"stream,omitempty"`
 	PartialImages *int  `json:"partial_images,omitempty"`
@@ -79,8 +92,14 @@ type ImageResponse struct {
 	// （原样透传上游写法）。全部 omitempty：nil（上游未返回，如 dall-e）时不输出零值。
 	Background   json.RawMessage `json:"background,omitempty"`
 	OutputFormat json.RawMessage `json:"output_format,omitempty"`
-	Quality      json.RawMessage `json:"quality,omitempty"`
-	Size         json.RawMessage `json:"size,omitempty"`
+	// SVG 回显。同样用 RawMessage：上游可能返回对象或字符串，本地只做原样回显不读取值。
+	SVG json.RawMessage `json:"svg,omitempty"`
+	// SVGUsage 是 SVG 作者模型（svg.model）的 token 用量，官方与渲染侧 usage 分开上报：
+	// input_tokens / model / output_tokens / reasoning_tokens / total_tokens。
+	// 本地只回显、不参与计费推算——计费口径仍取顶层 usage，避免同一份 token 双算。
+	SVGUsage json.RawMessage `json:"svg_usage,omitempty"`
+	Quality  json.RawMessage `json:"quality,omitempty"`
+	Size     json.RawMessage `json:"size,omitempty"`
 	// 官方回显本次实际生效的 safety_identifier（请求 safety_identifier 非空取之，否则回落 user）。
 	// 同上用 RawMessage 原样回显，不读取其值。
 	SafetyIdentifier json.RawMessage `json:"safety_identifier,omitempty"`

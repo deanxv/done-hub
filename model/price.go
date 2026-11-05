@@ -300,6 +300,11 @@ func GetDefaultPrice() []*Price {
 		"gpt-image-2.5-flare-2026-09-08":    {[]float64{4, 15}, config.ChannelTypeOpenAI},
 		"gpt-image-2.5-sunburst":            {[]float64{4, 15}, config.ChannelTypeOpenAI},
 		"gpt-image-2.5-sunburst-2026-09-08": {[]float64{4, 15}, config.ChannelTypeOpenAI},
+		// 2.6 (sunburst/flare) 官方价格与 2.5 完全一致：image in $8/M、image out $30/M、text in $5/M。
+		// 官方模型列表截至 2026-11 只有这两个裸名，没有 -2026-XX-XX 日期快照（2.5 才有），
+		// 故不预置 dated 变体；将来若出现快照 id，按 2.5 的写法补同等条目即可。
+		"gpt-image-2.6-flare":    {[]float64{4, 15}, config.ChannelTypeOpenAI},
+		"gpt-image-2.6-sunburst": {[]float64{4, 15}, config.ChannelTypeOpenAI},
 
 		// $0.80/million tokens $2.40/million tokens
 		"claude-instant-1.2": {[]float64{0.4, 1.2}, config.ChannelTypeAnthropic},
@@ -590,6 +595,6 @@ func GetDefaultPrice() []*Price {
 }
 
 func GetDefaultExtraRatio() string {
-	return `{"gpt-4o-audio-preview":{"input_audio_tokens":40,"output_audio_tokens":20},"gpt-4o-audio-preview-2024-10-01":{"input_audio_tokens":40,"output_audio_tokens":20},"gpt-4o-audio-preview-2024-12-17":{"input_audio_tokens":16,"output_audio_tokens":8},"gpt-4o-mini-audio-preview":{"input_audio_tokens":67,"output_audio_tokens":34},"gpt-4o-mini-audio-preview-2024-12-17":{"input_audio_tokens":67,"output_audio_tokens":34},"gpt-4o-realtime-preview":{"input_audio_tokens":20,"output_audio_tokens":10},"gpt-4o-realtime-preview-2024-10-01":{"input_audio_tokens":20,"output_audio_tokens":10},"gpt-4o-realtime-preview-2024-12-17":{"input_audio_tokens":8,"output_audio_tokens":4},"gpt-4o-mini-realtime-preview":{"input_audio_tokens":17,"output_audio_tokens":8.4},"gpt-4o-mini-realtime-preview-2024-12-17":{"input_audio_tokens":17,"output_audio_tokens":8.4},"gemini-2.5-flash-preview-04-17":{"reasoning_tokens":5.833},"gpt-image-1":{"input_text_tokens": 0.5},"gpt-image-2":{"input_text_tokens": 0.625},"gpt-image-2.5-flare":{"input_text_tokens": 0.625},"gpt-image-2.5-flare-2026-09-08":{"input_text_tokens": 0.625},"gpt-image-2.5-sunburst":{"input_text_tokens": 0.625},"gpt-image-2.5-sunburst-2026-09-08":{"input_text_tokens": 0.625}}`
+	return `{"gpt-4o-audio-preview":{"input_audio_tokens":40,"output_audio_tokens":20},"gpt-4o-audio-preview-2024-10-01":{"input_audio_tokens":40,"output_audio_tokens":20},"gpt-4o-audio-preview-2024-12-17":{"input_audio_tokens":16,"output_audio_tokens":8},"gpt-4o-mini-audio-preview":{"input_audio_tokens":67,"output_audio_tokens":34},"gpt-4o-mini-audio-preview-2024-12-17":{"input_audio_tokens":67,"output_audio_tokens":34},"gpt-4o-realtime-preview":{"input_audio_tokens":20,"output_audio_tokens":10},"gpt-4o-realtime-preview-2024-10-01":{"input_audio_tokens":20,"output_audio_tokens":10},"gpt-4o-realtime-preview-2024-12-17":{"input_audio_tokens":8,"output_audio_tokens":4},"gpt-4o-mini-realtime-preview":{"input_audio_tokens":17,"output_audio_tokens":8.4},"gpt-4o-mini-realtime-preview-2024-12-17":{"input_audio_tokens":17,"output_audio_tokens":8.4},"gemini-2.5-flash-preview-04-17":{"reasoning_tokens":5.833},"gpt-image-1":{"input_text_tokens": 0.5},"gpt-image-2":{"input_text_tokens": 0.625},"gpt-image-2.5-flare":{"input_text_tokens": 0.625},"gpt-image-2.5-flare-2026-09-08":{"input_text_tokens": 0.625},"gpt-image-2.5-sunburst":{"input_text_tokens": 0.625},"gpt-image-2.5-sunburst-2026-09-08":{"input_text_tokens": 0.625},"gpt-image-2.6-flare":{"input_text_tokens": 0.625},"gpt-image-2.6-sunburst":{"input_text_tokens": 0.625}}`
 
 }

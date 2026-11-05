@@ -1864,7 +1864,7 @@
   "按照如下格式输入：APPID|APISecret|APIKey": "次の形式で入力します: APPID|APISecret|APIKey",
   "按照如下格式输入：AppId|SecretId|SecretKey": "次の形式で入力します: AppId|SecretId|SecretKey",
   "按照如下格式输入：CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_API_TOKEN": "次の形式で入力します: CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_API_TOKEN",
-  "按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空": "次の形式で入力します:Region|AccessKeyID|SecretAccessKey|SessionToken。SessionToken は空白のままにすることができます。",
+  "按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空；AssumeRole 模式：Region|AccessKeyID|SecretAccessKey|RoleArn（第四段填 arn:aws:iam::账号:role/角色名，运行时自动换取临时凭证并续期）；角色链：Region|AccessKeyID|SecretAccessKey|SessionToken|RoleArn；或 Region|BearerToken": "次の形式で入力します:Region|AccessKeyID|SecretAccessKey|SessionToken。SessionToken は空白のままにすることができます。AssumeRole モード:Region|AccessKeyID|SecretAccessKey|RoleArn(4 番目に arn:aws:iam::アカウント:role/ロール名 を入力します。実行時に一時認証情報を取得して自動更新します)。ロールチェーン:Region|AccessKeyID|SecretAccessKey|SessionToken|RoleArn。または Region|BearerToken。",
   "按照如下格式输入：SecretId|SecretKey": "次の形式で入力します: SecretId|SecretKey",
   "插件参数": "プラグインパラメータ",
   "是否启用代码执行": "コードの実行を有効にするかどうか",

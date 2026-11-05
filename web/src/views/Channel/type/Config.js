@@ -364,7 +364,7 @@ const typeConfig = {
       test_model: 'claude-3-haiku-20240307'
     },
     prompt: {
-      key: '按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空'
+      key: '按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空；AssumeRole 模式：Region|AccessKeyID|SecretAccessKey|RoleArn（第四段填 arn:aws:iam::账号:role/角色名，运行时自动换取临时凭证并续期）；角色链：Region|AccessKeyID|SecretAccessKey|SessionToken|RoleArn；或 Region|BearerToken'
     },
     modelGroup: 'Anthropic'
   },
@@ -653,7 +653,7 @@ const typeConfig = {
       test_model: 'claude-haiku-5-5'
     },
     prompt: {
-      key: '按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空；或 Region|BearerToken'
+      key: '按照如下格式输入：Region|AccessKeyID|SecretAccessKey|SessionToken 其中SessionToken可不填空；AssumeRole 模式：Region|AccessKeyID|SecretAccessKey|RoleArn（第四段填 arn:aws:iam::账号:role/角色名，运行时自动换取临时凭证并续期）；角色链：Region|AccessKeyID|SecretAccessKey|SessionToken|RoleArn；或 Region|BearerToken'
     },
     modelGroup: 'Anthropic'
   }

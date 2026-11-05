@@ -350,6 +350,13 @@ func GetUserLogsList(userId int, params *LogsListParams) (*DataResult[Log], erro
 	if params.EndTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", params.EndTimestamp)
 	}
+	if params.SourceIp != "" {
+		// 与下方抹空逻辑对齐：manage/system 记录的是管理员操作 IP，用户侧本不可见。
+		// 若只过滤不排除，用户可用 source_ip=<候选IP> 试探是否有命中，从返回行数反推
+		// 该 IP 是否为管理员——即使 SourceIp 字段随后被抹空，存在性信息仍已泄漏。
+		tx = tx.Where("source_ip = ?", params.SourceIp).
+			Where("type NOT IN (?)", []int{LogTypeManage, LogTypeSystem})
+	}
 	if params.RequestId != "" {
 		tx = tx.Where("request_id = ?", params.RequestId)
 	}
@@ -389,6 +396,13 @@ func GetAllUserLogsList(userId int, params *LogsListParams) ([]*Log, error) {
 	}
 	if params.EndTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", params.EndTimestamp)
+	}
+	if params.SourceIp != "" {
+		// 与下方抹空逻辑对齐：manage/system 记录的是管理员操作 IP，用户侧本不可见。
+		// 若只过滤不排除，用户可用 source_ip=<候选IP> 试探是否有命中，从返回行数反推
+		// 该 IP 是否为管理员——即使 SourceIp 字段随后被抹空，存在性信息仍已泄漏。
+		tx = tx.Where("source_ip = ?", params.SourceIp).
+			Where("type NOT IN (?)", []int{LogTypeManage, LogTypeSystem})
 	}
 	if params.RequestId != "" {
 		tx = tx.Where("request_id = ?", params.RequestId)

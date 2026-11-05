@@ -73,6 +73,13 @@ type imageGenerateTool struct {
 	Style             string              `json:"style,omitempty"`
 	OutputCompression *int                `json:"output_compression,omitempty"`
 	InputImageMask    *imagesMaskImageURL `json:"input_image_mask,omitempty"`
+	// 以下参数官方 Responses image_generation 工具同样接受（与 /v1/images/generations 同源），
+	// 不映射就会在 chat→codex 转协议时静默丢参：SVG 走 output_format=svg + svg.model，
+	// GIF 走 frame_count/frame_duration_ms，complexity 控制参考图的规划算力。
+	Complexity      *string         `json:"complexity,omitempty"`
+	FrameCount      *int            `json:"frame_count,omitempty"`
+	FrameDurationMs *int            `json:"frame_duration_ms,omitempty"`
+	SVG             json.RawMessage `json:"svg,omitempty"`
 }
 
 type imagesMaskImageURL struct {
@@ -176,6 +183,14 @@ func buildToolFromImageRequest(request *types.ImageRequest) imageGenerateTool {
 	if request.OutputCompression != nil {
 		tool.OutputCompression = request.OutputCompression
 	}
+	if request.Complexity != nil {
+		// 与同函数其他 *string 字段一样做 TrimSpace，避免上游因前后空白判非法枚举。
+		complexity := strings.TrimSpace(*request.Complexity)
+		tool.Complexity = &complexity
+	}
+	tool.FrameCount = request.FrameCount
+	tool.FrameDurationMs = request.FrameDurationMs
+	tool.SVG = request.SVG
 	return tool
 }
 
@@ -447,6 +462,9 @@ func imageStreamErrorToOpenAI(streamErr *imageStreamError, accessToken string) *
 	}
 }
 
+// imageMIMEType 把请求的 output_format 映射成 data URL 的 MIME。
+// svg / gif 是 images 接口的正式枚举（SVG 与动图输出），漏映射会让客户端把
+// SVG/GIF 结果按 image/png 解码从而渲染失败。
 func imageMIMEType(outputFormat string) string {
 	switch strings.ToLower(strings.TrimSpace(outputFormat)) {
 	case "", "png":
@@ -455,6 +473,10 @@ func imageMIMEType(outputFormat string) string {
 		return "image/jpeg"
 	case "webp":
 		return "image/webp"
+	case "gif":
+		return "image/gif"
+	case "svg":
+		return "image/svg+xml"
 	default:
 		return "image/png"
 	}

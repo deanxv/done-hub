@@ -3,9 +3,11 @@ package bedrockmessages
 import (
 	"bytes"
 	"crypto/sha256"
+	"done-hub/common/logger"
 	"done-hub/common/requester"
 	"done-hub/model"
 	"done-hub/providers/base"
+	"done-hub/providers/bedrock/awscreds"
 	"done-hub/providers/bedrock/sigv4"
 	"done-hub/providers/claude"
 	"errors"
@@ -37,7 +39,9 @@ type BedrockMessagesProvider struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	SessionToken    string
-	APIToken        string
+	// RoleArn 非空时走 STS AssumeRole：用 AK/SK 换临时凭证后再签名（见 awscreds 包）。
+	RoleArn  string
+	APIToken string
 }
 
 func getConfig() base.ProviderConfig {
@@ -48,23 +52,31 @@ func getConfig() base.ProviderConfig {
 	}
 }
 
-// getKeyConfig 解析 channel.Key，支持两种格式：
-//   - SigV4:  Region|AccessKeyID|SecretAccessKey|SessionToken（SessionToken 可空）
-//   - Bearer: Region|BearerToken
+// getKeyConfig 解析 channel.Key，格式见 awscreds.ParseKey。
 func getKeyConfig(p *BedrockMessagesProvider) {
-	keys := strings.Split(p.Channel.Key, "|")
-	if len(keys) < 2 {
+	cfg, ok := awscreds.ParseKey(p.Channel.Key)
+	if !ok {
+		// 段数不符合约定（不足、超过五段，或五段时第五段不是 RoleArn）时不能静默吞掉：
+		// 否则渠道看起来配置成功，实际区域/凭证全空，请求只会以难排查的签名错误告终。
+		logger.SysError(fmt.Sprintf("[%s] invalid aws key format, expect Region|AK|SK[|SessionToken[|RoleArn]] or Region|BearerToken", p.Channel.Name))
 		return
 	}
-	p.Region = keys[0]
-	if len(keys) == 2 {
-		p.APIToken = keys[1]
-		return
-	}
-	p.AccessKeyID = keys[1]
-	p.SecretAccessKey = keys[2]
-	if len(keys) == 4 && keys[3] != "" {
-		p.SessionToken = keys[3]
+	p.Region = cfg.Region
+	p.APIToken = cfg.APIToken
+	p.AccessKeyID = cfg.AccessKeyID
+	p.SecretAccessKey = cfg.SecretAccessKey
+	p.SessionToken = cfg.SessionToken
+	p.RoleArn = cfg.RoleArn
+}
+
+// credsConfig 组装 awscreds 所需的凭证配置。
+func (p *BedrockMessagesProvider) credsConfig() awscreds.Config {
+	return awscreds.Config{
+		Region:          p.Region,
+		AccessKeyID:     p.AccessKeyID,
+		SecretAccessKey: p.SecretAccessKey,
+		SessionToken:    p.SessionToken,
+		RoleArn:         p.RoleArn,
 	}
 }
 
@@ -123,8 +135,13 @@ func (p *BedrockMessagesProvider) Sign(req *http.Request) error {
 		req.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
+	creds, err := awscreds.Retrieve(p.credsConfig(), p.Channel.GetProxy())
+	if err != nil {
+		return fmt.Errorf("aws assume role failed: %w", err)
+	}
+
 	sig, err := sigv4.New(
-		sigv4.WithCredential(p.AccessKeyID, p.SecretAccessKey, p.SessionToken),
+		sigv4.WithCredential(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken),
 		sigv4.WithRegionService(p.Region, bedrockMantleService),
 	)
 	if err != nil {

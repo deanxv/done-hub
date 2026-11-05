@@ -7,6 +7,7 @@ import (
 	"done-hub/common/config"
 	"done-hub/common/requester"
 	"done-hub/providers/base"
+	"done-hub/providers/bedrock/awscreds"
 	"done-hub/providers/bedrock/category"
 	"done-hub/providers/bedrock/sigv4"
 	"done-hub/providers/openai"
@@ -66,8 +67,13 @@ func (p *BedrockProvider) Sign(req *http.Request) error {
 		req.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
+	creds, err := awscreds.Retrieve(p.credsConfig(), p.Channel.GetProxy())
+	if err != nil {
+		return fmt.Errorf("aws assume role failed: %w", err)
+	}
+
 	sig, err := sigv4.New(
-		sigv4.WithCredential(p.AccessKeyID, p.SecretAccessKey, p.SessionToken),
+		sigv4.WithCredential(creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken),
 		sigv4.WithRegionService(p.Region, bedrockSigV4Service),
 	)
 	if err != nil {
