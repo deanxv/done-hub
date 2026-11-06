@@ -114,10 +114,10 @@ func (h *OpenAIImageStreamHandler) HandlerImageStream(rawLine *[]byte, dataChan 
 	}
 	if strings.HasSuffix(event.Type, ".completed") {
 		quality, size := h.ReqQuality, h.ReqSize
-		if v := rawMessageToString(event.Quality); v != "" {
+		if v := RawMessageToString(event.Quality); v != "" {
 			quality = v
 		}
-		if v := rawMessageToString(event.Size); v != "" {
+		if v := RawMessageToString(event.Size); v != "" {
 			size = v
 		}
 		h.fallbackTokens += ImageFallbackOutputTokens(h.Model, quality, size)
@@ -239,10 +239,10 @@ func (p *OpenAIProvider) imageJSONToStream(resp *http.Response, prefix, model, r
 
 	if p.Usage.TotalTokens == 0 {
 		quality, size := reqQuality, reqSize
-		if v := rawMessageToString(response.Quality); v != "" {
+		if v := RawMessageToString(response.Quality); v != "" {
 			quality = v
 		}
-		if v := rawMessageToString(response.Size); v != "" {
+		if v := RawMessageToString(response.Size); v != "" {
 			size = v
 		}
 		p.Usage.CompletionTokens = len(response.Data) * ImageFallbackOutputTokens(model, quality, size)

@@ -59,8 +59,9 @@ type ImageRequest struct {
 	OutputFormat      *string `json:"output_format,omitempty"`
 	// Complexity 是规划算力档位（low/medium/high），与渲染 quality 相互独立。SVG 输出时
 	// 它控制参考图的复杂度；不传则由模型默认值决定。同样走结构体编码，不接住会静默丢参。
-	// 仅 openai 渠道的 /v1/images/generations 会原样透传；codex 渠道的托管 image_generation
-	// 工具不接受该参数（会报 Complexity is not supported for this image model），那边主动丢弃。
+	// openai 渠道与 codex 直连原生端点（codexDirectImageModels 白名单）都原样透传；只有走
+	// Responses 编排的模型会在工具层丢弃——托管 image_generation 不接受该参数（会报
+	// Complexity is not supported for this image model）。
 	Complexity *string `json:"complexity,omitempty"`
 	// GIF 输出专用（output_format=gif）：帧数与帧时长。与 svg 同属会被结构体编码静默
 	// 丢弃的字段，且上游对取值有硬约束（2-16 帧、单帧 20ms-655350ms），交由上游校验。
@@ -130,9 +131,10 @@ type ImageEditRequest struct {
 	// 以下为官方 /v1/images/edits 已支持、但原先未建模的字段。OpenAI 渠道走原始 body 直发
 	// 不受影响；codex 渠道会把 edits 转成 Responses 的 image_generation 工具，不接住就会在
 	// 转协议时静默丢参（gif/svg 依赖 output_format/svg 等）。
-	// 不建模 complexity：codex 托管工具拒绝该参数，openai/xAI 渠道又都走原始字节直发，
-	// 接住也没有下发路径，加了只会让人误以为需要透传。
+	// complexity 只在直连 images 协议的渠道上有意义（codex 已对 gpt-image-* 直连原生端点）；
+	// 走 Responses 编排的模型仍会在工具层丢弃它。
 	Background        *string `form:"background"`
+	Complexity        *string `form:"complexity"`
 	Moderation        *string `form:"moderation"`
 	OutputCompression *int    `form:"output_compression"`
 	OutputFormat      *string `form:"output_format"`

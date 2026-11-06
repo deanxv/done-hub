@@ -58,10 +58,10 @@ func (p *OpenAIProvider) CreateImageEdits(request *types.ImageEditRequest) (*typ
 		// 等其他维持 258 常数。优先采用响应回显的真实渲染档位，回显缺失再回落请求值。
 		imageCount := len(response.Data)
 		quality, size := request.Quality, request.Size
-		if v := rawMessageToString(response.Quality); v != "" {
+		if v := RawMessageToString(response.Quality); v != "" {
 			quality = v
 		}
-		if v := rawMessageToString(response.Size); v != "" {
+		if v := RawMessageToString(response.Size); v != "" {
 			size = v
 		}
 		perImage := ImageFallbackOutputTokens(request.Model, quality, size)

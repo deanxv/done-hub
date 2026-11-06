@@ -25,6 +25,16 @@ const (
 	imagesResponsesMainModel = "gpt-5.6-luna"
 	imageToolActionGenerate  = "generate"
 	imageToolActionEdit      = "edit"
+
+	// codexDirectImagesGenerations 是 ChatGPT 后端暴露的原生 images 协议端点（相对 BaseURL）。
+	// 固定路径，不进 getConfig()/ProviderConfig：其它端点可被渠道 BaseURL 覆盖，但这条只对
+	// chatgpt.com 的 backend 有效，代理到只实现 /backend-api/codex/responses 的中转时本就该 404。
+	// 对 gpt-image-* 走这里，而不是绕 Responses 编排：编排模型（images_main_model）驱动托管
+	// image_generation 工具时会自己往 tool call 里填 complexity，而渲染侧对部分模型拒绝该参数，
+	// 报 "Complexity 'medium' is not supported for this image model"。工具层删字段治不了根，
+	// 只能绕开编排。CLIProxyAPI / sub2api 对同一批模型也是这么直连的。
+	codexDirectImagesGenerations = "/backend-api/codex/images/generations"
+	codexDirectImagesEdits       = "/backend-api/codex/images/edits"
 )
 
 type imagesRequestBody struct {
@@ -81,7 +91,7 @@ type imageGenerateTool struct {
 	// 注意：故意不含 complexity。Codex /responses 的托管 image_generation 绑定 gpt-image-2-codex，
 	// 会以 "Complexity 'medium' is not supported for this image model" 拒绝该参数（error_type
 	// image_generation_user_error），与 tools[].model 写的是 2.5 还是 2.6 无关。客户端传来时
-	// 直接丢弃；需要 complexity 的场景走 openai 渠道的 /v1/images/generations，那边原样透传。
+	// 直接丢弃。白名单模型（codexDirectImageModels）不走这条路径，由直连函数直接下发复杂度。
 	FrameCount      *int            `json:"frame_count,omitempty"`
 	FrameDurationMs *int            `json:"frame_duration_ms,omitempty"`
 	SVG             json.RawMessage `json:"svg,omitempty"`
@@ -109,6 +119,10 @@ func (p *CodexProvider) CreateImageGenerations(request *types.ImageRequest) (*ty
 		return nil, common.StringErrorWrapperLocal("prompt is required", "invalid_request_error", http.StatusBadRequest)
 	}
 
+	if isCodexDirectImageModel(request.Model) {
+		return p.createImageGenerationsDirect(request)
+	}
+
 	body, err := json.Marshal(buildImagesRequestBody(imageToolActionGenerate, prompt, buildToolFromImageRequest(request), nil, "", p.ImagesMainModel))
 	if err != nil {
 		return nil, common.ErrorWrapperLocal(err, "build_request_failed", http.StatusBadRequest)
@@ -121,12 +135,77 @@ func (p *CodexProvider) CreateImageGenerations(request *types.ImageRequest) (*ty
 	})
 }
 
+// codexDirectImageModels 是走直连原生 images 端点的模型白名单（与 CLIProxyAPI 一致）。
+// 显式列举而非前缀匹配：未来新增的 gpt-image-* 未必在直连端点可用，自动送过去会 404，
+// 而它们原本靠编排路径可能仍能工作；同理 gpt-image-1（上游已下线）也留在编排侧。
+// chatgpt-image-* 不在白名单：它是别名入口，行为由上游决定，不走直连。
+var codexDirectImageModels = map[string]struct{}{
+	"gpt-image-1.5":                     {},
+	"gpt-image-2":                       {},
+	"gpt-image-2.5":                     {},
+	"gpt-image-2.5-flare":               {},
+	"gpt-image-2.5-sunburst":            {},
+	"gpt-image-2.5-flare-2026-09-08":    {},
+	"gpt-image-2.5-sunburst-2026-09-08": {},
+	"gpt-image-2.6":                     {},
+	"gpt-image-2.6-flare":               {},
+	"gpt-image-2.6-sunburst":            {},
+}
+
+// isCodexDirectImageModel 判断图像模型是否该直连原生 images 端点，而不是绕 Responses 编排。
+func isCodexDirectImageModel(model string) bool {
+	_, ok := codexDirectImageModels[strings.ToLower(strings.TrimSpace(model))]
+	return ok
+}
+
+// createImageGenerationsDirect 直连 /backend-api/codex/images/generations（非流式）。
+// 请求体与 openai 渠道同构：整结构体序列化（含 extra_params 等非官方字段原样下发，
+// 与 openai 渠道一致），本地方对参数完全可控，不存在编排模型二次选参。
+func (p *CodexProvider) createImageGenerationsDirect(request *types.ImageRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
+	body, err := buildDirectImagesRequestBody(request)
+	if err != nil {
+		return nil, common.ErrorWrapperLocal(err, "build_request_failed", http.StatusBadRequest)
+	}
+
+	return p.postDirectImages(codexDirectImagesGenerations, body, request.Model, request.Quality, request.Size)
+}
+
+// buildDirectImagesRequestBody 序列化直连 images 端点的请求体。
+// 清 stream / partial_images 只是防御：relay 的流式降级路径（image-generations.go）在调用前
+// 已把两者置 nil，正常不会带进来；但直连端点按 JSON 解析，一旦有调用方（如未来新增的测速入口）
+// 直接塞 Stream=true，上游会回 SSE 导致 decode 失败，代价不值得省。
+func buildDirectImagesRequestBody(request *types.ImageRequest) ([]byte, error) {
+	sanitized := *request
+	sanitized.Stream = nil
+	sanitized.PartialImages = nil
+	// response_format 不下发：gpt-image 直连端点固定返回 b64_json，url 形态在本地按
+	// 客户端语义转换（与 sub2api 直连一致），原样发过去可能被上游判非法而 400。
+	sanitized.ResponseFormat = ""
+	return json.Marshal(&sanitized)
+}
+
+// directImageHeaders 构造直连 images 端点的请求头：复用 codex 的凭证与伪装头
+// （Authorization / chatgpt-account-id / version / originator），Accept 改为 JSON。
+func (p *CodexProvider) directImageHeaders() (map[string]string, *types.OpenAIErrorWithStatusCode) {
+	headers, err := p.getRequestHeadersInternal()
+	if err != nil {
+		return nil, p.handleTokenError(err)
+	}
+	p.applyDefaultHeaders(headers)
+	headers["Accept"] = "application/json"
+	return headers, nil
+}
+
 // CreateImageEdits 走 /backend-api/codex/responses + image_generation（action=edit）实现 /v1/images/edits。
 // multipart 上传的图片/mask 会被转成 base64 data URL 拼进 Responses 的 input/tools 字段。
 func (p *CodexProvider) CreateImageEdits(request *types.ImageEditRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
 	prompt := strings.TrimSpace(request.Prompt)
 	if prompt == "" {
 		return nil, common.StringErrorWrapperLocal("prompt is required", "invalid_request_error", http.StatusBadRequest)
+	}
+
+	if isCodexDirectImageModel(request.Model) {
+		return p.createImageEditsDirect(request)
 	}
 
 	inputImages, errCode := collectEditInputImages(request)
@@ -158,6 +237,149 @@ func (p *CodexProvider) CreateImageEdits(request *types.ImageEditRequest) (*type
 		Quality: request.Quality,
 		Size:    request.Size,
 	})
+}
+
+// createImageEditsDirect 直连 /backend-api/codex/images/edits（非流式）。
+// 与 generations 直连同理：绕开编排模型，参数由本地完全决定。上传文件转成 data URL，
+// 与官方 JSON 形态的 edits（images[].image_url）一致；不做 multipart 原样转发，
+// 因为需要改写 model 且本地已解析过文件句柄。
+func (p *CodexProvider) createImageEditsDirect(request *types.ImageEditRequest) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
+	inputImages, errCode := collectEditInputImages(request)
+	if errCode != nil {
+		return nil, errCode
+	}
+	if len(inputImages) == 0 {
+		return nil, common.StringErrorWrapperLocal("image is required", "invalid_request_error", http.StatusBadRequest)
+	}
+
+	maskURL := ""
+	if request.Mask != nil {
+		dataURL, err := fileHeaderToDataURL(request.Mask)
+		if err != nil {
+			return nil, common.ErrorWrapperLocal(err, "read_mask_failed", http.StatusBadRequest)
+		}
+		maskURL = dataURL
+	}
+
+	body, err := buildDirectImageEditsRequestBody(request, inputImages, maskURL)
+	if err != nil {
+		return nil, common.ErrorWrapperLocal(err, "build_request_failed", http.StatusBadRequest)
+	}
+
+	return p.postDirectImages(codexDirectImagesEdits, body, request.Model, request.Quality, request.Size)
+}
+
+// buildDirectImageEditsRequestBody 构造直连 edits 端点的 JSON 请求体。
+// 只下发已建模的官方字段：multipart 原始表单里的未知键不在此转发，避免把客户端
+// 任意字段塞给上游（与 openai 渠道的原样透传语义不同，这里是有意收窄）。
+// 与 generations 直连的差异：那边整结构体序列化会带上 user / response_format，这里不带。
+// gpt-image-* 固定返回 b64_json，response_format 无影响；user 是已弃用字段，故未补。
+func buildDirectImageEditsRequestBody(request *types.ImageEditRequest, imageURLs []string, maskURL string) ([]byte, error) {
+	type imageRef struct {
+		ImageURL string `json:"image_url"`
+	}
+	payload := struct {
+		Model             string          `json:"model"`
+		Prompt            string          `json:"prompt"`
+		N                 int             `json:"n,omitempty"`
+		Size              string          `json:"size,omitempty"`
+		Quality           string          `json:"quality,omitempty"`
+		Background        *string         `json:"background,omitempty"`
+		Moderation        *string         `json:"moderation,omitempty"`
+		OutputFormat      *string         `json:"output_format,omitempty"`
+		OutputCompression *int            `json:"output_compression,omitempty"`
+		Complexity        *string         `json:"complexity,omitempty"`
+		FrameCount        *int            `json:"frame_count,omitempty"`
+		FrameDurationMs   *int            `json:"frame_duration_ms,omitempty"`
+		SVG               json.RawMessage `json:"svg,omitempty"`
+		Images            []imageRef      `json:"images"`
+		Mask              *imageRef       `json:"mask,omitempty"`
+	}{
+		Model:             strings.TrimSpace(request.Model),
+		Prompt:            strings.TrimSpace(request.Prompt),
+		Size:              strings.TrimSpace(request.Size),
+		Quality:           strings.TrimSpace(request.Quality),
+		Background:        request.Background,
+		Moderation:        request.Moderation,
+		OutputFormat:      request.OutputFormat,
+		OutputCompression: request.OutputCompression,
+		Complexity:        request.Complexity,
+		FrameCount:        request.FrameCount,
+		FrameDurationMs:   request.FrameDurationMs,
+		SVG:               normalizeSVGRawMessage(rawMessageFromFormValue(request.SVG)),
+	}
+	if shouldPassImagesN(request.Model, request.N) {
+		payload.N = request.N
+	}
+	for _, url := range imageURLs {
+		payload.Images = append(payload.Images, imageRef{ImageURL: url})
+	}
+	if maskURL != "" {
+		payload.Mask = &imageRef{ImageURL: maskURL}
+	}
+	return json.Marshal(&payload)
+}
+
+// postDirectImages 汇总直连图像端点共用的传输样板：拼 URL、取头、建请求、发送。
+// generations 与 edits 共用，避免两条直连路径各自维护一份而漂移。
+func (p *CodexProvider) postDirectImages(path string, body []byte, model, quality, size string) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
+	fullRequestURL := p.GetFullRequestURL(path, "")
+	headers, errCode := p.directImageHeaders()
+	if errCode != nil {
+		return nil, errCode
+	}
+
+	req, reqErr := p.Requester.NewRequest(http.MethodPost, fullRequestURL,
+		p.Requester.WithBody(body),
+		p.Requester.WithHeader(headers))
+	if reqErr != nil {
+		return nil, common.ErrorWrapper(reqErr, "new_request_failed", http.StatusInternalServerError)
+	}
+	defer req.Body.Close()
+
+	return p.sendDirectImagesRequest(req, model, quality, size)
+}
+
+// sendDirectImagesRequest 发送直连图像请求并统一处理 usage 落库与漏返兜底。
+// generations 与 edits 共用，避免两条直连路径的计费口径各写一份而漂移。
+func (p *CodexProvider) sendDirectImagesRequest(req *http.Request, model, quality, size string) (*types.ImageResponse, *types.OpenAIErrorWithStatusCode) {
+	response := &openai.OpenAIProviderImageResponse{}
+	_, errWithCode := p.Requester.SendRequest(req, response, false)
+	// 直连端点的 usage 未必带 total_tokens（可能只给 input_tokens/output_tokens，
+	// 见 sub2api 的同端夹具），而 ToOpenAIUsage 只搬运 total_tokens、不做推导。
+	// 若不补齐，下面的兜底会以为上游没给 usage，按图估算覆盖掉真实值。
+	if response.Usage != nil && response.Usage.TotalTokens == 0 {
+		response.Usage.TotalTokens = response.Usage.InputTokens + response.Usage.OutputTokens
+	}
+	// 与 openai 渠道同条件：上游 200 + body 带 error 且含 usage 时也先落 usage，避免白嫖。
+	if response.Usage != nil && response.Usage.TotalTokens > 0 {
+		*p.Usage = *response.Usage.ToOpenAIUsage()
+	}
+	if errWithCode != nil {
+		return nil, errWithCode
+	}
+	if openaiErr := openai.ErrorHandle(&response.OpenAIErrorResponse); openaiErr != nil {
+		return nil, &types.OpenAIErrorWithStatusCode{
+			OpenAIError: *openaiErr,
+			StatusCode:  http.StatusBadRequest,
+		}
+	}
+
+	if p.Usage.TotalTokens == 0 {
+		imageCount := len(response.Data)
+		resolvedQuality, resolvedSize := quality, size
+		if v := openai.RawMessageToString(response.Quality); v != "" {
+			resolvedQuality = v
+		}
+		if v := openai.RawMessageToString(response.Size); v != "" {
+			resolvedSize = v
+		}
+		perImage := openai.ImageFallbackOutputTokens(model, resolvedQuality, resolvedSize)
+		p.Usage.CompletionTokens = imageCount * perImage
+		p.Usage.TotalTokens = p.Usage.PromptTokens + p.Usage.CompletionTokens
+	}
+
+	return &response.ImageResponse, nil
 }
 
 // buildToolFromImageEditRequest 把 /v1/images/edits 的字段平铺到 image_generation tool 参数上。

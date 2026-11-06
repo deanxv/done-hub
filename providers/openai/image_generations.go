@@ -11,11 +11,11 @@ import (
 	"strings"
 )
 
-// rawMessageToString 把 image 响应里回显的 quality/size（json.RawMessage，可能是字符串 / 数字 /
+// RawMessageToString 把 image 响应里回显的 quality/size（json.RawMessage，可能是字符串 / 数字 /
 // 对象）解成裸字符串，仅当它本就是 JSON 字符串时返回其值，否则返回空串。
 // 用途：上游漏返 usage 时，兜底估算优先采用上游回显的真实渲染档位，非字符串写法安全回落到
 // 请求参数，不会 panic 也不会误传带引号的值给 GPTImageOutputTokens。
-func rawMessageToString(raw json.RawMessage) string {
+func RawMessageToString(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
 	}
@@ -148,10 +148,10 @@ func (p *OpenAIProvider) CreateImageGenerations(request *types.ImageRequest) (*t
 		// 优先采用响应回显的真实渲染档位，回显缺失再回落请求值。触发条件恰是上游漏返 usage 的
 		// 聚合中转商，正是最需要防低估白嫖的那类渠道。
 		quality, size := request.Quality, request.Size
-		if v := rawMessageToString(response.Quality); v != "" {
+		if v := RawMessageToString(response.Quality); v != "" {
 			quality = v
 		}
-		if v := rawMessageToString(response.Size); v != "" {
+		if v := RawMessageToString(response.Size); v != "" {
 			size = v
 		}
 		perImage := ImageFallbackOutputTokens(request.Model, quality, size)
