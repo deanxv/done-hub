@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"bytes"
 	"done-hub/common"
 	"done-hub/common/requester"
 	"done-hub/providers/base"
@@ -75,8 +76,12 @@ type imageGenerateTool struct {
 	InputImageMask    *imagesMaskImageURL `json:"input_image_mask,omitempty"`
 	// 以下参数官方 Responses image_generation 工具同样接受（与 /v1/images/generations 同源），
 	// 不映射就会在 chat→codex 转协议时静默丢参：SVG 走 output_format=svg + svg.model，
-	// GIF 走 frame_count/frame_duration_ms，complexity 控制参考图的规划算力。
-	Complexity      *string         `json:"complexity,omitempty"`
+	// GIF 走 frame_count/frame_duration_ms。
+	//
+	// 注意：故意不含 complexity。Codex /responses 的托管 image_generation 绑定 gpt-image-2-codex，
+	// 会以 "Complexity 'medium' is not supported for this image model" 拒绝该参数（error_type
+	// image_generation_user_error），与 tools[].model 写的是 2.5 还是 2.6 无关。客户端传来时
+	// 直接丢弃；需要 complexity 的场景走 openai 渠道的 /v1/images/generations，那边原样透传。
 	FrameCount      *int            `json:"frame_count,omitempty"`
 	FrameDurationMs *int            `json:"frame_duration_ms,omitempty"`
 	SVG             json.RawMessage `json:"svg,omitempty"`
@@ -141,13 +146,7 @@ func (p *CodexProvider) CreateImageEdits(request *types.ImageEditRequest) (*type
 		maskURL = dataURL
 	}
 
-	tool := imageGenerateTool{Model: strings.TrimSpace(request.Model)}
-	if shouldPassImagesN(request.Model, request.N) {
-		n := request.N
-		tool.N = &n
-	}
-	tool.Size = strings.TrimSpace(request.Size)
-	tool.Quality = strings.TrimSpace(request.Quality)
+	tool := buildToolFromImageEditRequest(request)
 
 	body, err := json.Marshal(buildImagesRequestBody(imageToolActionEdit, prompt, tool, inputImages, maskURL, p.ImagesMainModel))
 	if err != nil {
@@ -161,6 +160,29 @@ func (p *CodexProvider) CreateImageEdits(request *types.ImageEditRequest) (*type
 	})
 }
 
+// buildToolFromImageEditRequest 把 /v1/images/edits 的字段平铺到 image_generation tool 参数上。
+// 与 buildToolFromImageRequest 对称：两者入口协议不同（multipart / JSON），可选参数集合一致，
+// 因此共用 applyImageOptionFields；入口差异仅在 svg 的承载形式（表单文本需转成 RawMessage）。
+func buildToolFromImageEditRequest(request *types.ImageEditRequest) imageGenerateTool {
+	tool := imageGenerateTool{Model: strings.TrimSpace(request.Model)}
+	if shouldPassImagesN(request.Model, request.N) {
+		n := request.N
+		tool.N = &n
+	}
+	tool.Size = strings.TrimSpace(request.Size)
+	tool.Quality = strings.TrimSpace(request.Quality)
+	applyImageOptionFields(&tool, imageOptionFields{
+		Background:        request.Background,
+		OutputFormat:      request.OutputFormat,
+		Moderation:        request.Moderation,
+		OutputCompression: request.OutputCompression,
+		FrameCount:        request.FrameCount,
+		FrameDurationMs:   request.FrameDurationMs,
+		SVG:               rawMessageFromFormValue(request.SVG),
+	})
+	return tool
+}
+
 // buildToolFromImageRequest 把 /v1/images/generations 的字段平铺到 image_generation tool 参数上。
 func buildToolFromImageRequest(request *types.ImageRequest) imageGenerateTool {
 	tool := imageGenerateTool{Model: strings.TrimSpace(request.Model)}
@@ -170,28 +192,79 @@ func buildToolFromImageRequest(request *types.ImageRequest) imageGenerateTool {
 	}
 	tool.Size = strings.TrimSpace(request.Size)
 	tool.Quality = strings.TrimSpace(request.Quality)
-	if request.Background != nil {
-		tool.Background = strings.TrimSpace(*request.Background)
-	}
-	if request.OutputFormat != nil {
-		tool.OutputFormat = strings.TrimSpace(*request.OutputFormat)
-	}
-	if request.Moderation != nil {
-		tool.Moderation = strings.TrimSpace(*request.Moderation)
-	}
 	tool.Style = strings.TrimSpace(request.Style)
-	if request.OutputCompression != nil {
-		tool.OutputCompression = request.OutputCompression
-	}
-	if request.Complexity != nil {
-		// 与同函数其他 *string 字段一样做 TrimSpace，避免上游因前后空白判非法枚举。
-		complexity := strings.TrimSpace(*request.Complexity)
-		tool.Complexity = &complexity
-	}
-	tool.FrameCount = request.FrameCount
-	tool.FrameDurationMs = request.FrameDurationMs
-	tool.SVG = request.SVG
+	applyImageOptionFields(&tool, imageOptionFields{
+		Background:        request.Background,
+		OutputFormat:      request.OutputFormat,
+		Moderation:        request.Moderation,
+		OutputCompression: request.OutputCompression,
+		FrameCount:        request.FrameCount,
+		FrameDurationMs:   request.FrameDurationMs,
+		SVG:               request.SVG,
+	})
 	return tool
+}
+
+// rawMessageFromFormValue 把 edits 表单里接住的 svg 文本转成 RawMessage；nil 保持 nil，
+// 让结构体编码时的 omitempty 生效（空对象 {} 的语义仍由非空文本保留）。
+func rawMessageFromFormValue(v *string) json.RawMessage {
+	if v == nil {
+		return nil
+	}
+	return json.RawMessage(*v)
+}
+
+// imageOptionFields 是 generations 与 edits 两条入口共有的可选参数集合。
+// 官方 images 接口对两者暴露同样的字段，只有入口协议（JSON / multipart）不同；
+// 抽成同一份映射避免两条路径各自维护导致其中一条静默丢参。
+type imageOptionFields struct {
+	Background        *string
+	OutputFormat      *string
+	Moderation        *string
+	OutputCompression *int
+	FrameCount        *int
+	FrameDurationMs   *int
+	SVG               json.RawMessage
+}
+
+func applyImageOptionFields(tool *imageGenerateTool, fields imageOptionFields) {
+	if fields.Background != nil {
+		tool.Background = strings.TrimSpace(*fields.Background)
+	}
+	if fields.OutputFormat != nil {
+		tool.OutputFormat = strings.TrimSpace(*fields.OutputFormat)
+	}
+	if fields.Moderation != nil {
+		tool.Moderation = strings.TrimSpace(*fields.Moderation)
+	}
+	if fields.OutputCompression != nil {
+		tool.OutputCompression = fields.OutputCompression
+	}
+	tool.FrameCount = fields.FrameCount
+	tool.FrameDurationMs = fields.FrameDurationMs
+	tool.SVG = normalizeSVGRawMessage(fields.SVG)
+}
+
+// normalizeSVGRawMessage 统一 generations（JSON 请求体，svg 已是原始 JSON）与 edits
+// （multipart 表单，svg 的值是带引号的 JSON 文本或直接是对象）两种来源的 svg 表示。
+// 表单里传字符串时必须先解掉外层引号，否则上游会按 JSON 字符串而非对象解析并报缺 svg.model。
+func normalizeSVGRawMessage(raw json.RawMessage) json.RawMessage {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return nil
+	}
+	if trimmed[0] != '"' {
+		return trimmed
+	}
+	var text string
+	if err := json.Unmarshal(trimmed, &text); err != nil {
+		return nil
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	return json.RawMessage(text)
 }
 
 func buildImagesRequestBody(
