@@ -87,7 +87,7 @@ func (p *VertexAIProvider) getChatRequest(request *types.ChatCompletionRequest) 
 	}
 
 	// 错误处理
-	p.Requester.ErrorHandler = RequestErrorHandle(p.Category.ErrorHandler)
+	p.Requester.ErrorHandler = RequestErrorHandle(p.Category.ErrorHandler, p.ProjectID)
 
 	// 使用BaseProvider的统一方法创建请求，支持额外参数处理
 	req, errWithCode := p.NewRequestWithCustomParams(http.MethodPost, fullRequestURL, finalRequest, headers, request.Model)

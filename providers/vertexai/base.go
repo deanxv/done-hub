@@ -112,24 +112,29 @@ func (p *VertexAIProvider) GetFullRequestURL(modelName string, other string) str
 	if p.Category != nil && p.Category.Publisher != "" {
 		publisher = p.Category.Publisher
 	}
-	return fmt.Sprintf(p.urlTemplate(), vertexHost(p.Region), p.ProjectID, p.Region, publisher, modelName, other)
+	tpl := p.urlTemplate()
+	if tpl == "" {
+		return ""
+	}
+	return fmt.Sprintf(tpl, vertexHost(p.Region), p.ProjectID, p.Region, publisher, modelName, other)
 }
 
-// legacyBaseURLWarned 记录已经为旧版 base_url 模板告警过的渠道，避免每个请求都刷一条日志。
+// invalidBaseURLWarned 记录已经为不合规 base_url 模板告警过的渠道，避免每个请求都刷一条日志。
 // 渠道改回正确配置后（计数匹配）不再经过告警分支，无需清理。
-var legacyBaseURLWarned sync.Map
+var invalidBaseURLWarned sync.Map
 
-// urlTemplate 返回 URL 模板。渠道自定义 base_url 若仍是旧版 5 占位符格式
-// （publisher 写死在模板里），与新签名不兼容，回退到内置模板并按渠道记录一次日志。
+// urlTemplate 返回 URL 模板。渠道自定义 base_url 的 %s 个数不等于 vertexURLPlaceholders 时
+// （典型是旧版 5 占位符、publisher 写死的模板）返回空串，让调用方以 invalid_vertexai_config 失败，
+// 而不是静默回退内置模板——配了代理 base_url 的渠道若被静默回退，流量会绕过代理直连 Google。
 func (p *VertexAIProvider) urlTemplate() string {
 	tpl := p.GetBaseURL()
 	if strings.Count(tpl, "%s") == vertexURLPlaceholders {
 		return tpl
 	}
-	if _, warned := legacyBaseURLWarned.LoadOrStore(p.Channel.Id, struct{}{}); !warned {
-		logger.SysError(fmt.Sprintf("vertexai channel %d: custom base_url %q needs %d %%s placeholders, falling back to default template", p.Channel.Id, tpl, vertexURLPlaceholders))
+	if _, warned := invalidBaseURLWarned.LoadOrStore(p.Channel.Id, struct{}{}); !warned {
+		logger.SysError(fmt.Sprintf("vertexai channel %d: custom base_url %q needs %d %%s placeholders (host/project/region/publisher/model/action), request rejected", p.Channel.Id, tpl, vertexURLPlaceholders))
 	}
-	return p.Config.BaseURL
+	return ""
 }
 
 func (p *VertexAIProvider) GetRequestHeaders() (headers map[string]string) {
@@ -205,7 +210,9 @@ func (p *VertexAIProvider) GetToken() (string, error) {
 	return tok.AccessToken, nil
 }
 
-func RequestErrorHandle(otherErr requester.HttpErrorHandler) requester.HttpErrorHandler {
+// RequestErrorHandle 先交给分类自己的错误处理（Claude / Gemini 错误体），
+// 再兜底解析 Vertex 自身的 {"error":{...}} 结构。projectID 用于脱敏错误信息中的项目路径。
+func RequestErrorHandle(otherErr requester.HttpErrorHandler, projectID string) requester.HttpErrorHandler {
 
 	return func(resp *http.Response) *types.OpenAIError {
 		requestBody, _ := io.ReadAll(resp.Body)
@@ -218,14 +225,14 @@ func RequestErrorHandle(otherErr requester.HttpErrorHandler) requester.HttpError
 			}
 		}
 		vertexaiErrors := &VertexaiErrors{}
-		if err := json.Unmarshal(requestBody, vertexaiErrors); err == nil {
+		if err := json.Unmarshal(requestBody, vertexaiErrors); err == nil && len(*vertexaiErrors) > 0 {
 			if vertexaiError := vertexaiErrors.Error(); vertexaiError != nil {
-				return errorHandle(vertexaiError)
+				return errorHandle(vertexaiError, projectID)
 			}
 		} else {
 			vertexaiError := &VertexaiError{}
 			if err := json.Unmarshal(requestBody, vertexaiError); err == nil {
-				return errorHandle(vertexaiError)
+				return errorHandle(vertexaiError, projectID)
 			}
 		}
 
@@ -233,16 +240,28 @@ func RequestErrorHandle(otherErr requester.HttpErrorHandler) requester.HttpError
 	}
 }
 
-func errorHandle(vertexaiError *VertexaiError) *types.OpenAIError {
+// errorHandle 把 Vertex 的错误体转成 OpenAI 错误。与 Gemini / Claude 渠道一致，
+// 把上游真实 message 透出给调用方（测速界面、客户端）而不是固定文案，便于定位
+// 模型未启用 / 区域不支持 / 权限不足等问题；敏感信息处理：
+//   - 项目 ID 替换为占位（Vertex 报错常含 projects/{id}/locations/... 路径）
+//   - base64 数据截断，避免错误体过长
+//
+// URL / host 级脱敏由 relay.FilterOpenAIErr 与测速侧的 utils.MaskSensitiveInfo 统一兜底。
+func errorHandle(vertexaiError *VertexaiError, projectID string) *types.OpenAIError {
 	if vertexaiError.Error.Message == "" {
 		return nil
 	}
 
-	logger.SysError(fmt.Sprintf("VertexAI error: %s", utils.TruncateBase64InMessage(vertexaiError.Error.Message)))
+	message := utils.TruncateBase64InMessage(vertexaiError.Error.Message)
+	if projectID != "" {
+		message = strings.ReplaceAll(message, projectID, "xxxxx")
+	}
+
+	logger.SysError(fmt.Sprintf("VertexAI error: %s", message))
 
 	return &types.OpenAIError{
-		Message: "VertexAI错误",
-		Type:    "gemini_error",
+		Message: message,
+		Type:    "vertexai_error",
 		Param:   vertexaiError.Error.Status,
 		Code:    vertexaiError.Error.Code,
 	}

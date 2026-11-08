@@ -109,6 +109,9 @@ func (p *VertexAIProvider) getClaudeNativeRequest(request *claude.ClaudeRequest)
 	p.Category = category.CategoryMap["claude"]
 	modelName := p.Category.GetModelName(request.Model)
 	fullRequestURL := p.GetFullRequestURL(modelName, p.Category.GetOtherUrl(request.Stream))
+	if fullRequestURL == "" {
+		return nil, common.ErrorWrapperLocal(nil, "invalid_vertexai_config", http.StatusInternalServerError)
+	}
 
 	headers, err := p.getRequestHeadersInternal()
 	if err != nil {
@@ -119,7 +122,7 @@ func (p *VertexAIProvider) getClaudeNativeRequest(request *claude.ClaudeRequest)
 	}
 	p.applyClaudeBetaHeader(headers)
 
-	p.Requester.ErrorHandler = RequestErrorHandle(p.Category.ErrorHandler)
+	p.Requester.ErrorHandler = RequestErrorHandle(p.Category.ErrorHandler, p.ProjectID)
 
 	// 字节透传：保留 cache_control / output_config / context_management 等结构体未覆盖的字段。
 	// 走 NewRequestWithCustomParamsBytes，渠道自定义参数仍会通过 sjson 合并进 body。

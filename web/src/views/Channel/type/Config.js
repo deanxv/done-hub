@@ -504,7 +504,7 @@ const typeConfig = {
       key: '请参考wiki中的文档获取key. https://github.com/MartialBE/one-hub/wiki/VertexAI',
       other:
         'Region|ProjectID 或 Region1|Region2|Region3|ProjectID（支持多个Region随机选择）；Region 可填 global、us、eu 或具体区域如 us-east5',
-      base_url: ''
+      base_url: '可空，自定义时需含 6 个 %s 占位符，依次为 host、project、region、publisher、model、action'
     },
     modelGroup: 'VertexAI'
   },

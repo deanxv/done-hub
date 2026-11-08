@@ -105,7 +105,7 @@ func (p *VertexAIProvider) getGeminiRequest(request *gemini.GeminiChatRequest) (
 	}
 
 	// 错误处理
-	p.Requester.ErrorHandler = RequestErrorHandle(p.Category.ErrorHandler)
+	p.Requester.ErrorHandler = RequestErrorHandle(p.Category.ErrorHandler, p.ProjectID)
 
 	// 字节级路径：优先使用已清理的字节缓存，避免对含 base64 的大请求做 json.Unmarshal/Marshal
 	bodyBytes, wasVertexAI, exists := p.GetProcessedBodyBytes()
