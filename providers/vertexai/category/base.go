@@ -9,8 +9,15 @@ import (
 	"net/http"
 )
 
+const (
+	PublisherGoogle    = "google"
+	PublisherAnthropic = "anthropic"
+)
+
 type Category struct {
-	Category                  string
+	Category string
+	// Publisher 对应 Vertex AI URL 中的 publishers/{publisher} 段
+	Publisher                 string
 	ChatComplete              ChatCompletionConvert
 	ResponseChatComplete      ChatCompletionResponse
 	ResponseChatCompleteStrem ChatCompletionStreamResponse

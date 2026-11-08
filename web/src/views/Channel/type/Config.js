@@ -488,11 +488,22 @@ const typeConfig = {
   },
   42: {
     input: {
-      models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307']
+      models: [
+        'claude-opus-5-5',
+        'claude-sonnet-5-5',
+        'claude-haiku-5-5',
+        'claude-opus-4-8',
+        'claude-sonnet-4-5-20250929',
+        'claude-haiku-4-5-20251001',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash'
+      ],
+      test_model: 'claude-haiku-5-5'
     },
     prompt: {
       key: '请参考wiki中的文档获取key. https://github.com/MartialBE/one-hub/wiki/VertexAI',
-      other: 'Region|ProjectID 或 Region1|Region2|Region3|ProjectID（支持多个Region随机选择）',
+      other:
+        'Region|ProjectID 或 Region1|Region2|Region3|ProjectID（支持多个Region随机选择）；Region 可填 global、us、eu 或具体区域如 us-east5',
       base_url: ''
     },
     modelGroup: 'VertexAI'

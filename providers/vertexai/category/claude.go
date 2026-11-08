@@ -8,6 +8,8 @@ import (
 	"done-hub/types"
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"strings"
 )
 
 const AnthropicVersion = "vertex-2023-10-16"
@@ -17,27 +19,23 @@ type ClaudeRequest struct {
 	AnthropicVersion string `json:"anthropic_version"`
 }
 
-var claudeMap = map[string]string{
-	"claude-3-5-sonnet-20240620": "claude-3-5-sonnet@20240620",
+// claudeModelOverrides 是无法用通用规则推导的模型名映射（Vertex 侧 ID 与 Anthropic 官方 ID 不一致）。
+// 常规的 "-YYYYMMDD" 日期后缀由 NormalizeClaudeModelName 统一转成 "@YYYYMMDD"，无需逐个登记。
+var claudeModelOverrides = map[string]string{
 	"claude-3-5-sonnet-20241022": "claude-3-5-sonnet-v2@20241022",
-	"claude-3-opus-20240229":     "claude-3-opus@20240229",
-	"claude-3-sonnet-20240229":   "claude-3-sonnet@20240229",
-	"claude-3-haiku-20240307":    "claude-3-haiku@20240307",
-	"claude-3-5-haiku-20241022":  "claude-3-5-haiku@20241022",
-	"claude-3-7-sonnet-20250219": "claude-3-7-sonnet@20250219",
-	"claude-sonnet-4-20250514":   "claude-sonnet-4@20250514",
-	"claude-opus-4-20250514":     "claude-opus-4@20250514",
-	"claude-opus-4-1-20250805":   "claude-opus-4-1@20250805",
 }
+
+var claudeDatedModelPattern = regexp.MustCompile(`^(.+)-(\d{8})$`)
 
 func init() {
 	CategoryMap["claude"] = &Category{
 		Category:                  "claude",
+		Publisher:                 PublisherAnthropic,
 		ChatComplete:              ConvertClaudeFromChatOpenai,
 		ResponseChatComplete:      ConvertClaudeToChatOpenai,
 		ResponseChatCompleteStrem: ClaudeChatCompleteStrem,
 		ErrorHandler:              claude.RequestErrorHandle,
-		GetModelName:              GetClaudeModelName,
+		GetModelName:              NormalizeClaudeModelName,
 		GetOtherUrl:               getClaudeOtherUrl,
 	}
 }
@@ -78,14 +76,25 @@ func ClaudeChatCompleteStrem(provider base.ProviderInterface, request *types.Cha
 	return chatHandler.HandlerStream
 }
 
-func GetClaudeModelName(modelName string) string {
-	if value, exists := claudeMap[modelName]; exists {
-		modelName = value
+// NormalizeClaudeModelName 把 Anthropic 官方模型 ID 转成 Vertex AI 的模型 ID：
+//   - 显式映射表优先（处理 v2 之类的不规则命名）
+//   - 已是 "@YYYYMMDD" 形式的原样返回
+//   - "claude-xxx-YYYYMMDD" 转为 "claude-xxx@YYYYMMDD"
+//   - 其余（如当前代无日期的 claude-opus-5-5）原样返回
+func NormalizeClaudeModelName(modelName string) string {
+	if mapped, ok := claudeModelOverrides[modelName]; ok {
+		return mapped
 	}
-
+	if strings.Contains(modelName, "@") {
+		return modelName
+	}
+	if m := claudeDatedModelPattern.FindStringSubmatch(modelName); len(m) == 3 {
+		return m[1] + "@" + m[2]
+	}
 	return modelName
 }
 
+// getClaudeOtherUrl 返回 Claude 模型在 Vertex 上的调用动作：流式 streamRawPredict，非流式 rawPredict。
 func getClaudeOtherUrl(stream bool) string {
 	if stream {
 		return "streamRawPredict"

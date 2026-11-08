@@ -19,6 +19,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -55,7 +56,8 @@ type VertexAIProvider struct {
 
 func getConfig() base.ProviderConfig {
 	return base.ProviderConfig{
-		BaseURL:           "https://%saiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
+		// 占位个数与顺序见 vertexURLPlaceholders
+		BaseURL:           "https://%s/v1/projects/%s/locations/%s/publishers/%s/models/%s:%s",
 		ChatCompletions:   "/",
 		ImagesGenerations: "/predict",
 	}
@@ -85,11 +87,49 @@ func getKeyConfig(vertexAI *VertexAIProvider) {
 	vertexAI.Region = regions[randomIndex.Int64()]
 }
 
-func (p *VertexAIProvider) GetFullRequestURL(modelName string, other string) string {
-	if p.Region == "global" {
-		return fmt.Sprintf(p.GetBaseURL(), "", p.ProjectID, p.Region, modelName, other)
+// vertexHost 按 region 选择 Vertex AI 服务域名：
+//   - global           -> aiplatform.googleapis.com
+//   - us / eu 多区域   -> aiplatform.{us|eu}.rep.googleapis.com
+//   - 其他具体区域     -> {region}-aiplatform.googleapis.com
+func vertexHost(region string) string {
+	switch region {
+	case "global":
+		return "aiplatform.googleapis.com"
+	case "us", "eu":
+		return "aiplatform." + region + ".rep.googleapis.com"
+	default:
+		return region + "-aiplatform.googleapis.com"
 	}
-	return fmt.Sprintf(p.GetBaseURL(), p.Region+"-", p.ProjectID, p.Region, modelName, other)
+}
+
+// vertexURLPlaceholders 是 BaseURL 模板需要的 %s 个数：host、projectID、region、publisher、model、action
+const vertexURLPlaceholders = 6
+
+// GetFullRequestURL 按当前 Category 的 publisher 构造请求地址；
+// Category 未设置时（如 imagen 图片生成）默认 google。
+func (p *VertexAIProvider) GetFullRequestURL(modelName string, other string) string {
+	publisher := category.PublisherGoogle
+	if p.Category != nil && p.Category.Publisher != "" {
+		publisher = p.Category.Publisher
+	}
+	return fmt.Sprintf(p.urlTemplate(), vertexHost(p.Region), p.ProjectID, p.Region, publisher, modelName, other)
+}
+
+// legacyBaseURLWarned 记录已经为旧版 base_url 模板告警过的渠道，避免每个请求都刷一条日志。
+// 渠道改回正确配置后（计数匹配）不再经过告警分支，无需清理。
+var legacyBaseURLWarned sync.Map
+
+// urlTemplate 返回 URL 模板。渠道自定义 base_url 若仍是旧版 5 占位符格式
+// （publisher 写死在模板里），与新签名不兼容，回退到内置模板并按渠道记录一次日志。
+func (p *VertexAIProvider) urlTemplate() string {
+	tpl := p.GetBaseURL()
+	if strings.Count(tpl, "%s") == vertexURLPlaceholders {
+		return tpl
+	}
+	if _, warned := legacyBaseURLWarned.LoadOrStore(p.Channel.Id, struct{}{}); !warned {
+		logger.SysError(fmt.Sprintf("vertexai channel %d: custom base_url %q needs %d %%s placeholders, falling back to default template", p.Channel.Id, tpl, vertexURLPlaceholders))
+	}
+	return p.Config.BaseURL
 }
 
 func (p *VertexAIProvider) GetRequestHeaders() (headers map[string]string) {

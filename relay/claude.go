@@ -85,9 +85,10 @@ func (r *relayClaudeOnly) send() (err *types.OpenAIErrorWithStatusCode, done boo
 		return r.sendCustomChannelWithClaudeFormat()
 	}
 
-	// 检查是否为 VertexAI 渠道且模型包含 gemini，如果是则使用 Gemini->Claude 转换逻辑
-	if channelType == config.ChannelTypeVertexAI &&
-		(model_utils.ContainsCaseInsensitive(r.claudeRequest.Model, "gemini") || model_utils.ContainsCaseInsensitive(r.claudeRequest.Model, "claude-3-5-haiku-20241022")) {
+	// 检查是否为 VertexAI 渠道且映射后的模型包含 gemini，如果是则使用 Gemini->Claude 转换逻辑
+	// （按 r.modelName 判断，覆盖 claude-3-5-haiku 等被渠道映射到 Gemini 的场景）；
+	// VertexAI 上的 Claude 模型由 VertexAIProvider 实现的 ClaudeChatInterface 原生透传
+	if channelType == config.ChannelTypeVertexAI && model_utils.ContainsCaseInsensitive(r.modelName, "gemini") {
 		return r.sendVertexAIGeminiWithClaudeFormat()
 	}
 
