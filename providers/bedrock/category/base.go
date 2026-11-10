@@ -38,6 +38,7 @@ var bedrockMap = map[string]string{
 	"claude-sonnet-5-5":          "anthropic.claude-sonnet-5-5",
 	"claude-fable-5":             "anthropic.claude-fable-5",
 	"claude-fable-5-1":           "anthropic.claude-fable-5-1",
+	"claude-fable-5-2":           "anthropic.claude-fable-5-2",
 	"claude-opus-5":              "anthropic.claude-opus-5",
 	"claude-opus-5-5":            "anthropic.claude-opus-5-5",
 	"gpt-oss-120b":               "openai.gpt-oss-120b-1:0",
@@ -115,6 +116,9 @@ var awsModelCanCrossRegionMap = map[string]map[string]string{
 	"anthropic.claude-fable-5":    {"us": "us", "eu": "global", "ap": "global", "*": "global"},
 	// fable-5-1：geo 仅 us.，EU/AP 无 geo profile，回落 global.
 	"anthropic.claude-fable-5-1": {"us": "us", "eu": "global", "ap": "global", "*": "global"},
+	// fable-5-2：geo 仅 us.（AWS model card 2026-11-09 已核），EU/AP 无 geo profile 回落 global.；
+	// ca-central-1 / ca-west-1 的 Geo source 归 US geo，故 ca 根映射到 us.。
+	"anthropic.claude-fable-5-2": {"us": "us", "ca": "us", "eu": "global", "ap": "global", "*": "global"},
 	// GPT 闭源系（5.6 / 6 / 6.1）在 bedrock-runtime 上不支持 In-Region，只能走
 	// inference profile（裸 openai.xxx 会被 on-demand 400）。按 AWS model card：
 	//   - US Geo（us.）：source region 为 us-east-1/2、us-west-1/2、ca-central-1、ca-west-1，
