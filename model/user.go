@@ -393,6 +393,17 @@ func (user *User) ValidateAndFill() (err error) {
 	return nil
 }
 
+// userNotFoundError 保留原来的提示文案，同时让 errors.Is(err, gorm.ErrRecordNotFound) 成立，
+// 调用方（如 OIDC 登录）据此判断「用户不存在」并继续后续的匹配或注册流程。
+type userNotFoundError struct{}
+
+func (userNotFoundError) Error() string { return "没有找到用户！" }
+
+func (userNotFoundError) Unwrap() error { return gorm.ErrRecordNotFound }
+
+// ErrUserNotFound 由 FillUserBy* 在查不到用户时返回。
+var ErrUserNotFound error = userNotFoundError{}
+
 func (user *User) FillUserById() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
@@ -401,7 +412,7 @@ func (user *User) FillUserById() error {
 	result := DB.Where(User{Id: user.Id}).First(user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return errors.New("没有找到用户！")
+			return ErrUserNotFound
 		}
 		return result.Error
 	}
@@ -416,7 +427,7 @@ func (user *User) FillUserByEmail() error {
 	result := DB.Where(User{Email: user.Email}).First(user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return errors.New("没有找到用户！")
+			return ErrUserNotFound
 		}
 		return result.Error
 	}
@@ -462,7 +473,7 @@ func (user *User) FillUserByOidcId() error {
 	result := DB.Where(User{OidcId: user.OidcId}).First(user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return errors.New("没有找到用户！")
+			return ErrUserNotFound
 		}
 		return result.Error
 	}
@@ -476,7 +487,7 @@ func (user *User) FillUserByLinuxDOId() error {
 	result := DB.Where(User{LinuxDoId: user.LinuxDoId}).First(user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return errors.New("没有找到用户！")
+			return ErrUserNotFound
 		}
 		return result.Error
 	}
@@ -490,7 +501,7 @@ func (user *User) FillUserByUsername() error {
 	result := DB.Where(User{Username: user.Username}).First(user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return errors.New("没有找到用户！")
+			return ErrUserNotFound
 		}
 		return result.Error
 	}
