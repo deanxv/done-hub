@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"net/http"
+	"strconv"
 )
 
 func OIDCEndpoint(c *gin.Context) {
@@ -146,39 +147,7 @@ func OIDCAuth(c *gin.Context) {
 		return
 	}
 
-	// OIDCid查询失败，则尝试通过username查询
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		logger.SysError("查询用户错误: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{
-			"message": err.Error(),
-			"success": false,
-		})
-		return
-	}
-
-	if err = user.FillUserByUsername(); err == nil {
-		if user.Status == config.UserStatusEnabled {
-			// 如果通过用户名查询用户成功、则补全用户OIDC ID并且登录
-			user.OidcId = idToken.Subject
-			ok := user.Update(false)
-			if ok != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"message": ok.Error(),
-					"success": false,
-				})
-				return
-			}
-			setupLogin(&user, c)
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"message": "用户已被封禁或不存在",
-			"success": false,
-		})
-		return
-	}
-
-	// 用户不存在，尝试注册
+	// OIDC ID 查不到用户：不按用户名绑定已有账号（OIDC 用户名声明可能被用户修改，会导致账号被接管），直接注册新用户
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		logger.SysError("查询用户错误: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{
@@ -206,6 +175,9 @@ func OIDCAuth(c *gin.Context) {
 
 	// 填充用户信息
 	user.Username = userName.(string)
+	if model.IsUsernameAlreadyTaken(user.Username) {
+		user.Username = "oidc_" + strconv.Itoa(model.GetMaxUserId()+1)
+	}
 	if email, ok := claims["email"]; ok && email != nil {
 		emailStr := email.(string)
 		// 验证 OIDC 提供的邮箱格式
