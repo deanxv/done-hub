@@ -16,6 +16,7 @@ type Searcher interface {
 func InitSearcher() {
 	InitSearxng()
 	InitTavily()
+	InitKeenable()
 }
 
 func InitSearxng() {
@@ -38,4 +39,15 @@ func InitTavily() {
 
 	tavily := channel.NewTavily(tavilyKey)
 	AddSearchers(tavily)
+}
+
+func InitKeenable() {
+	keenableKey := viper.GetString("search.keenable.key")
+	if keenableKey == "" {
+		logger.SysLog("keenable key is empty")
+		return
+	}
+
+	keenable := channel.NewKeenable(keenableKey, viper.GetString("search.keenable.base_url"))
+	AddSearchers(keenable)
 }
